@@ -9,42 +9,6 @@ on:
 
 jobs:
 
-  package:
-    name: Package the project
-    runs-on: ubuntu-22.04
-
-    steps:
-
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-
-      - name: Install Python tools
-        run: pip install build twine
-
-      - name: Create distributions
-        run: python -m build -o dist/
-
-      - name: Inspect dist folder
-        run: ls -lah dist/
-
-      - name: Check wheel's abi and platform tags
-        run: test $(find dist/ -name *-none-any.whl | wc -l) -gt 0
-
-      - name: Run twine check
-        run: twine check dist/*
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          path: dist/*
-          name: dist
-
   test:
     name: 'Python${{ matrix.python }}@${{ matrix.os }}'
     needs: package
@@ -80,31 +44,4 @@ jobs:
         run: pip install dist/*.whl
 
       - name: Import the package
-        run: python -c "import stepwise"
-
-  publish:
-    name: Publish to PyPI
-    needs: test
-    runs-on: ubuntu-22.04
-
-    steps:
-
-      - name: Download Python packages
-        uses: actions/download-artifact@v3
-        with:
-          path: dist
-          name: dist
-
-      - name: Inspect dist folder
-        run: ls -lah dist/
-
-      - name: Publish to PyPI
-        if: |
-          github.repository == 'ami-iit/stepwise' &&
-          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-           (github.event_name == 'release'))
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_TOKEN }}
-          skip_existing: true
+        run: python -c "import hippopt"

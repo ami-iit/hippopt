@@ -1,8 +1,8 @@
-# stepwise
-### A Python-based Trajectory Optimization Framework
+# hippopt
+### HIghly Pythonized Planning and OPTimization framework
 
 
-StepWise is an open-source framework for generating whole-body trajectories for legged robots, with a focus on direct transcription of optimal control problems solved with multiple-shooting methods. The framework takes as input the robot model and generates optimized trajectories that include both kinematic and dynamic quantities.
+hippopt is an open-source framework for generating whole-body trajectories for legged robots, with a focus on direct transcription of optimal control problems solved with multiple-shooting methods. The framework takes as input the robot model and generates optimized trajectories that include both kinematic and dynamic quantities.
 
 ## Features
 
