@@ -1,8 +1,9 @@
 # hippopt
-### HIghly Pythonized Planning and OPTimization framework
-
+### HIgh Performance* Planning and OPTimization framework
 
 hippopt is an open-source framework for generating whole-body trajectories for legged robots, with a focus on direct transcription of optimal control problems solved with multiple-shooting methods. The framework takes as input the robot model and generates optimized trajectories that include both kinematic and dynamic quantities.
+
+*supposedly
 
 ## Features
 
@@ -13,8 +14,11 @@ hippopt is an open-source framework for generating whole-body trajectories for l
 - [ ] Extensive documentation and examples to help you get started
 
 ## Installation
-
-TODO
+It is suggested to use [``conda``](https://docs.conda.io/en/latest/).
+```bash
+conda install casadi pytest
+pip install --no-deps -e .[all]
+```
 
 ## Citing this work
 
@@ -41,4 +45,3 @@ This repository is maintained by:
 |                                                              |                                                      |
 | :----------------------------------------------------------: | :--------------------------------------------------: |
 | [<img src="https://github.com/S-Dafarra.png" width="40">](https://github.com/S-Dafarra) | [@S-Dafarra](https://github.com/S-Dafarra) |
-
