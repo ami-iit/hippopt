@@ -1,13 +1,12 @@
 from hippopt.base.optimization_object import OptimizationObject
-from hippopt.common import Any, ClassVar, dataclasses
+from hippopt.common import Any, ClassVar, TypeVar, dataclasses
+
+TVariable = TypeVar("TVariable", bound="Variable")
 
 
 @dataclasses.dataclass
 class Variable(OptimizationObject):
     """"""
 
-    ObjectType: ClassVar[str] = "variable"
-    ObjectTypeMetadata: ClassVar[dict[str, Any]] = dict(ObjectType=ObjectType)
-
-    def zero_copy(self):
-        return self.zero_copy_on_type_condition(self.ObjectType)
+    StorageType: ClassVar[str] = "variable"
+    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(StorageType=StorageType)

@@ -17,34 +17,43 @@ StorageType = Union[cs.MX, np.ndarray]
 
 @dataclasses.dataclass
 class OptimizationObject(abc.ABC):
-    ObjectType: ClassVar[str] = "optimization_object"
-    ObjectTypeMetadata: ClassVar[dict[str, Any]] = dict(ObjectType=ObjectType)
+    StorageType: ClassVar[str] = "generic"
+    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(StorageType=StorageType)
 
-    def zero_copy_on_type_condition(
-        self: TOptimizationObject, type_str: str
-    ) -> TOptimizationObject:
-        # Operate on a deep copy
-        param = copy.deepcopy(self)
-        param_dict = dataclasses.asdict(param)
+    def get_default_initialization(
+        self: TOptimizationObject, field_name: str
+    ) -> np.ndarray:
+        """
+        Get the default initialization of a given field
+        It is supposed to be called only for the fields having the StorageType metadata
+        """
+        return np.zeros(dataclasses.asdict(self)[field_name].shape)
 
-        for field in dataclasses.fields(param):
-            if field.metadata.get("ObjectType", "") is not type_str:
+    def get_default_initialized_object(self: TOptimizationObject) -> TOptimizationObject:
+        """
+        :return: A copy of the object with its initial values
+        """
+
+        output = copy.deepcopy(self)
+        output_dict = dataclasses.asdict(output)
+
+        for field in dataclasses.fields(output):
+            if "StorageType" in field.metadata:
+                output.__setattr__(
+                    field.name, output.get_default_initialization(field.name)
+                )
                 continue
 
-            shape = param_dict[field.name].shape
+            if isinstance(output.__getattribute__(field.name), OptimizationObject):
+                output.__setattr__(
+                    field.name, output.__getattribute__(field.name).get_default_initialized_object()
+                )
 
-            if isinstance(param_dict[field.name], np.ndarray):
-                param.__setattr__(field.name, np.zeros(shape))
-            elif isinstance(param_dict[field.name], (cs.MX, cs.SX)):
-                param.__setattr__(field.name, cs.MX.zeros(*shape))
-            else:
-                raise TypeError(type(param_dict[field.name]))
-
-        return param
+        return output
 
 
 def default_storage_type(input_type: Type[OptimizationObject]):
     return dataclasses.field(
         default=None,
-        metadata=input_type.ObjectTypeMetadata,
+        metadata=input_type.StorageTypeMetadata,
     )
