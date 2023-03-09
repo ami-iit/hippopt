@@ -1,4 +1,15 @@
-from hippopt.common import abc, Any, Union, ClassVar, TypeVar, Type, copy, dataclasses, cs, np
+from hippopt.common import (
+    Any,
+    ClassVar,
+    Type,
+    TypeVar,
+    Union,
+    abc,
+    copy,
+    cs,
+    dataclasses,
+    np,
+)
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
 StorageType = Union[cs.MX, np.ndarray]
@@ -9,7 +20,9 @@ class OptimizationObject(abc.ABC):
     ObjectType: ClassVar[str] = "optimization_object"
     ObjectTypeMetadata: ClassVar[dict[str, Any]] = dict(ObjectType=ObjectType)
 
-    def zero_copy_on_type_condition(self: TOptimizationObject, type_str: str) -> TOptimizationObject:
+    def zero_copy_on_type_condition(
+        self: TOptimizationObject, type_str: str
+    ) -> TOptimizationObject:
         # Operate on a deep copy
         param = copy.deepcopy(self)
         param_dict = dataclasses.asdict(param)

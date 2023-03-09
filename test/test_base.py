@@ -1,6 +1,8 @@
-from hippopt import Variable, Parameter, StorageType, default_storage_type
 import dataclasses
+
 import numpy as np
+
+from hippopt import Parameter, StorageType, Variable, default_storage_type
 
 
 @dataclasses.dataclass

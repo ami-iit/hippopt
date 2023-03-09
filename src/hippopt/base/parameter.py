@@ -1,5 +1,5 @@
-from hippopt.common import Any, ClassVar, dataclasses
 from hippopt.base.optimization_object import OptimizationObject
+from hippopt.common import Any, ClassVar, dataclasses
 
 
 @dataclasses.dataclass
