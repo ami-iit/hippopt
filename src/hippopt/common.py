@@ -14,7 +14,6 @@ __all__ = [
     "ClassVar",
     "Type",
     "TypeVar",
-    "Union",
     "cs",
     "np",
 ]

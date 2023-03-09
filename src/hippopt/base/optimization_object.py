@@ -1,18 +1,7 @@
-from hippopt.common import (
-    Any,
-    ClassVar,
-    Type,
-    TypeVar,
-    Union,
-    abc,
-    copy,
-    cs,
-    dataclasses,
-    np,
-)
+from hippopt.common import Any, ClassVar, Type, TypeVar, abc, copy, cs, dataclasses, np
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
-StorageType = Union[cs.MX, np.ndarray]
+StorageType = cs.MX | np.ndarray
 
 
 @dataclasses.dataclass
