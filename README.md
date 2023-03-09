@@ -16,7 +16,7 @@ hippopt is an open-source framework for generating whole-body trajectories for l
 ## Installation
 It is suggested to use [``conda``](https://docs.conda.io/en/latest/).
 ```bash
-conda install casadi pytest
+conda install -c conda-forge casadi pytest
 pip install --no-deps -e .[all]
 ```
 
