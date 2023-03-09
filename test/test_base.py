@@ -65,13 +65,13 @@ def test_custom_initialization():
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomInitializationVariable = CustomInitializationVariable()
+    aggregated: CustomInitializationVariable
     other_parameter: StorageType = default_storage_type(Parameter)
     other: str = ""
 
 
 def test_aggregated():
-    test_var = AggregateClass()
+    test_var = AggregateClass(aggregated=CustomInitializationVariable())
     test_var.aggregated.variable = np.ones(3)
     test_var.aggregated.parameter = np.ones(3)
     test_var.other_parameter = np.ones(3)

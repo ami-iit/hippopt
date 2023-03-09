@@ -29,7 +29,9 @@ class OptimizationObject(abc.ABC):
         """
         return np.zeros(dataclasses.asdict(self)[field_name].shape)
 
-    def get_default_initialized_object(self: TOptimizationObject) -> TOptimizationObject:
+    def get_default_initialized_object(
+        self: TOptimizationObject,
+    ) -> TOptimizationObject:
         """
         :return: A copy of the object with its initial values
         """
@@ -46,7 +48,10 @@ class OptimizationObject(abc.ABC):
 
             if isinstance(output.__getattribute__(field.name), OptimizationObject):
                 output.__setattr__(
-                    field.name, output.__getattribute__(field.name).get_default_initialized_object()
+                    field.name,
+                    output.__getattribute__(
+                        field.name
+                    ).get_default_initialized_object(),
                 )
 
         return output
