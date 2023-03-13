@@ -73,7 +73,9 @@ def test_custom_initialization():
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomInitializationVariable = CustomInitializationVariable()
+    aggregated: CustomInitializationVariable = dataclasses.field(
+        default_factory=CustomInitializationVariable
+    )
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
