@@ -8,13 +8,13 @@ from hippopt import (
     StorageType,
     TOptimizationObject,
     Variable,
-    default_storage_type,
+    default_storage_field,
 )
 
 
 @dataclasses.dataclass
 class TestVariable(OptimizationObject):
-    storage: StorageType = default_storage_type(Variable)
+    storage: StorageType = default_storage_field(cls=Variable)
 
     def __post_init__(self):
         self.storage = np.ones(shape=3)
@@ -22,7 +22,7 @@ class TestVariable(OptimizationObject):
 
 @dataclasses.dataclass
 class TestParameter(OptimizationObject):
-    storage: StorageType = default_storage_type(Parameter)
+    storage: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):
         self.storage = np.ones(shape=3)
@@ -44,8 +44,8 @@ def test_zero_parameter():
 
 @dataclasses.dataclass
 class CustomInitializationVariable(OptimizationObject):
-    variable: StorageType = default_storage_type(Variable)
-    parameter: StorageType = default_storage_type(Parameter)
+    variable: StorageType = default_storage_field(cls=Variable)
+    parameter: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):
         self.variable = np.ones(shape=3)
@@ -72,7 +72,7 @@ def test_custom_initialization():
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
     aggregated: CustomInitializationVariable
-    other_parameter: StorageType = default_storage_type(Parameter)
+    other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
     def __post_init__(self):

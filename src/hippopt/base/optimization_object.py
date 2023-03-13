@@ -52,8 +52,8 @@ class OptimizationObject(abc.ABC):
         return output
 
 
-def default_storage_type(input_type: Type[OptimizationObject]):
+def default_storage_field(cls: Type[OptimizationObject]):
     return dataclasses.field(
         default=None,
-        metadata=input_type.StorageTypeMetadata,
+        metadata=cls.StorageTypeMetadata,
     )
