@@ -13,6 +13,7 @@ StorageType = cs.MX | np.ndarray
 @dataclasses.dataclass
 class OptimizationObject(abc.ABC):
     StorageType: ClassVar[str] = "generic"
+    StorageTypeField: ClassVar[str] = "StorageType"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(StorageType=StorageType)
 
     def get_default_initialization(
@@ -32,10 +33,9 @@ class OptimizationObject(abc.ABC):
         """
 
         output = copy.deepcopy(self)
-        output_dict = dataclasses.asdict(output)
 
         for field in dataclasses.fields(output):
-            if "StorageType" in field.metadata:
+            if self.StorageTypeField in field.metadata:
                 output.__setattr__(
                     field.name, output.get_default_initialization(field.name)
                 )

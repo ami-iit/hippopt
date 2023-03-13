@@ -1,4 +1,5 @@
 from . import base
+from .base.opti_solver import OptiSolver
 from .base.optimization_object import (
     OptimizationObject,
     StorageType,

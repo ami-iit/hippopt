@@ -1,9 +1,11 @@
 import dataclasses
 
+import casadi as cs
 import numpy as np
 
 from hippopt import (
     OptimizationObject,
+    OptiSolver,
     Parameter,
     StorageType,
     TOptimizationObject,
@@ -71,18 +73,17 @@ def test_custom_initialization():
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomInitializationVariable
+    aggregated: CustomInitializationVariable = CustomInitializationVariable()
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
     def __post_init__(self):
-        self.aggregated = CustomInitializationVariable()
         self.other_parameter = np.ones(3)
         self.other = "untouched"
 
 
 def test_aggregated():
-    test_var = AggregateClass(aggregated=CustomInitializationVariable())
+    test_var = AggregateClass()
     test_var_init = test_var.get_default_initialized_object()
     assert test_var_init.aggregated.parameter.shape == (3,)
     assert np.all(test_var_init.aggregated.parameter == 0)
@@ -91,3 +92,31 @@ def test_aggregated():
     assert test_var_init.other_parameter.shape == (3,)
     assert np.all(test_var_init.other_parameter == 0)
     assert test_var_init.other == "untouched"
+
+
+def test_generate_objects():
+    test_var = AggregateClass()
+    solver = OptiSolver()
+    opti_var = solver.generate_optimization_objects(test_var)
+    assert isinstance(opti_var.aggregated.parameter, cs.MX)
+    assert opti_var.aggregated.parameter.shape == (3, 1)
+    assert isinstance(opti_var.aggregated.variable, cs.MX)
+    assert opti_var.aggregated.variable.shape == (3, 1)
+    assert isinstance(opti_var.other_parameter, cs.MX)
+    assert opti_var.other_parameter.shape == (3, 1)
+    assert opti_var.other == "untouched"
+
+
+def test_generate_objects_list():
+    test_var_list = [AggregateClass()] * 2
+    solver = OptiSolver()
+    opti_var_list = solver.generate_optimization_objects(test_var_list)
+    assert len(opti_var_list) == 2
+    for opti_var in opti_var_list:
+        assert isinstance(opti_var.aggregated.parameter, cs.MX)
+        assert opti_var.aggregated.parameter.shape == (3, 1)
+        assert isinstance(opti_var.aggregated.variable, cs.MX)
+        assert opti_var.aggregated.variable.shape == (3, 1)
+        assert isinstance(opti_var.other_parameter, cs.MX)
+        assert opti_var.other_parameter.shape == (3, 1)
+        assert opti_var.other == "untouched"
