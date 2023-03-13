@@ -1,4 +1,10 @@
-from hippopt.common import Any, ClassVar, Type, TypeVar, abc, copy, cs, dataclasses, np
+import abc
+import copy
+import dataclasses
+from typing import Any, ClassVar, Type, TypeVar
+
+import casadi as cs
+import numpy as np
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
 StorageType = cs.MX | np.ndarray

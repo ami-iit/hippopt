@@ -1,5 +1,7 @@
+import dataclasses
+from typing import Any, ClassVar, TypeVar
+
 from hippopt.base.optimization_object import OptimizationObject
-from hippopt.common import Any, ClassVar, TypeVar, dataclasses
 
 TVariable = TypeVar("TVariable", bound="Variable")
 
