@@ -14,10 +14,10 @@ from hippopt.base.variable import Variable
 
 @dataclasses.dataclass
 class OptiSolver:
-    _solver: cs.Opti
-
-    def __init__(self):
-        self._solver = cs.Opti()
+    _solver: cs.Opti = dataclasses.field(default_factory=cs.Opti)
+    _variables: TOptimizationObject | List[TOptimizationObject] = dataclasses.field(
+        default=None
+    )
 
     @singledispatchmethod
     def generate_optimization_objects(
@@ -75,6 +75,7 @@ class OptiSolver:
                     field.name, self.generate_optimization_objects(composite_value)
                 )
 
+        self._variables = output
         return output
 
     @generate_optimization_objects.register
@@ -92,4 +93,10 @@ class OptiSolver:
         for i in range(len(output)):
             output[i] = self.generate_optimization_objects(output[i])
 
+        self._variables = output
         return output
+
+    def get_optimization_objects(
+        self,
+    ) -> TOptimizationObject | List[TOptimizationObject]:
+        return self._variables

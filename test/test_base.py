@@ -107,6 +107,7 @@ def test_generate_objects():
     assert isinstance(opti_var.other_parameter, cs.MX)
     assert opti_var.other_parameter.shape == (3, 1)
     assert opti_var.other == "untouched"
+    assert solver.get_optimization_objects() is opti_var
 
 
 def test_generate_objects_list():
@@ -122,3 +123,4 @@ def test_generate_objects_list():
         assert isinstance(opti_var.other_parameter, cs.MX)
         assert opti_var.other_parameter.shape == (3, 1)
         assert opti_var.other == "untouched"
+    assert solver.get_optimization_objects() is opti_var_list
