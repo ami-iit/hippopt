@@ -4,13 +4,13 @@ from typing import List, Type, TypeVar
 
 import casadi as cs
 
-from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
+from hippopt.base.optimization_object import OptimizationObject
 
-TSolver = TypeVar("TSolver", bound="Solver")
+TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 
 
 @dataclasses.dataclass
-class Solver(abc.ABC):
+class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
         self, input_structure: Type[OptimizationObject] | List[Type[OptimizationObject]]

@@ -8,13 +8,13 @@ import casadi as cs
 import numpy as np
 
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
+from hippopt.base.optimization_solver import OptimizationSolver
 from hippopt.base.parameter import Parameter
-from hippopt.base.solver import Solver
 from hippopt.base.variable import Variable
 
 
 @dataclasses.dataclass
-class OptiSolver(Solver):
+class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
     _inner_solver: str = dataclasses.field(default=DefaultSolverType)
     _problem_type: dataclasses.InitVar[str] = dataclasses.field(default="nlp")
