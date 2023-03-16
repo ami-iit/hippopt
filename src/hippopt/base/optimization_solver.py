@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import List, Type, TypeVar
+from typing import List, TypeVar
 
 import casadi as cs
 
@@ -13,7 +13,7 @@ TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
-        self, input_structure: Type[OptimizationObject] | List[Type[OptimizationObject]]
+        self, input_structure: OptimizationObject | List[OptimizationObject]
     ):
         pass
 
@@ -22,9 +22,12 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_cost(self, input_cost: cs.Function):
+    def add_cost(self, input_cost: cs.MX):
         pass
 
     @abc.abstractmethod
-    def add_constraint(self, input_constraint: cs.Function):
+    def add_constraint(self, input_constraint: cs.MX):
+        pass
+
+    def cost(self) -> cs.MX:
         pass

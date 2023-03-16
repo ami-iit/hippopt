@@ -1,14 +1,14 @@
 import abc
 import dataclasses
+import types
 from enum import Enum
-from functools import singledispatchmethod
 from typing import Generator, List, Type
 
 import casadi as cs
 
 from hippopt.base.opti_solver import OptiSolver
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
-from hippopt.base.optimization_solver import TOptimizationSolver
+from hippopt.base.optimization_solver import OptimizationSolver
 
 
 class ExpressionType(Enum):
@@ -19,30 +19,29 @@ class ExpressionType(Enum):
 
 @dataclasses.dataclass
 class OptimizationProblem(abc.ABC):
-    _solver: TOptimizationSolver = dataclasses.field(default=OptiSolver)
+    _solver: OptimizationSolver = dataclasses.field(default_factory=OptiSolver)
 
     def generate_optimization_objects(
-        self, input_structure: Type[OptimizationObject] | List[Type[OptimizationObject]]
+        self, input_structure: OptimizationObject | List[Type[OptimizationObject]]
     ) -> TOptimizationObject | List[TOptimizationObject]:
-        return self._solver.generate_optimization_objects(input_structure)
+        return self._solver.generate_optimization_objects(
+            input_structure=input_structure
+        )
 
-    @singledispatchmethod
     def add_expression(
-        self, mode: ExpressionType, expression: cs.MX | Generator[cs.MX]
+        self, mode: ExpressionType, expression: cs.MX | Generator[cs.MX, None, None]
     ):
-        pass
+        if isinstance(expression, types.GeneratorType):
+            for expr in expression:
+                self.add_expression(mode, expr)
+        else:
+            match mode:
+                case ExpressionType.subject_to:
+                    self._solver.add_constraint(expression)
+                case ExpressionType.minimize:
+                    self._solver.add_cost(expression)
+                case _:
+                    pass
 
-    @add_expression.register
-    def add_expression(self, mode: ExpressionType, expression: cs.MX):
-        match mode:
-            case ExpressionType.subject_to:
-                self._solver.add_cost(expression)
-            case ExpressionType.minimize:
-                self._solver.add_constraint(expression)
-            case _:
-                pass
-
-    @add_expression.register
-    def add_expression(self, mode: ExpressionType, expressions: Generator[cs.MX]):
-        for expr in expressions:
-            self.add_expression(mode, expr)
+    def solver(self) -> OptimizationSolver:
+        return self._solver
