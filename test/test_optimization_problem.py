@@ -43,8 +43,7 @@ def test_opti_solver():
         expression=(var.variable[k] >= c[k] for k in range(3)),  # noqa
     )
 
-    output = problem.solver().solve()
-    # TODO: Stefano The output should not be opti specific
+    output, cost_value = problem.solver().solve()
 
     expected_x = np.zeros(3)
     expected_cost = 0
@@ -57,8 +56,12 @@ def test_opti_solver():
             else a[i] * (c[i] ** 2) + b[i] * c[i]
         )
 
-    assert output.value(var.variable) == pytest.approx(expected_x)
-    assert output.value(problem.solver().cost()) == pytest.approx(expected_cost)
+    assert output.variable == pytest.approx(expected_x)  # noqa
+    assert cost_value == pytest.approx(expected_cost)
+
+    assert problem.solver().get_solution().variable == pytest.approx(expected_x)  # noqa
+    assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
 # TODO: Stefano test setting of initial condition and of parameters
+# TODO: Stefano add test with list of variables

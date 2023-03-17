@@ -1,7 +1,7 @@
 import copy
 import dataclasses
 from collections.abc import Iterable
-from typing import Any, ClassVar, List
+from typing import Any, ClassVar, List, Tuple
 
 import casadi as cs
 import numpy as np
@@ -23,7 +23,11 @@ class OptiSolver(OptimizationSolver):
 
     _cost: cs.MX = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
-    _solution: cs.OptiSol = dataclasses.field(default=None)
+    _opti_solution: cs.OptiSol = dataclasses.field(default=None)
+    _output_solution: TOptimizationObject | List[
+        TOptimizationObject
+    ] = dataclasses.field(default=None)
+    _output_cost: float = dataclasses.field(default=None)
     _variables: TOptimizationObject | List[TOptimizationObject] = dataclasses.field(
         default=None
     )
@@ -36,7 +40,7 @@ class OptiSolver(OptimizationSolver):
 
     def _generate_objects_from_instance(
         self, input_structure: OptimizationObject
-    ) -> TOptimizationObject:
+    ) -> OptimizationObject:
         output = copy.deepcopy(input_structure)
 
         for field in dataclasses.fields(output):
@@ -90,7 +94,7 @@ class OptiSolver(OptimizationSolver):
 
     def _generate_objects_from_list(
         self, input_structure: list
-    ) -> List[TOptimizationObject]:
+    ) -> List[OptimizationObject]:
         list_of_optimization_objects = isinstance(input_structure, Iterable) and all(
             isinstance(elem, OptimizationObject) for elem in input_structure
         )
@@ -105,6 +109,53 @@ class OptiSolver(OptimizationSolver):
             output[i] = self.generate_optimization_objects(output[i])
 
         self._variables = output
+        return output
+
+    def _generate_solution_output(
+        self, variables: OptimizationObject | List[OptimizationObject]
+    ) -> OptimizationObject | List[OptimizationObject]:
+        output = copy.deepcopy(variables)
+
+        if isinstance(variables, Iterable):
+            i = 0
+            for element in variables:
+                output[i] = self._generate_solution_output(element)
+
+            return output
+
+        for field in dataclasses.fields(variables):
+            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
+
+            if (
+                has_storage_field
+                and (
+                    field.metadata[OptimizationObject.StorageTypeField]
+                    == Variable.StorageType
+                )
+                or (
+                    field.metadata[OptimizationObject.StorageTypeField]
+                    == Parameter.StorageType
+                )
+            ):
+                var = variables.__dict__[field.name]
+                output.__setattr__(field.name, self._opti_solution.value(var))
+                continue
+
+            composite_variable = variables.__getattribute__(field.name)
+
+            is_iterable = isinstance(composite_variable, Iterable)
+            list_of_optimization_objects = is_iterable and all(
+                isinstance(elem, OptimizationObject) for elem in composite_variable
+            )
+
+            if (
+                isinstance(composite_variable, OptimizationObject)
+                or list_of_optimization_objects
+            ):
+                output.__setattr__(
+                    field.name, self._generate_solution_output(composite_variable)
+                )
+
         return output
 
     def generate_optimization_objects(
@@ -136,10 +187,18 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
-    def solve(self):
+    def solve(self) -> Tuple[OptimizationObject, float]:
         self._solver.minimize(self._cost)
-        self._solution = self._solver.solve()
-        return self._solution
+        self._opti_solution = self._solver.solve()
+        self._output_cost = self._opti_solution.value(self._cost)
+        self._output_solution = self._generate_solution_output(self._variables)
+        return self._output_solution, self._output_cost
+
+    def get_solution(self) -> OptimizationObject | List[OptimizationObject] | None:
+        return self._output_solution
+
+    def get_cost_value(self) -> float | None:
+        return self._output_cost
 
     def add_cost(self, input_cost: cs.MX):
         # TODO Stefano: Check if it is a constraint. If is an equality, add the 2-norm. If it is an inequality?
@@ -153,5 +212,5 @@ class OptiSolver(OptimizationSolver):
         # TODO Stefano: Check if it is a cost. If so, set it equal to zero
         self._solver.subject_to(input_constraint)
 
-    def cost(self) -> cs.MX:
+    def cost_function(self) -> cs.MX:
         return self._cost

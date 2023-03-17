@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import List, TypeVar
+from typing import List, Tuple, TypeVar
 
 import casadi as cs
 
@@ -18,7 +18,15 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def solve(self):
+    def solve(self) -> Tuple[OptimizationObject, float]:
+        pass
+
+    @abc.abstractmethod
+    def get_solution(self) -> OptimizationObject | List[OptimizationObject] | None:
+        pass
+
+    @abc.abstractmethod
+    def get_cost_value(self) -> float | None:
         pass
 
     @abc.abstractmethod
@@ -29,5 +37,5 @@ class OptimizationSolver(abc.ABC):
     def add_constraint(self, input_constraint: cs.MX):
         pass
 
-    def cost(self) -> cs.MX:
+    def cost_function(self) -> cs.MX:
         pass
