@@ -3,12 +3,12 @@ from typing import Any, ClassVar, TypeVar
 
 from hippopt.base.optimization_object import OptimizationObject
 
-TVariable = TypeVar("TVariable", bound="Variable")
+TContinuousVariable = TypeVar("TContinuousVariable", bound="ContinuousVariable")
 
 
 @dataclasses.dataclass
-class Variable(OptimizationObject):
+class ContinuousVariable(OptimizationObject):
     """"""
 
-    StorageType: ClassVar[str] = "variable"
+    StorageType: ClassVar[str] = "continuous_variable"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(StorageType=StorageType)
