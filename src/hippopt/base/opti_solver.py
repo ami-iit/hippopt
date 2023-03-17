@@ -1,6 +1,5 @@
 import copy
 import dataclasses
-from collections.abc import Iterable
 from typing import Any, ClassVar, List, Tuple
 
 import casadi as cs
@@ -76,8 +75,8 @@ class OptiSolver(OptimizationSolver):
 
             composite_value = output.__getattribute__(field.name)
 
-            is_iterable = isinstance(composite_value, Iterable)
-            list_of_optimization_objects = is_iterable and all(
+            is_list = isinstance(composite_value, list)
+            list_of_optimization_objects = is_list and all(
                 isinstance(elem, OptimizationObject) for elem in composite_value
             )
 
@@ -95,7 +94,7 @@ class OptiSolver(OptimizationSolver):
     def _generate_objects_from_list(
         self, input_structure: list
     ) -> List[OptimizationObject]:
-        list_of_optimization_objects = isinstance(input_structure, Iterable) and all(
+        list_of_optimization_objects = isinstance(input_structure, list) and all(
             isinstance(elem, OptimizationObject) for elem in input_structure
         )
 
@@ -116,19 +115,19 @@ class OptiSolver(OptimizationSolver):
     ) -> OptimizationObject | List[OptimizationObject]:
         output = copy.deepcopy(variables)
 
-        if isinstance(variables, Iterable):
+        if isinstance(variables, list):
             i = 0
             for element in variables:
                 output[i] = self._generate_solution_output(element)
+                i += 1
 
             return output
 
         for field in dataclasses.fields(variables):
             has_storage_field = OptimizationObject.StorageTypeField in field.metadata
 
-            if (
-                has_storage_field
-                and (
+            if has_storage_field and (
+                (
                     field.metadata[OptimizationObject.StorageTypeField]
                     == Variable.StorageType
                 )
@@ -143,8 +142,8 @@ class OptiSolver(OptimizationSolver):
 
             composite_variable = variables.__getattribute__(field.name)
 
-            is_iterable = isinstance(composite_variable, Iterable)
-            list_of_optimization_objects = is_iterable and all(
+            is_list = isinstance(composite_variable, list)
+            list_of_optimization_objects = is_list and all(
                 isinstance(elem, OptimizationObject) for elem in composite_variable
             )
 
@@ -158,6 +157,129 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
+    def _set_initial_guess_internal(
+        self,
+        initial_guess: OptimizationObject,
+        corresponding_variable: OptimizationObject,
+    ):
+        for field in dataclasses.fields(initial_guess):
+            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
+
+            if (
+                has_storage_field
+                and field.metadata[OptimizationObject.StorageTypeField]
+                == Variable.StorageType
+            ):
+                guess = initial_guess.__dict__[field.name]
+
+                if guess is None:
+                    continue
+
+                if not isinstance(guess, np.ndarray):
+                    raise ValueError(
+                        "The guess for the field "
+                        + field.name
+                        + " is not an numpy array."
+                    )
+
+                if not hasattr(corresponding_variable, field.name):
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but it is not present in the optimization variables"
+                    )
+
+                self._solver.set_initial(
+                    corresponding_variable.__getattribute__(field.name), guess
+                )
+                continue
+
+            if (
+                has_storage_field
+                and field.metadata[OptimizationObject.StorageTypeField]
+                == Parameter.StorageType
+            ):
+                guess = initial_guess.__dict__[field.name]
+
+                if guess is None:
+                    continue
+
+                if not isinstance(guess, np.ndarray):
+                    raise ValueError(
+                        "The guess for the field "
+                        + field.name
+                        + " is not an numpy array."
+                    )
+
+                if not hasattr(corresponding_variable, field.name):
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but it is not present in the optimization parameters"
+                    )
+
+                self._solver.set_value(
+                    corresponding_variable.__getattribute__(field.name), guess
+                )
+                continue
+
+            composite_variable_guess = initial_guess.__getattribute__(field.name)
+
+            if isinstance(composite_variable_guess, OptimizationObject):
+                if not hasattr(corresponding_variable, field.name):
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but it is not present in the optimization structure"
+                    )
+
+                self._set_initial_guess_internal(
+                    initial_guess=composite_variable_guess,
+                    corresponding_variable=corresponding_variable.__getattribute__(
+                        field.name
+                    ),
+                )
+                continue
+
+            is_list = isinstance(composite_variable_guess, list)
+            list_of_optimization_objects = is_list and all(
+                isinstance(elem, OptimizationObject)
+                for elem in composite_variable_guess
+            )
+
+            if list_of_optimization_objects:
+                if not hasattr(corresponding_variable, field.name):
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but it is not present in the optimization structure"
+                    )
+                corresponding_nested_variable = corresponding_variable.__getattribute__(
+                    field.name
+                )
+
+                if not isinstance(corresponding_nested_variable, list):
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " as list, but the corresponding structure is not a list"
+                    )
+
+                i = 0
+                for element in composite_variable_guess:
+                    if i >= len(corresponding_nested_variable):
+                        raise ValueError(
+                            "The input guess is the list "
+                            + field.name
+                            + " but the corresponding variable structure is not a list"
+                        )
+
+                    self._set_initial_guess_internal(
+                        initial_guess=element,
+                        corresponding_variable=corresponding_nested_variable[i],
+                    )
+                    i += 1
+
     def generate_optimization_objects(
         self, input_structure: OptimizationObject | List[OptimizationObject]
     ):
@@ -169,6 +291,32 @@ class OptiSolver(OptimizationSolver):
         self,
     ) -> TOptimizationObject | List[TOptimizationObject]:
         return self._variables
+
+    def set_initial_guess(
+        self, initial_guess: OptimizationObject | List[OptimizationObject]
+    ):
+        if isinstance(initial_guess, list):
+            if not isinstance(self._variables, list):
+                raise ValueError(
+                    "The input guess is a list, but the specified variables structure is not"
+                )
+
+            i = 0
+            for element in initial_guess:
+                if i >= len(self._variables):
+                    raise ValueError(
+                        "The input guess is a list, but the specified variables structure is not"
+                    )
+
+                self._set_initial_guess_internal(
+                    initial_guess=element, corresponding_variable=self._variables[i]
+                )
+                i += 1
+            return
+
+        self._set_initial_guess_internal(
+            initial_guess=initial_guess, corresponding_variable=self._variables
+        )
 
     def set_opti_options(
         self,
@@ -201,7 +349,6 @@ class OptiSolver(OptimizationSolver):
         return self._output_cost
 
     def add_cost(self, input_cost: cs.MX):
-        # TODO Stefano: Check if it is a constraint. If is an equality, add the 2-norm. If it is an inequality?
         if self._cost is None:
             self._cost = input_cost
             return
@@ -209,7 +356,6 @@ class OptiSolver(OptimizationSolver):
         self._cost += input_cost
 
     def add_constraint(self, input_constraint: cs.MX):
-        # TODO Stefano: Check if it is a cost. If so, set it equal to zero
         self._solver.subject_to(input_constraint)
 
     def cost_function(self) -> cs.MX:

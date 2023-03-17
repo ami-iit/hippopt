@@ -22,7 +22,7 @@ class OptimizationProblem(abc.ABC):
     _solver: OptimizationSolver = dataclasses.field(default_factory=OptiSolver)
 
     def generate_optimization_objects(
-        self, input_structure: OptimizationObject | List[Type[OptimizationObject]]
+        self, input_structure: OptimizationObject | List[TOptimizationObject]
     ) -> TOptimizationObject | List[TOptimizationObject]:
         return self._solver.generate_optimization_objects(
             input_structure=input_structure
@@ -35,10 +35,14 @@ class OptimizationProblem(abc.ABC):
             for expr in expression:
                 self.add_expression(mode, expr)
         else:
+            assert isinstance(expression, cs.MX)
             match mode:
                 case ExpressionType.subject_to:
+                    # TODO Stefano: Check if it is a cost. If so, set it equal to zero
                     self._solver.add_constraint(expression)
                 case ExpressionType.minimize:
+                    # TODO Stefano: Check if it is a constraint. If is an equality, add the 2-norm.
+                    #  If it is an inequality?
                     self._solver.add_cost(expression)
                 case _:
                     pass

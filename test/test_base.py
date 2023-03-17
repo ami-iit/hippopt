@@ -111,7 +111,9 @@ def test_generate_objects():
 
 
 def test_generate_objects_list():
-    test_var_list = [AggregateClass()] * 2
+    test_var_list = []
+    for _ in range(2):
+        test_var_list.append(AggregateClass())
     solver = OptiSolver()
     opti_var_list = solver.generate_optimization_objects(test_var_list)
     assert len(opti_var_list) == 2

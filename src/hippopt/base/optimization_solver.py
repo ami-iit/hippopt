@@ -18,6 +18,12 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def set_initial_guess(
+        self, initial_guess: OptimizationObject | List[OptimizationObject]
+    ):
+        pass
+
+    @abc.abstractmethod
     def solve(self) -> Tuple[OptimizationObject, float]:
         pass
 
