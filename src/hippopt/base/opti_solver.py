@@ -15,7 +15,7 @@ from hippopt.base.parameter import Parameter
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
     _inner_solver: str = dataclasses.field(default=DefaultSolverType)
-    _problem_type: dataclasses.InitVar[str] = dataclasses.field(default="nlp")
+    problem_type: dataclasses.InitVar[str] = dataclasses.field(default="nlp")
 
     _options_plugin: dict[str, Any] = dataclasses.field(default_factory=dict)
     _options_solver: dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -31,15 +31,15 @@ class OptiSolver(OptimizationSolver):
         default=None
     )
 
-    def __post_init__(self, _problem_type: str) -> None:
-        self._solver = cs.Opti(_problem_type)
+    def __post_init__(self, problem_type: str) -> None:
+        self._solver = cs.Opti(problem_type)
         self._solver.solver(
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
     def _generate_objects_from_instance(
-        self, input_structure: OptimizationObject
-    ) -> OptimizationObject:
+        self, input_structure: TOptimizationObject
+    ) -> TOptimizationObject:
         output = copy.deepcopy(input_structure)
 
         for field in dataclasses.fields(output):
@@ -92,8 +92,8 @@ class OptiSolver(OptimizationSolver):
         return output
 
     def _generate_objects_from_list(
-        self, input_structure: list
-    ) -> List[OptimizationObject]:
+        self, input_structure: List[TOptimizationObject]
+    ) -> List[TOptimizationObject]:
         list_of_optimization_objects = isinstance(input_structure, list) and all(
             isinstance(elem, OptimizationObject) for elem in input_structure
         )
@@ -111,8 +111,8 @@ class OptiSolver(OptimizationSolver):
         return output
 
     def _generate_solution_output(
-        self, variables: OptimizationObject | List[OptimizationObject]
-    ) -> OptimizationObject | List[OptimizationObject]:
+        self, variables: TOptimizationObject | List[TOptimizationObject]
+    ) -> TOptimizationObject | List[TOptimizationObject]:
         output = copy.deepcopy(variables)
 
         if isinstance(variables, list):
@@ -159,8 +159,8 @@ class OptiSolver(OptimizationSolver):
 
     def _set_initial_guess_internal(
         self,
-        initial_guess: OptimizationObject,
-        corresponding_variable: OptimizationObject,
+        initial_guess: TOptimizationObject,
+        corresponding_variable: TOptimizationObject,
     ):
         for field in dataclasses.fields(initial_guess):
             has_storage_field = OptimizationObject.StorageTypeField in field.metadata
@@ -281,7 +281,7 @@ class OptiSolver(OptimizationSolver):
                     i += 1
 
     def generate_optimization_objects(
-        self, input_structure: OptimizationObject | List[OptimizationObject]
+        self, input_structure: TOptimizationObject | List[TOptimizationObject]
     ):
         if isinstance(input_structure, OptimizationObject):
             return self._generate_objects_from_instance(input_structure=input_structure)
@@ -293,7 +293,7 @@ class OptiSolver(OptimizationSolver):
         return self._variables
 
     def set_initial_guess(
-        self, initial_guess: OptimizationObject | List[OptimizationObject]
+        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
     ):
         if isinstance(initial_guess, list):
             if not isinstance(self._variables, list):
@@ -335,14 +335,14 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
-    def solve(self) -> Tuple[OptimizationObject, float]:
+    def solve(self) -> Tuple[TOptimizationObject, float]:
         self._solver.minimize(self._cost)
         self._opti_solution = self._solver.solve()
         self._output_cost = self._opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(self._variables)
         return self._output_solution, self._output_cost
 
-    def get_solution(self) -> OptimizationObject | List[OptimizationObject] | None:
+    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
         return self._output_solution
 
     def get_cost_value(self) -> float | None:

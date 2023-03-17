@@ -2,13 +2,13 @@ import abc
 import dataclasses
 import types
 from enum import Enum
-from typing import Generator, List, Type
+from typing import Generator, List
 
 import casadi as cs
 
 from hippopt.base.opti_solver import OptiSolver
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
-from hippopt.base.optimization_solver import OptimizationSolver
+from hippopt.base.optimization_solver import TOptimizationSolver
 
 
 class ExpressionType(Enum):
@@ -19,7 +19,7 @@ class ExpressionType(Enum):
 
 @dataclasses.dataclass
 class OptimizationProblem(abc.ABC):
-    _solver: OptimizationSolver = dataclasses.field(default_factory=OptiSolver)
+    _solver: TOptimizationSolver = dataclasses.field(default_factory=OptiSolver)
 
     def generate_optimization_objects(
         self, input_structure: OptimizationObject | List[TOptimizationObject]
@@ -47,5 +47,5 @@ class OptimizationProblem(abc.ABC):
                 case _:
                     pass
 
-    def solver(self) -> OptimizationSolver:
+    def solver(self) -> TOptimizationSolver:
         return self._solver

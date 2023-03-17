@@ -57,10 +57,10 @@ def test_opti_solver():
             else a[i] * (c[i] ** 2) + b[i] * c[i]
         )
 
-    assert output.variable == pytest.approx(expected_x)  # noqa
+    assert output.variable == pytest.approx(expected_x)
     assert cost_value == pytest.approx(expected_cost)
 
-    assert problem.solver().get_solution().variable == pytest.approx(expected_x)  # noqa
+    assert problem.solver().get_solution().variable == pytest.approx(expected_x)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
@@ -115,13 +115,13 @@ def test_opti_solver_with_parameters():
             else a[i] * (c[i] ** 2) + b[i] * c[i]
         )
 
-    assert output.composite.variable == pytest.approx(expected_x)  # noqa
+    assert output.composite.variable == pytest.approx(expected_x)
     assert cost_value == pytest.approx(expected_cost)
-    assert output.parameter == pytest.approx(c)  # noqa
+    assert output.parameter == pytest.approx(c)
 
-    assert problem.solver().get_solution().composite.variable == pytest.approx(  # noqa
+    assert problem.solver().get_solution().composite.variable == pytest.approx(
         expected_x
-    )  # noqa
+    )
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
@@ -179,12 +179,8 @@ def test_opti_solver_with_parameters_and_lists():
                 else a[i][j] * (c[i][j] ** 2) + b[i][j] * c[i][j]
             )
 
-        assert output[i].composite.variable == pytest.approx(expected_x)  # noqa
-        assert output[i].parameter == pytest.approx(c[i])  # noqa
+        assert output[i].composite.variable == pytest.approx(expected_x)
+        assert output[i].parameter == pytest.approx(c[i])
 
     assert cost_value == pytest.approx(expected_cost)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
-
-
-# TODO: Check better where to use TOptimizationObject.
-#  It should be used to match input and output type, or not to cast it

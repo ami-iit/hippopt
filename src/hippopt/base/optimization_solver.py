@@ -4,7 +4,7 @@ from typing import List, Tuple, TypeVar
 
 import casadi as cs
 
-from hippopt.base.optimization_object import OptimizationObject
+from hippopt.base.optimization_object import TOptimizationObject
 
 TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 
@@ -13,22 +13,22 @@ TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
-        self, input_structure: OptimizationObject | List[OptimizationObject]
+        self, input_structure: TOptimizationObject | List[TOptimizationObject]
     ):
         pass
 
     @abc.abstractmethod
     def set_initial_guess(
-        self, initial_guess: OptimizationObject | List[OptimizationObject]
+        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
     ):
         pass
 
     @abc.abstractmethod
-    def solve(self) -> Tuple[OptimizationObject, float]:
+    def solve(self) -> Tuple[TOptimizationObject, float]:
         pass
 
     @abc.abstractmethod
-    def get_solution(self) -> OptimizationObject | List[OptimizationObject] | None:
+    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
         pass
 
     @abc.abstractmethod
