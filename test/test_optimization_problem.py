@@ -184,3 +184,73 @@ def test_opti_solver_with_parameters_and_lists():
 
     assert cost_value == pytest.approx(expected_cost)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
+
+
+@dataclasses.dataclass
+class SwitchVar(OptimizationObject):
+    x: StorageType = default_storage_field(ContinuousVariable)
+    y: StorageType = default_storage_field(ContinuousVariable)
+
+    def __post_init__(self):
+        self.x = np.zeros(1)
+        self.y = np.zeros(1)
+
+
+def test_switch_costs():
+    initial_problem = OptimizationProblem()
+    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    a = 10
+    initial_problem.add_expression(ExpressionType.minimize, variables.x * variables.x)
+    initial_problem.add_expression(
+        ExpressionType.minimize, a * variables.y * variables.y
+    )
+    initial_problem.add_expression(
+        ExpressionType.subject_to, variables.x + variables.y == a - 1
+    )  # noqa
+    output, cost_value = initial_problem.solver().solve()
+    expected_cost = a + (a - 2) ** 2
+    assert cost_value == pytest.approx(expected=expected_cost, rel=0.1)
+    assert output.x == pytest.approx(a - 2, rel=0.1)
+
+    new_problem = OptimizationProblem()
+    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem.add_expression(
+        ExpressionType.minimize, a * new_variables.y * new_variables.y
+    )
+    new_problem.add_expression(
+        ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
+    )  # noqa
+    new_problem.add_expression(
+        ExpressionType.subject_to, new_variables.x * new_variables.x
+    )
+    output, cost_value = new_problem.solver().solve()
+    expected_cost = a * (a - 1) ** 2
+    assert cost_value == pytest.approx(expected=expected_cost, rel=0.1)
+    assert output.x == pytest.approx(0, abs=1e-4)
+
+
+def test_switch_constraints():
+    initial_problem = OptimizationProblem()
+    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    a = 10
+    initial_problem.add_expression(ExpressionType.minimize, (variables.x - 5) ** 2)
+    initial_problem.add_expression(
+        ExpressionType.minimize, a * variables.y * variables.y
+    )
+    initial_problem.add_expression(
+        ExpressionType.subject_to, variables.x + variables.y == a - 1
+    )  # noqa
+    initial_output, initial_cost_value = initial_problem.solver().solve()
+
+    new_problem = OptimizationProblem()
+    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem.add_expression(
+        ExpressionType.minimize, a * new_variables.y * new_variables.y
+    )
+    new_problem.add_expression(
+        ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
+    )  # noqa
+    new_problem.add_expression(ExpressionType.minimize, new_variables.x == 5)
+    output, cost_value = new_problem.solver().solve()
+    assert cost_value == pytest.approx(expected=initial_cost_value, rel=0.1)
+    assert output.x == pytest.approx(initial_output.x)

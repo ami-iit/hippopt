@@ -29,7 +29,10 @@ class OptimizationProblem(abc.ABC):
         )
 
     def add_expression(
-        self, mode: ExpressionType, expression: cs.MX | Generator[cs.MX, None, None]
+        self,
+        mode: ExpressionType,
+        expression: cs.MX | Generator[cs.MX, None, None],
+        expected_value: float = 0.0,
     ):
         if isinstance(expression, types.GeneratorType):
             for expr in expression:
@@ -38,12 +41,29 @@ class OptimizationProblem(abc.ABC):
             assert isinstance(expression, cs.MX)
             match mode:
                 case ExpressionType.subject_to:
-                    # TODO Stefano: Check if it is a cost. If so, set it equal to zero
-                    self._solver.add_constraint(expression)
+                    if (
+                        expression.is_op(cs.OP_LE)
+                        or expression.is_op(cs.OP_LT)
+                        or expression.is_op(cs.OP_EQ)
+                    ):
+                        self._solver.add_constraint(expression)
+                    else:
+                        if not expression.is_scalar():
+                            raise ValueError("The input expression is not supported.")
+                        self._solver.add_constraint(
+                            expression == expected_value  # noqa
+                        )
+
                 case ExpressionType.minimize:
-                    # TODO Stefano: Check if it is a constraint. If is an equality, add the 2-norm.
-                    #  If it is an inequality?
-                    self._solver.add_cost(expression)
+                    if expression.is_op(cs.OP_LE) or expression.is_op(cs.OP_LT):
+                        raise ValueError(
+                            "The conversion from an inequality to a cost is not yet supported"
+                        )
+                    if expression.is_op(cs.OP_EQ):
+                        error_expr = expression.dep(0) - expression.dep(1)
+                        self._solver.add_cost(cs.sumsqr(error_expr))
+                    else:
+                        self._solver.add_cost(expression)
                 case _:
                     pass
 
