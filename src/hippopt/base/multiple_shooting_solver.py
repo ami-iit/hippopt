@@ -1,11 +1,13 @@
+import copy
 import dataclasses
 from typing import List, Tuple
 
 import casadi as cs
+import numpy as np
 
 from .opti_solver import OptiSolver
 from .optimal_control_solver import OptimalControlSolver
-from .optimization_object import TOptimizationObject
+from .optimization_object import OptimizationObject, TOptimizationObject
 from .optimization_solver import OptimizationSolver, TOptimizationSolver
 
 
@@ -25,8 +27,81 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
-        pass
+    ) -> TOptimizationObject | List[TOptimizationObject]:  # TODO Stefano: Add test
+        if isinstance(input_structure, list):
+            for element in input_structure:
+                return self.generate_optimization_objects(element, **kwargs)
+
+        if "horizon" not in kwargs and "horizons" not in kwargs:
+            return self._optimization_solver.generate_optimization_objects(
+                input_structure=input_structure, **kwargs
+            )
+
+        default_horizon_length = int(1)
+        if "horizon" in kwargs:
+            default_horizon_length = int(kwargs["horizon"])
+            if default_horizon_length < 1:
+                raise ValueError(
+                    "The specified horizon needs to be a strictly positive integer"
+                )
+
+        expand_storage = False
+        if "expand_storage" in kwargs:
+            expand_storage = bool(kwargs["expand_storage"])
+
+        output = copy.deepcopy(input_structure)
+        for field in dataclasses.fields(output):
+            horizon_length = default_horizon_length
+
+            if "horizons" in kwargs:
+                horizons_dict = kwargs["horizons"]
+                if isinstance(horizons_dict, dict) and field.name in horizons_dict:
+                    horizon_length = int(horizons_dict[field.name])
+                    if horizon_length < 1:
+                        raise ValueError(
+                            "The specified horizon for "
+                            + field.name
+                            + " needs to be a strictly positive integer"
+                        )
+
+            composite_value = output.__getattribute__(field.name)
+
+            if OptimizationObject.StorageTypeField in field.metadata and expand_storage:
+                if not isinstance(composite_value, np.ndarray):
+                    raise ValueError(
+                        "Field "
+                        + field.name
+                        + 'is not a Numpy array. Cannot expand it to the horizon. Consider using "expand_storage=False"'
+                    )
+
+                if composite_value.ndim > 1 and composite_value.shape[1] > 1:
+                    raise ValueError(
+                        "Cannot expand " + field.name + " since it is already a matrix."
+                    )
+                output.__setattr__(
+                    field.name, np.zeros(composite_value.shape[0], horizon_length)
+                )  # This is only needed to get the structure for the optimization variables.
+            else:
+                if (
+                    OptimizationObject.StorageTypeField in field.metadata
+                    or isinstance(composite_value, OptimizationObject)
+                    or (
+                        isinstance(composite_value, list)
+                        and all(
+                            isinstance(elem, OptimizationObject)
+                            for elem in composite_value
+                        )
+                    )
+                ):
+                    output_value = []
+                    for _ in range(horizon_length):
+                        output_value.append(copy.deepcopy(composite_value))
+
+                    output.__setattr__(field.name, output_value)
+
+        return self._optimization_solver.generate_optimization_objects(
+            input_structure=output, **kwargs
+        )
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
