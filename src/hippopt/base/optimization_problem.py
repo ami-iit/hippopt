@@ -8,7 +8,7 @@ import casadi as cs
 
 from hippopt.base.opti_solver import OptiSolver
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
-from hippopt.base.optimization_solver import TOptimizationSolver
+from hippopt.base.optimization_solver import OptimizationSolver, TOptimizationSolver
 
 
 class ExpressionType(Enum):
@@ -19,7 +19,17 @@ class ExpressionType(Enum):
 
 @dataclasses.dataclass
 class OptimizationProblem(abc.ABC):
-    _solver: TOptimizationSolver = dataclasses.field(default_factory=OptiSolver)
+    optimization_solver: dataclasses.InitVar[OptimizationSolver] = dataclasses.field(
+        default=None
+    )
+    _solver: TOptimizationSolver = dataclasses.field(default=None)
+
+    def __post_init__(self, optimization_solver: TOptimizationSolver = None):
+        self._solver = (
+            optimization_solver
+            if isinstance(optimization_solver, OptimizationSolver)
+            else OptiSolver()
+        )
 
     def generate_optimization_objects(
         self, input_structure: OptimizationObject | List[TOptimizationObject]
