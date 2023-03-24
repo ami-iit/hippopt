@@ -13,8 +13,8 @@ TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject]
-    ):
+        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | List[TOptimizationObject]:
         pass
 
     @abc.abstractmethod
@@ -43,5 +43,6 @@ class OptimizationSolver(abc.ABC):
     def add_constraint(self, input_constraint: cs.MX):
         pass
 
+    @abc.abstractmethod
     def cost_function(self) -> cs.MX:
         pass
