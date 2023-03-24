@@ -51,11 +51,17 @@ class OptiSolver(OptimizationSolver):
                 == ContinuousVariable.StorageType
             ):
                 value = output.__dict__[field.name]
-                value = (
-                    value
-                    if not isinstance(value, np.ndarray)
-                    else np.expand_dims(value, axis=1)
-                )
+
+                if isinstance(value, np.ndarray):
+                    if value.ndim > 2:
+                        raise ValueError(
+                            "Field "
+                            + field.name
+                            + " has number of dimensions greater than 2."
+                        )
+                    if value.ndim < 2:
+                        value = np.expand_dims(value, axis=1)
+
                 output.__setattr__(field.name, self._solver.variable(*value.shape))
                 continue
 
@@ -65,11 +71,17 @@ class OptiSolver(OptimizationSolver):
                 == Parameter.StorageType
             ):
                 value = output.__dict__[field.name]
-                value = (
-                    value
-                    if not isinstance(value, np.ndarray)
-                    else np.expand_dims(value, axis=1)
-                )
+
+                if isinstance(value, np.ndarray):
+                    if value.ndim > 2:
+                        raise ValueError(
+                            "Field "
+                            + field.name
+                            + " has number of dimensions greater than 2."
+                        )
+                    if value.ndim < 2:
+                        value = np.expand_dims(value, axis=1)
+
                 output.__setattr__(field.name, self._solver.parameter(*value.shape))
                 continue
 
@@ -189,9 +201,22 @@ class OptiSolver(OptimizationSolver):
                         + " but it is not present in the optimization variables"
                     )
 
-                self._solver.set_initial(
-                    corresponding_variable.__getattribute__(field.name), guess
+                corresponding_variable_value = corresponding_variable.__getattribute__(
+                    field.name
                 )
+
+                input_shape = (
+                    guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
+                )
+
+                if corresponding_variable_value.shape != input_shape:
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but its dimension does not match with the corresponding optimization variable"
+                    )
+
+                self._solver.set_initial(corresponding_variable_value, guess)
                 continue
 
             if (
@@ -218,9 +243,22 @@ class OptiSolver(OptimizationSolver):
                         + " but it is not present in the optimization parameters"
                     )
 
-                self._solver.set_value(
-                    corresponding_variable.__getattribute__(field.name), guess
+                corresponding_parameter_value = corresponding_variable.__getattribute__(
+                    field.name
                 )
+
+                input_shape = (
+                    guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
+                )
+
+                if corresponding_parameter_value.shape != input_shape:
+                    raise ValueError(
+                        "The guess has the field "
+                        + field.name
+                        + " but its dimension does not match with the corresponding optimization variable"
+                    )
+
+                self._solver.set_value(corresponding_parameter_value, guess)
                 continue
 
             composite_variable_guess = initial_guess.__getattribute__(field.name)
@@ -281,8 +319,8 @@ class OptiSolver(OptimizationSolver):
                     i += 1
 
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject]
-    ):
+        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | List[TOptimizationObject]:
         if isinstance(input_structure, OptimizationObject):
             return self._generate_objects_from_instance(input_structure=input_structure)
         return self._generate_objects_from_list(input_structure=input_structure)
