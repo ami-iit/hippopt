@@ -38,11 +38,52 @@ class OptimizationProblem(abc.ABC):
             input_structure=input_structure
         )
 
+    def add_cost(
+        self,
+        expression: cs.MX | Generator[cs.MX, None, None],
+        scaling: float | cs.MX = 1.0,
+    ):
+        if isinstance(expression, types.GeneratorType):
+            for expr in expression:
+                self.add_cost(expr, scaling)
+        else:
+            assert isinstance(expression, cs.MX)
+            if expression.is_op(cs.OP_LE) or expression.is_op(cs.OP_LT):
+                raise ValueError(
+                    "The conversion from an inequality to a cost is not yet supported"
+                )
+            if expression.is_op(cs.OP_EQ):
+                error_expr = expression.dep(0) - expression.dep(1)
+                self._solver.add_cost(scaling * cs.sumsqr(error_expr))
+            else:
+                self._solver.add_cost(scaling * expression)  # noqa
+
+    def add_constraint(
+        self,
+        expression: cs.MX | Generator[cs.MX, None, None],
+        expected_value: float | cs.MX = 0.0,
+    ):
+        if isinstance(expression, types.GeneratorType):
+            for expr in expression:
+                self.add_constraint(expr, expected_value)
+        else:
+            assert isinstance(expression, cs.MX)
+            if (
+                expression.is_op(cs.OP_LE)
+                or expression.is_op(cs.OP_LT)
+                or expression.is_op(cs.OP_EQ)
+            ):
+                self._solver.add_constraint(expression)
+            else:
+                if not expression.is_scalar():
+                    raise ValueError("The input expression is not supported.")
+                self._solver.add_constraint(expression == expected_value)  # noqa
+
     def add_expression(
         self,
         mode: ExpressionType,
         expression: cs.MX | Generator[cs.MX, None, None],
-        expected_value: float = 0.0,
+        **kwargs,
     ):
         if isinstance(expression, types.GeneratorType):
             for expr in expression:
@@ -51,29 +92,10 @@ class OptimizationProblem(abc.ABC):
             assert isinstance(expression, cs.MX)
             match mode:
                 case ExpressionType.subject_to:
-                    if (
-                        expression.is_op(cs.OP_LE)
-                        or expression.is_op(cs.OP_LT)
-                        or expression.is_op(cs.OP_EQ)
-                    ):
-                        self._solver.add_constraint(expression)
-                    else:
-                        if not expression.is_scalar():
-                            raise ValueError("The input expression is not supported.")
-                        self._solver.add_constraint(
-                            expression == expected_value  # noqa
-                        )
+                    self.add_constraint(expression, **kwargs)
 
                 case ExpressionType.minimize:
-                    if expression.is_op(cs.OP_LE) or expression.is_op(cs.OP_LT):
-                        raise ValueError(
-                            "The conversion from an inequality to a cost is not yet supported"
-                        )
-                    if expression.is_op(cs.OP_EQ):
-                        error_expr = expression.dep(0) - expression.dep(1)
-                        self._solver.add_cost(cs.sumsqr(error_expr))
-                    else:
-                        self._solver.add_cost(expression)
+                    self.add_cost(expression, **kwargs)
                 case _:
                     pass
 

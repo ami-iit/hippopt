@@ -144,23 +144,17 @@ def test_opti_solver_with_parameters_and_lists():
         c.append(20.0 * np.random.rand(3) - 10.0)
         initial_guess[j].parameter = c[j]
 
-    problem.add_expression(
-        mode=ExpressionType.minimize,
-        expression=(
-            a[j][k] * cs.power(var[j].composite.variable[k], 2)
-            + b[j][k] * var[j].composite.variable[k]
-            for j in range(len(initial_guess))
-            for k in range(0, 3)
-        ),
+    problem.add_cost(
+        a[j][k] * cs.power(var[j].composite.variable[k], 2)
+        + b[j][k] * var[j].composite.variable[k]
+        for j in range(len(initial_guess))
+        for k in range(0, 3)
     )
 
-    problem.add_expression(
-        mode=ExpressionType.subject_to,
-        expression=(  # noqa
-            var[j].composite.variable[k] >= c[j][k]
-            for j in range(len(initial_guess))
-            for k in range(3)
-        ),
+    problem.add_constraint(
+        var[j].composite.variable[k] >= c[j][k]  # noqa
+        for j in range(len(initial_guess))
+        for k in range(3)
     )
 
     problem.solver().set_initial_guess(initial_guess=initial_guess)
@@ -221,7 +215,9 @@ def test_switch_costs():
         ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
     )  # noqa
     new_problem.add_expression(
-        ExpressionType.subject_to, new_variables.x * new_variables.x
+        ExpressionType.subject_to,
+        new_variables.x * new_variables.x + 1,
+        expected_value=1,
     )
     output, cost_value = new_problem.solver().solve()
     expected_cost = a * (a - 1) ** 2
@@ -250,7 +246,9 @@ def test_switch_constraints():
     new_problem.add_expression(
         ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
     )  # noqa
-    new_problem.add_expression(ExpressionType.minimize, new_variables.x == 5)
+    new_problem.add_expression(
+        ExpressionType.minimize, new_variables.x == 5, scaling=1.0
+    )
     output, cost_value = new_problem.solver().solve()
     assert cost_value == pytest.approx(expected=initial_cost_value, rel=0.1)
     assert output.x == pytest.approx(initial_output.x)
