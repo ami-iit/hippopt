@@ -53,6 +53,9 @@ class MultipleShootingSolver(OptimalControlSolver):
         for field in dataclasses.fields(output):
             horizon_length = default_horizon_length
 
+            if not field.metadata[OptimizationObject.TimeDependentField]:
+                horizon_length = 1
+
             if "horizons" in kwargs:
                 horizons_dict = kwargs["horizons"]
                 if isinstance(horizons_dict, dict) and field.name in horizons_dict:
@@ -102,6 +105,11 @@ class MultipleShootingSolver(OptimalControlSolver):
         return self._optimization_solver.generate_optimization_objects(
             input_structure=output, **kwargs
         )
+
+    def get_optimization_objects(
+        self,
+    ) -> TOptimizationObject | List[TOptimizationObject]:
+        return self._optimization_solver.get_optimization_objects()
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
