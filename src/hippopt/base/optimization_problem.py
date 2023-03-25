@@ -19,24 +19,35 @@ class ExpressionType(Enum):
 
 @dataclasses.dataclass
 class OptimizationProblem(abc.ABC):
+    input_structure: dataclasses.InitVar[OptimizationObject | List[TOptimizationObject]]
     optimization_solver: dataclasses.InitVar[OptimizationSolver] = dataclasses.field(
         default=None
     )
     _solver: TOptimizationSolver = dataclasses.field(default=None)
 
-    def __post_init__(self, optimization_solver: TOptimizationSolver = None):
+    def __post_init__(
+        self,
+        input_structure: OptimizationObject | List[TOptimizationObject],
+        optimization_solver: TOptimizationSolver = None,
+    ):
         self._solver = (
             optimization_solver
             if isinstance(optimization_solver, OptimizationSolver)
             else OptiSolver()
         )
 
-    def generate_optimization_objects(
-        self, input_structure: OptimizationObject | List[TOptimizationObject]
-    ) -> TOptimizationObject | List[TOptimizationObject]:
-        return self._solver.generate_optimization_objects(
-            input_structure=input_structure
+        self._solver.generate_optimization_objects(input_structure=input_structure)
+
+    @classmethod
+    def create(
+        cls,
+        input_structure: TOptimizationObject | List[TOptimizationObject],
+        optimization_solver: TOptimizationSolver = None,
+    ):
+        new_problem = cls(
+            input_structure=input_structure, optimization_solver=optimization_solver
         )
+        return new_problem, new_problem._solver.get_optimization_objects()
 
     def add_cost(
         self,

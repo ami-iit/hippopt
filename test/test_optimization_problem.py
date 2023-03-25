@@ -26,8 +26,7 @@ class MyTestVar(OptimizationObject):
 
 def test_opti_solver():
     size = 4
-    problem = OptimizationProblem()
-    var = problem.generate_optimization_objects(input_structure=MyTestVar(size=size))
+    problem, var = OptimizationProblem.create(input_structure=MyTestVar(size=size))
     np.random.seed(123)
     a = 10.0 * np.random.rand(size) + 0.01
     b = 20.0 * np.random.rand(size) - 10.0
@@ -76,9 +75,8 @@ class MyTestVarAndPar(OptimizationObject):
 
 
 def test_opti_solver_with_parameters():
-    problem = OptimizationProblem()
+    problem, var = OptimizationProblem.create(input_structure=MyTestVarAndPar())
     initial_guess = MyTestVarAndPar()
-    var = problem.generate_optimization_objects(input_structure=MyTestVarAndPar())
     np.random.seed(123)
     a = 10.0 * np.random.rand(3) + 0.01
     b = 20.0 * np.random.rand(3) - 10.0
@@ -128,12 +126,12 @@ def test_opti_solver_with_parameters():
 
 
 def test_opti_solver_with_parameters_and_lists():
-    problem = OptimizationProblem()
     initial_guess = []
     for _ in range(3):
         initial_guess.append(MyTestVarAndPar())
 
-    var = problem.generate_optimization_objects(input_structure=initial_guess)
+    problem, var = OptimizationProblem.create(input_structure=initial_guess)
+
     np.random.seed(123)
 
     a = []
@@ -193,8 +191,7 @@ class SwitchVar(OptimizationObject):
 
 
 def test_switch_costs():
-    initial_problem = OptimizationProblem()
-    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    initial_problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
     a = 10
     initial_problem.add_expression(ExpressionType.minimize, variables.x * variables.x)
     initial_problem.add_expression(
@@ -208,8 +205,7 @@ def test_switch_costs():
     assert output.cost_value == pytest.approx(expected=expected_cost, rel=0.1)
     assert output.values.x == pytest.approx(a - 2, rel=0.1)
 
-    new_problem = OptimizationProblem()
-    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem, new_variables = OptimizationProblem.create(input_structure=SwitchVar())
     new_problem.add_expression(
         ExpressionType.minimize, a * new_variables.y * new_variables.y
     )
@@ -228,8 +224,7 @@ def test_switch_costs():
 
 
 def test_switch_constraints():
-    initial_problem = OptimizationProblem()
-    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    initial_problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
     a = 10
     initial_problem.add_expression(ExpressionType.minimize, (variables.x - 5) ** 2)
     initial_problem.add_expression(
@@ -240,8 +235,7 @@ def test_switch_constraints():
     )  # noqa
     initial_output = initial_problem.solver().solve()
 
-    new_problem = OptimizationProblem()
-    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem, new_variables = OptimizationProblem.create(input_structure=SwitchVar())
     new_problem.add_expression(
         ExpressionType.minimize, a * new_variables.y * new_variables.y
     )

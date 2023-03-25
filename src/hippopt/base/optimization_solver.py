@@ -34,6 +34,12 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def get_optimization_objects(
+        self,
+    ) -> TOptimizationObject | List[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
     ) -> None:
