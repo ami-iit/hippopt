@@ -4,19 +4,19 @@ import casadi as cs
 import numpy as np
 
 from hippopt import (
-    ContinuousVariable,
     OptimizationObject,
     OptiSolver,
     Parameter,
     StorageType,
     TOptimizationObject,
+    Variable,
     default_storage_field,
 )
 
 
 @dataclasses.dataclass
 class MyTestVariable(OptimizationObject):
-    storage: StorageType = default_storage_field(cls=ContinuousVariable)
+    storage: StorageType = default_storage_field(cls=Variable)
 
     def __post_init__(self):
         self.storage = np.ones(shape=3)
@@ -46,7 +46,7 @@ def test_zero_parameter():
 
 @dataclasses.dataclass
 class CustomInitializationVariable(OptimizationObject):
-    variable: StorageType = default_storage_field(cls=ContinuousVariable)
+    variable: StorageType = default_storage_field(cls=Variable)
     parameter: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):

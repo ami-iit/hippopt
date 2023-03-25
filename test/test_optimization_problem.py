@@ -5,19 +5,19 @@ import numpy as np
 import pytest
 
 from hippopt import (
-    ContinuousVariable,
     ExpressionType,
     OptimizationObject,
     OptimizationProblem,
     Parameter,
     StorageType,
+    Variable,
     default_storage_field,
 )
 
 
 @dataclasses.dataclass
 class MyTestVar(OptimizationObject):
-    variable: StorageType = default_storage_field(ContinuousVariable)
+    variable: StorageType = default_storage_field(Variable)
     size: dataclasses.InitVar[int] = dataclasses.field(default=3)
 
     def __post_init__(self, size: int = 3):
@@ -182,8 +182,8 @@ def test_opti_solver_with_parameters_and_lists():
 
 @dataclasses.dataclass
 class SwitchVar(OptimizationObject):
-    x: StorageType = default_storage_field(ContinuousVariable)
-    y: StorageType = default_storage_field(ContinuousVariable)
+    x: StorageType = default_storage_field(Variable)
+    y: StorageType = default_storage_field(Variable)
 
     def __post_init__(self):
         self.x = np.zeros(1)

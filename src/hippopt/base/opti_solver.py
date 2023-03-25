@@ -5,10 +5,10 @@ from typing import Any, ClassVar, List, Tuple
 import casadi as cs
 import numpy as np
 
-from hippopt.base.continuous_variable import ContinuousVariable
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
 from hippopt.base.optimization_solver import OptimizationSolver, SolverOutput
 from hippopt.base.parameter import Parameter
+from hippopt.base.variable import Variable
 
 
 class ProblemNotSolvedException(Exception):
@@ -70,7 +70,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                is ContinuousVariable.StorageType
+                is Variable.StorageType
             ):
                 value = dataclasses.asdict(output)[field.name]
 
@@ -163,7 +163,7 @@ class OptiSolver(OptimizationSolver):
             if has_storage_field and (
                 (
                     field.metadata[OptimizationObject.StorageTypeField]
-                    is ContinuousVariable.StorageType
+                    is Variable.StorageType
                 )
                 or (
                     field.metadata[OptimizationObject.StorageTypeField]
@@ -202,7 +202,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                is ContinuousVariable.StorageType
+                is Variable.StorageType
             ):
                 guess = dataclasses.asdict(initial_guess)[field.name]
 

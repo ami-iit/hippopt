@@ -14,7 +14,14 @@ StorageType = cs.MX | np.ndarray
 class OptimizationObject(abc.ABC):
     StorageType: ClassVar[str] = "generic"
     StorageTypeField: ClassVar[str] = "StorageType"
-    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(StorageType=StorageType)
+    TimeDependentField: ClassVar[str] = "TimeDependent"
+    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
+        StorageType=StorageType, TimeDependent=False
+    )
+
+    @classmethod
+    def default_storage_field(cls, **kwargs):
+        pass
 
     def get_default_initialization(
         self: TOptimizationObject, field_name: str
@@ -52,8 +59,5 @@ class OptimizationObject(abc.ABC):
         return output
 
 
-def default_storage_field(cls: Type[OptimizationObject]):
-    return dataclasses.field(
-        default=None,
-        metadata=cls.StorageTypeMetadata,
-    )
+def default_storage_field(cls: Type[OptimizationObject], **kwargs):
+    return cls.default_storage_field(**kwargs)

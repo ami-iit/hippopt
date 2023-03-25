@@ -1,5 +1,4 @@
 from . import base
-from .base.continuous_variable import ContinuousVariable, TContinuousVariable
 from .base.opti_solver import OptiSolver
 from .base.optimization_object import (
     OptimizationObject,
@@ -9,3 +8,4 @@ from .base.optimization_object import (
 )
 from .base.optimization_problem import ExpressionType, OptimizationProblem
 from .base.parameter import Parameter, TParameter
+from .base.variable import TVariable, Variable
