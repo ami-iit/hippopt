@@ -29,8 +29,12 @@ class MultipleShootingSolver(OptimalControlSolver):
         self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | List[TOptimizationObject]:  # TODO Stefano: Add test
         if isinstance(input_structure, list):
+            output_list = []
             for element in input_structure:
-                return self.generate_optimization_objects(element, **kwargs)
+                output_list.append(
+                    self.generate_optimization_objects(element, **kwargs)
+                )
+            return output_list
 
         if "horizon" not in kwargs and "horizons" not in kwargs:
             return self._optimization_solver.generate_optimization_objects(
@@ -53,12 +57,15 @@ class MultipleShootingSolver(OptimalControlSolver):
         for field in dataclasses.fields(output):
             horizon_length = default_horizon_length
 
-            if not field.metadata[OptimizationObject.TimeDependentField]:
-                horizon_length = 1
+            constant = (
+                OptimizationObject.TimeDependentField in field.metadata
+                and not field.metadata[OptimizationObject.TimeDependentField]
+            )
 
             if "horizons" in kwargs:
                 horizons_dict = kwargs["horizons"]
                 if isinstance(horizons_dict, dict) and field.name in horizons_dict:
+                    constant = False
                     horizon_length = int(horizons_dict[field.name])
                     if horizon_length < 1:
                         raise ValueError(
@@ -67,38 +74,40 @@ class MultipleShootingSolver(OptimalControlSolver):
                             + " needs to be a strictly positive integer"
                         )
 
-            composite_value = output.__getattribute__(field.name)
+            if constant:
+                continue
+
+            field_value = output.__getattribute__(field.name)
 
             if OptimizationObject.StorageTypeField in field.metadata and expand_storage:
-                if not isinstance(composite_value, np.ndarray):
+                if not isinstance(field_value, np.ndarray):
                     raise ValueError(
                         "Field "
                         + field.name
                         + 'is not a Numpy array. Cannot expand it to the horizon. Consider using "expand_storage=False"'
                     )
 
-                if composite_value.ndim > 1 and composite_value.shape[1] > 1:
+                if field_value.ndim > 1 and field_value.shape[1] > 1:
                     raise ValueError(
                         "Cannot expand " + field.name + " since it is already a matrix."
                     )
                 output.__setattr__(
-                    field.name, np.zeros(composite_value.shape[0], horizon_length)
+                    field.name, np.zeros(field_value.shape[0], horizon_length)
                 )  # This is only needed to get the structure for the optimization variables.
             else:
                 if (
                     OptimizationObject.StorageTypeField in field.metadata
-                    or isinstance(composite_value, OptimizationObject)
+                    or isinstance(field_value, OptimizationObject)
                     or (
-                        isinstance(composite_value, list)
+                        isinstance(field_value, list)
                         and all(
-                            isinstance(elem, OptimizationObject)
-                            for elem in composite_value
+                            isinstance(elem, OptimizationObject) for elem in field_value
                         )
                     )
                 ):
                     output_value = []
                     for _ in range(horizon_length):
-                        output_value.append(copy.deepcopy(composite_value))
+                        output_value.append(copy.deepcopy(field_value))
 
                     output.__setattr__(field.name, output_value)
 

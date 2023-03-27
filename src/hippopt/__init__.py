@@ -1,4 +1,5 @@
 from . import base
+from .base.multiple_shooting_solver import MultipleShootingSolver
 from .base.opti_solver import OptiSolver
 from .base.optimization_object import (
     OptimizationObject,
