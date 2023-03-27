@@ -19,7 +19,7 @@ class Variable(OptimizationObject):
     VariableTypeField: ClassVar[str] = "VariableType"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
         StorageType=StorageType,
-        TimeDependent=False,
+        TimeDependent=True,
         VariableType=VariableType.continuous,
     )
 

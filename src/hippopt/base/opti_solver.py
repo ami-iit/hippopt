@@ -59,54 +59,32 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
+    def _generate_opti_object(self, storage_type: str, name: str, value) -> cs.MX:
+        if value is None:
+            raise ValueError("Field " + name + " is tagged as storage, but it is None.")
+
+        if isinstance(value, np.ndarray):
+            if value.ndim > 2:
+                raise ValueError(
+                    "Field " + name + " has number of dimensions greater than 2."
+                )
+            if value.ndim < 2:
+                value = np.expand_dims(value, axis=1)
+
+        if storage_type is Variable.StorageType:
+            return self._solver.variable(*value.shape)
+
+        if storage_type is Parameter.StorageType:
+            return self._solver.parameter(*value.shape)
+
+        raise ValueError("Unsupported input storage type")
+
     def _generate_objects_from_instance(
         self, input_structure: TOptimizationObject
     ) -> TOptimizationObject:
         output = copy.deepcopy(input_structure)
 
         for field in dataclasses.fields(output):
-            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
-
-            if (
-                has_storage_field
-                and field.metadata[OptimizationObject.StorageTypeField]
-                is Variable.StorageType
-            ):
-                value = dataclasses.asdict(output)[field.name]
-
-                if isinstance(value, np.ndarray):
-                    if value.ndim > 2:
-                        raise ValueError(
-                            "Field "
-                            + field.name
-                            + " has number of dimensions greater than 2."
-                        )
-                    if value.ndim < 2:
-                        value = np.expand_dims(value, axis=1)
-
-                output.__setattr__(field.name, self._solver.variable(*value.shape))
-                continue
-
-            if (
-                has_storage_field
-                and field.metadata[OptimizationObject.StorageTypeField]
-                is Parameter.StorageType
-            ):
-                value = dataclasses.asdict(output)[field.name]
-
-                if isinstance(value, np.ndarray):
-                    if value.ndim > 2:
-                        raise ValueError(
-                            "Field "
-                            + field.name
-                            + " has number of dimensions greater than 2."
-                        )
-                    if value.ndim < 2:
-                        value = np.expand_dims(value, axis=1)
-
-                output.__setattr__(field.name, self._solver.parameter(*value.shape))
-                continue
-
             composite_value = output.__getattribute__(field.name)
 
             is_list = isinstance(composite_value, list)
@@ -121,6 +99,30 @@ class OptiSolver(OptimizationSolver):
                 output.__setattr__(
                     field.name, self.generate_optimization_objects(composite_value)
                 )
+                continue
+
+            if OptimizationObject.StorageTypeField in field.metadata:
+                value_list = []
+                value_field = dataclasses.asdict(output)[field.name]
+                value_list.append(value_field)
+
+                value_list = value_field if is_list else value_list
+                output_value = []
+                for value in value_list:
+                    output_value.append(
+                        self._generate_opti_object(
+                            storage_type=field.metadata[
+                                OptimizationObject.StorageTypeField
+                            ],
+                            name=field.name,
+                            value=value,
+                        )
+                    )
+
+                output.__setattr__(
+                    field.name, output_value if is_list else output_value[0]
+                )
+                continue
 
         self._variables = output
         return output
@@ -144,6 +146,7 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
+    # TODO, Stefano: Handle the case where the storage is a list
     def _generate_solution_output(
         self, variables: TOptimizationObject | List[TOptimizationObject]
     ) -> TOptimizationObject | List[TOptimizationObject]:
@@ -191,6 +194,7 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
+    # TODO, Stefano: Handle the case where the storage is a list
     def _set_initial_guess_internal(
         self,
         initial_guess: TOptimizationObject,
