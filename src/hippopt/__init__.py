@@ -7,6 +7,7 @@ from .base.optimization_object import (
     TOptimizationObject,
     default_storage_field,
 )
-from .base.optimization_problem import ExpressionType, OptimizationProblem
+from .base.optimization_problem import OptimizationProblem
 from .base.parameter import Parameter, TParameter
+from .base.problem import ExpressionType
 from .base.variable import TVariable, Variable

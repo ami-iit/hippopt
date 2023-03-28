@@ -7,5 +7,6 @@ from . import (
     optimization_problem,
     optimization_solver,
     parameter,
+    problem,
     variable,
 )
