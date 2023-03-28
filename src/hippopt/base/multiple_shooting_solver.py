@@ -5,6 +5,7 @@ from typing import List, Tuple
 import casadi as cs
 import numpy as np
 
+from .dynamics import TDynamics
 from .opti_solver import OptiSolver
 from .optimal_control_solver import OptimalControlSolver
 from .optimization_object import OptimizationObject, TOptimizationObject
@@ -27,7 +28,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:  # TODO Stefano: Add test
+    ) -> TOptimizationObject | List[TOptimizationObject]:
         if isinstance(input_structure, list):
             output_list = []
             for element in input_structure:
@@ -119,6 +120,16 @@ class MultipleShootingSolver(OptimalControlSolver):
         self,
     ) -> TOptimizationObject | List[TOptimizationObject]:
         return self._optimization_solver.get_optimization_objects()
+
+    # TODO Stefano: To implement
+    def add_dynamics(self, time_derivative: TDynamics, **kwargs):
+        lhs_names = time_derivative.state_variables()
+
+        lhs_list = lhs_names if isinstance(lhs_names, list) else [lhs_names]
+
+        lhs_vars = []
+        for name in lhs_list:
+            lhs_vars.append(self.get_optimization_objects().__dict__[name])
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]

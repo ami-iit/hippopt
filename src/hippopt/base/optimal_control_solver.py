@@ -1,52 +1,15 @@
 import abc
 import dataclasses
-from typing import List, Tuple
+from typing import TypeVar
 
-import casadi as cs
+from .dynamics import TDynamics
+from .optimization_solver import OptimizationSolver
 
-from .optimization_solver import OptimizationSolver, TOptimizationObject
+TOptimalControlSolver = TypeVar("TOptimalControlSolver", bound="OptimalControlSolver")
 
 
 @dataclasses.dataclass
 class OptimalControlSolver(OptimizationSolver):
     @abc.abstractmethod
-    def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
-        pass
-
-    @abc.abstractmethod
-    def get_optimization_objects(
-        self,
-    ) -> TOptimizationObject | List[TOptimizationObject]:
-        pass
-
-    @abc.abstractmethod
-    def set_initial_guess(
-        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
-    ):
-        pass
-
-    @abc.abstractmethod
-    def solve(self) -> Tuple[TOptimizationObject, float]:
-        pass
-
-    @abc.abstractmethod
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
-        pass
-
-    @abc.abstractmethod
-    def get_cost_value(self) -> float | None:
-        pass
-
-    @abc.abstractmethod
-    def add_cost(self, input_cost: cs.MX):
-        pass
-
-    @abc.abstractmethod
-    def add_constraint(self, input_constraint: cs.MX):
-        pass
-
-    @abc.abstractmethod
-    def cost_function(self) -> cs.MX:
+    def add_dynamics(self, time_derivative: TDynamics, **kwargs):
         pass

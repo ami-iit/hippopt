@@ -146,7 +146,7 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
-    # TODO, Stefano: Handle the case where the storage is a list
+    # TODO Stefano: Handle the case where the storage is a list
     def _generate_solution_output(
         self, variables: TOptimizationObject | List[TOptimizationObject]
     ) -> TOptimizationObject | List[TOptimizationObject]:
@@ -194,7 +194,7 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
-    # TODO, Stefano: Handle the case where the storage is a list
+    # TODO Stefano: Handle the case where the storage is a list
     def _set_initial_guess_internal(
         self,
         initial_guess: TOptimizationObject,

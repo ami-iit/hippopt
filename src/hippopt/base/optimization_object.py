@@ -23,6 +23,7 @@ class OptimizationObject(abc.ABC):
     def default_storage_field(cls, **kwargs):
         pass
 
+    # TODO Stefano: how to deal with the case where the field is a list of objects?
     def get_default_initialization(
         self: TOptimizationObject, field_name: str
     ) -> np.ndarray:

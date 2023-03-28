@@ -1,4 +1,5 @@
 from . import (
+    dynamics,
     multiple_shooting_solver,
     opti_solver,
     optimal_control_problem,

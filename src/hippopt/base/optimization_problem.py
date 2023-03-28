@@ -2,6 +2,7 @@ import dataclasses
 from typing import List
 
 from hippopt.base.opti_solver import OptiSolver
+from hippopt.base.optimal_control_solver import TOptimalControlSolver
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
 from hippopt.base.optimization_solver import OptimizationSolver, TOptimizationSolver
 from hippopt.base.problem import Problem
@@ -39,5 +40,5 @@ class OptimizationProblem(Problem):
         )
         return new_problem, new_problem._solver.get_optimization_objects()
 
-    def solver(self) -> TOptimizationSolver:
+    def solver(self) -> TOptimizationSolver | TOptimalControlSolver:
         return self._solver

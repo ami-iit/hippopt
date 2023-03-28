@@ -6,6 +6,7 @@ from typing import Generator
 
 import casadi as cs
 
+from hippopt.base.optimal_control_solver import TOptimalControlSolver
 from hippopt.base.optimization_solver import TOptimizationSolver
 
 
@@ -79,5 +80,5 @@ class Problem(abc.ABC):
                     pass
 
     @abc.abstractmethod
-    def solver(self) -> TOptimizationSolver:
+    def solver(self) -> TOptimizationSolver | TOptimalControlSolver:
         pass
