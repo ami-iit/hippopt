@@ -42,7 +42,7 @@ class OptimizationProblem(abc.ABC):
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
         scaling: float | cs.MX = 1.0,
-    ):
+    ) -> None:
         if isinstance(expression, types.GeneratorType):
             for expr in expression:
                 self.add_cost(expr, scaling)
@@ -62,7 +62,7 @@ class OptimizationProblem(abc.ABC):
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
         expected_value: float | cs.MX = 0.0,
-    ):
+    ) -> None:
         if isinstance(expression, types.GeneratorType):
             for expr in expression:
                 self.add_constraint(expr, expected_value)
@@ -84,7 +84,7 @@ class OptimizationProblem(abc.ABC):
         mode: ExpressionType,
         expression: cs.MX | Generator[cs.MX, None, None],
         **kwargs,
-    ):
+    ) -> None:
         if isinstance(expression, types.GeneratorType):
             for expr in expression:
                 self.add_expression(mode, expr)

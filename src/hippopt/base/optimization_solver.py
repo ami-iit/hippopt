@@ -28,11 +28,11 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
+    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
         pass
 
     @abc.abstractmethod
-    def get_cost_value(self) -> float | None:
+    def get_cost_value(self) -> float:
         pass
 
     @abc.abstractmethod
@@ -41,8 +41,4 @@ class OptimizationSolver(abc.ABC):
 
     @abc.abstractmethod
     def add_constraint(self, input_constraint: cs.MX) -> None:
-        pass
-
-    @abc.abstractmethod
-    def cost_function(self) -> cs.MX:
         pass

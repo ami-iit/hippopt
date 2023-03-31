@@ -332,7 +332,7 @@ class OptiSolver(OptimizationSolver):
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
-    ):
+    ) -> None:
         if isinstance(initial_guess, list):
             if not isinstance(self._variables, list):
                 raise ValueError(
@@ -361,7 +361,7 @@ class OptiSolver(OptimizationSolver):
         inner_solver: str = None,
         options_plugin: dict[str, Any] = None,
         options_solver: dict[str, Any] = None,
-    ):
+    ) -> None:
         if inner_solver is not None:
             self._inner_solver = inner_solver
         if options_plugin is not None:
@@ -380,20 +380,24 @@ class OptiSolver(OptimizationSolver):
         self._output_solution = self._generate_solution_output(self._variables)
         return self._output_solution, self._output_cost
 
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
+    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
+        if self._output_solution is None:
+            raise ValueError("There is no valid output yet")
         return self._output_solution
 
-    def get_cost_value(self) -> float | None:
+    def get_cost_value(self) -> float:
+        if self._output_cost is None:
+            raise ValueError("There is no valid output yet")
         return self._output_cost
 
-    def add_cost(self, input_cost: cs.MX):
+    def add_cost(self, input_cost: cs.MX) -> None:
         if self._cost is None:
             self._cost = input_cost
             return
 
         self._cost += input_cost
 
-    def add_constraint(self, input_constraint: cs.MX):
+    def add_constraint(self, input_constraint: cs.MX) -> None:
         self._solver.subject_to(input_constraint)
 
     def cost_function(self) -> cs.MX:
