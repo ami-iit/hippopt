@@ -15,7 +15,7 @@ from hippopt import (
 
 
 @dataclasses.dataclass
-class TestVariable(OptimizationObject):
+class MyTestVariable(OptimizationObject):
     storage: StorageType = default_storage_field(cls=ContinuousVariable)
 
     def __post_init__(self):
@@ -23,7 +23,7 @@ class TestVariable(OptimizationObject):
 
 
 @dataclasses.dataclass
-class TestParameter(OptimizationObject):
+class MyTestParameter(OptimizationObject):
     storage: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):
@@ -31,14 +31,14 @@ class TestParameter(OptimizationObject):
 
 
 def test_zero_variable():
-    test_var = TestVariable()
+    test_var = MyTestVariable()
     test_var_zero = test_var.get_default_initialized_object()
     assert test_var_zero.storage.shape == (3,)
     assert np.all(test_var_zero.storage == 0)
 
 
 def test_zero_parameter():
-    test_par = TestParameter()
+    test_par = MyTestParameter()
     test_par_zero = test_par.get_default_initialized_object()
     assert test_par_zero.storage.shape == (3,)
     assert np.all(test_par_zero.storage == 0)

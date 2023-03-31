@@ -16,7 +16,7 @@ from hippopt import (
 
 
 @dataclasses.dataclass
-class TestVar(OptimizationObject):
+class MyTestVar(OptimizationObject):
     variable: StorageType = default_storage_field(ContinuousVariable)
 
     def __post_init__(self):
@@ -25,7 +25,7 @@ class TestVar(OptimizationObject):
 
 def test_opti_solver():
     problem = OptimizationProblem()
-    var = problem.generate_optimization_objects(input_structure=TestVar())
+    var = problem.generate_optimization_objects(input_structure=MyTestVar())
     np.random.seed(123)
     a = 10.0 * np.random.rand(3) + 0.01
     b = 20.0 * np.random.rand(3) - 10.0
@@ -65,8 +65,8 @@ def test_opti_solver():
 
 
 @dataclasses.dataclass
-class TestVarAndPar(OptimizationObject):
-    composite: TestVar = dataclasses.field(default_factory=TestVar)
+class MyTestVarAndPar(OptimizationObject):
+    composite: MyTestVar = dataclasses.field(default_factory=MyTestVar)
     parameter: StorageType = default_storage_field(Parameter)
 
     def __post_init__(self):
@@ -75,8 +75,8 @@ class TestVarAndPar(OptimizationObject):
 
 def test_opti_solver_with_parameters():
     problem = OptimizationProblem()
-    initial_guess = TestVarAndPar()
-    var = problem.generate_optimization_objects(input_structure=TestVarAndPar())
+    initial_guess = MyTestVarAndPar()
+    var = problem.generate_optimization_objects(input_structure=MyTestVarAndPar())
     np.random.seed(123)
     a = 10.0 * np.random.rand(3) + 0.01
     b = 20.0 * np.random.rand(3) - 10.0
@@ -129,7 +129,7 @@ def test_opti_solver_with_parameters_and_lists():
     problem = OptimizationProblem()
     initial_guess = []
     for _ in range(3):
-        initial_guess.append(TestVarAndPar())
+        initial_guess.append(MyTestVarAndPar())
 
     var = problem.generate_optimization_objects(input_structure=initial_guess)
     np.random.seed(123)
