@@ -11,6 +11,11 @@ from hippopt.base.optimization_solver import OptimizationSolver
 from hippopt.base.parameter import Parameter
 
 
+class ProblemNotSolvedException(Exception):
+    def __init__(self):
+        super().__init__("The problem has not been solved yet.")
+
+
 @dataclasses.dataclass
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
@@ -382,12 +387,12 @@ class OptiSolver(OptimizationSolver):
 
     def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
         if self._output_solution is None:
-            raise ValueError("There is no valid output yet")
+            raise ProblemNotSolvedException
         return self._output_solution
 
     def get_cost_value(self) -> float:
         if self._output_cost is None:
-            raise ValueError("There is no valid output yet")
+            raise ProblemNotSolvedException
         return self._output_cost
 
     def add_cost(self, input_cost: cs.MX) -> None:
