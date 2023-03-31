@@ -20,7 +20,7 @@ class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
-    ):
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -36,11 +36,11 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_cost(self, input_cost: cs.MX):
+    def add_cost(self, input_cost: cs.MX) -> None:
         pass
 
     @abc.abstractmethod
-    def add_constraint(self, input_constraint: cs.MX):
+    def add_constraint(self, input_constraint: cs.MX) -> None:
         pass
 
     @abc.abstractmethod

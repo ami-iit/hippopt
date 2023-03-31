@@ -173,7 +173,7 @@ class OptiSolver(OptimizationSolver):
         self,
         initial_guess: TOptimizationObject,
         corresponding_variable: TOptimizationObject,
-    ):
+    ) -> None:
         for field in dataclasses.fields(initial_guess):
             has_storage_field = OptimizationObject.StorageTypeField in field.metadata
 
