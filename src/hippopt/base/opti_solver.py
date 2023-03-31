@@ -50,7 +50,7 @@ class OptiSolver(OptimizationSolver):
                 and field.metadata[OptimizationObject.StorageTypeField]
                 == ContinuousVariable.StorageType
             ):
-                value = output.__dict__[field.name]
+                value = dataclasses.asdict(output)[field.name]
 
                 if isinstance(value, np.ndarray):
                     if value.ndim > 2:
@@ -70,7 +70,7 @@ class OptiSolver(OptimizationSolver):
                 and field.metadata[OptimizationObject.StorageTypeField]
                 == Parameter.StorageType
             ):
-                value = output.__dict__[field.name]
+                value = dataclasses.asdict(output)[field.name]
 
                 if isinstance(value, np.ndarray):
                     if value.ndim > 2:
@@ -148,7 +148,7 @@ class OptiSolver(OptimizationSolver):
                     == Parameter.StorageType
                 )
             ):
-                var = variables.__dict__[field.name]
+                var = dataclasses.asdict(variables)[field.name]
                 output.__setattr__(field.name, self._opti_solution.value(var))
                 continue
 
@@ -182,7 +182,7 @@ class OptiSolver(OptimizationSolver):
                 and field.metadata[OptimizationObject.StorageTypeField]
                 == ContinuousVariable.StorageType
             ):
-                guess = initial_guess.__dict__[field.name]
+                guess = dataclasses.asdict(initial_guess)[field.name]
 
                 if guess is None:
                     continue
@@ -224,7 +224,7 @@ class OptiSolver(OptimizationSolver):
                 and field.metadata[OptimizationObject.StorageTypeField]
                 == Parameter.StorageType
             ):
-                guess = initial_guess.__dict__[field.name]
+                guess = dataclasses.asdict(initial_guess)[field.name]
 
                 if guess is None:
                     continue
