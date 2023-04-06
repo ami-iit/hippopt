@@ -14,7 +14,7 @@ from hippopt import (
 
 
 @dataclasses.dataclass
-class TestVar(OptimizationObject):
+class MyTestVar(OptimizationObject):
     variable: StorageType = default_storage_field(Variable)
     parameter: StorageType = default_storage_field(Parameter)
     string: str = "test"
@@ -27,7 +27,7 @@ class TestVar(OptimizationObject):
 def test_variables_to_horizon():
     horizon_len = 10
     solver = MultipleShootingSolver()
-    var = solver.generate_optimization_objects(TestVar(), horizon=horizon_len)
+    var = solver.generate_optimization_objects(MyTestVar(), horizon=horizon_len)
     assert var.string == "test"
     assert len(var.variable) == horizon_len
     assert all(v.shape == (3, 1) for v in var.variable)
