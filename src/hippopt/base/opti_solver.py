@@ -171,7 +171,7 @@ class OptiSolver(OptimizationSolver):
                 )
             ):
                 var = dataclasses.asdict(variables)[field.name]
-                output.__setattr__(field.name, self._opti_solution.value(var))
+                output.__setattr__(field.name, np.array(self._opti_solution.value(var)))
                 continue
 
             composite_variable = variables.__getattribute__(field.name)
