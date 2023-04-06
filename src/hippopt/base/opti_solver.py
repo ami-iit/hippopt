@@ -24,6 +24,12 @@ class OptiSolver(OptimizationSolver):
 
     _options_plugin: dict[str, Any] = dataclasses.field(default_factory=dict)
     _options_solver: dict[str, Any] = dataclasses.field(default_factory=dict)
+    options_solver: dataclasses.InitVar[dict[str, Any]] = dataclasses.field(
+        default=None
+    )
+    options_plugin: dataclasses.InitVar[dict[str, Any]] = dataclasses.field(
+        default=None
+    )
 
     _cost: cs.MX = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
@@ -36,8 +42,19 @@ class OptiSolver(OptimizationSolver):
         default=None
     )
 
-    def __post_init__(self, problem_type: str) -> None:
+    def __post_init__(
+        self,
+        problem_type: str,
+        options_solver: dict[str, Any] = None,
+        options_plugin: dict[str, Any] = None,
+    ):
         self._solver = cs.Opti(problem_type)
+        self._options_solver = (
+            options_solver if isinstance(options_solver, dict) else {}
+        )
+        self._options_plugin = (
+            options_plugin if isinstance(options_plugin, dict) else {}
+        )
         self._solver.solver(
             self._inner_solver, self._options_plugin, self._options_solver
         )
@@ -364,8 +381,8 @@ class OptiSolver(OptimizationSolver):
     def set_opti_options(
         self,
         inner_solver: str = None,
-        options_plugin: dict[str, Any] = None,
         options_solver: dict[str, Any] = None,
+        options_plugin: dict[str, Any] = None,
     ) -> None:
         if inner_solver is not None:
             self._inner_solver = inner_solver
