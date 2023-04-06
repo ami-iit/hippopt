@@ -129,7 +129,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         lhs_vars = []
         for name in lhs_list:
-            lhs_vars.append(self.get_optimization_objects().__dict__[name])
+            lhs_vars.append(self.get_optimization_objects().__getattribute__(name))
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]
