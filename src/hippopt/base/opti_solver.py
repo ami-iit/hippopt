@@ -7,7 +7,7 @@ import numpy as np
 
 from hippopt.base.continuous_variable import ContinuousVariable
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
-from hippopt.base.optimization_solver import OptimizationSolver
+from hippopt.base.optimization_solver import OptimizationSolver, SolverOutput
 from hippopt.base.parameter import Parameter
 
 
@@ -395,12 +395,14 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
-    def solve(self) -> Tuple[TOptimizationObject, float]:
+    def solve(self) -> SolverOutput:
         self._solver.minimize(self._cost)
         self._opti_solution = self._solver.solve()
         self._output_cost = self._opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(self._variables)
-        return self._output_solution, self._output_cost
+        return SolverOutput(
+            _values=self._output_solution, _cost_value=self._output_cost
+        )
 
     def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
         if self._output_solution is None:
