@@ -53,7 +53,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                == ContinuousVariable.StorageType
+                is ContinuousVariable.StorageType
             ):
                 value = dataclasses.asdict(output)[field.name]
 
@@ -73,7 +73,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                == Parameter.StorageType
+                is Parameter.StorageType
             ):
                 value = dataclasses.asdict(output)[field.name]
 
@@ -146,11 +146,11 @@ class OptiSolver(OptimizationSolver):
             if has_storage_field and (
                 (
                     field.metadata[OptimizationObject.StorageTypeField]
-                    == ContinuousVariable.StorageType
+                    is ContinuousVariable.StorageType
                 )
                 or (
                     field.metadata[OptimizationObject.StorageTypeField]
-                    == Parameter.StorageType
+                    is Parameter.StorageType
                 )
             ):
                 var = dataclasses.asdict(variables)[field.name]
@@ -185,7 +185,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                == ContinuousVariable.StorageType
+                is ContinuousVariable.StorageType
             ):
                 guess = dataclasses.asdict(initial_guess)[field.name]
 
@@ -227,7 +227,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                == Parameter.StorageType
+                is Parameter.StorageType
             ):
                 guess = dataclasses.asdict(initial_guess)[field.name]
 
