@@ -52,10 +52,6 @@ class DynamicsRHS:
     def number_of_outputs(self) -> int:
         return len(self._f.name_out())
 
-    def evaluate(self, variables: Dict[str, cs.MX]) -> List[cs.MX]:
-        # TODO Stefano: Implement. How to get the time?
-        pass
-
 
 @dataclasses.dataclass
 class DynamicsLHS:
@@ -87,6 +83,9 @@ class DynamicsLHS:
             )
         return Dynamics(lhs=self, rhs=rhs)
 
+    def __eq__(self, other: cs.Function) -> TDynamics:
+        return self.equal(f=other)
+
     def state_variables(self) -> List[str]:
         return self._x
 
@@ -98,7 +97,6 @@ def d(x: str | List[str]) -> TDynamicsLHS:
     return DynamicsLHS(x)
 
 
-# TODO Stefano: This class might be an ABC to override if needed
 @dataclasses.dataclass
 class Dynamics:
     _lhs: DynamicsLHS = dataclasses.field(default=None)
@@ -113,5 +111,14 @@ class Dynamics:
     def state_variables(self) -> List[str]:
         return self._lhs.state_variables()
 
-    def evaluate(self, variables: Dict[str, cs.MX]) -> List[cs.MX]:
-        return self._rhs.evaluate(variables)
+    def input_names(self) -> List[str]:
+        return self._rhs.input_names()
+
+    def time_name(self) -> str:
+        return self._lhs.time_label()
+
+    def evaluate(self, variables: Dict[str, cs.MX], time: cs.MX) -> Dict[str, cs.MX]:
+        input_dict = variables
+        input_dict[self.time_name()] = time
+
+        return self._rhs.function()(input_dict)
