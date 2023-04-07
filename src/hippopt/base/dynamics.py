@@ -81,7 +81,7 @@ class DynamicsLHS:
             raise ValueError(
                 "The number of outputs of the dynamics function does not match the specified number of state variables."
             )
-        return Dynamics(lhs=self, rhs=rhs)
+        return TypedDynamics(lhs=self, rhs=rhs)
 
     def __eq__(self, other: cs.Function) -> TDynamics:
         return self.equal(f=other)
@@ -97,8 +97,26 @@ def d(x: str | List[str]) -> TDynamicsLHS:
     return DynamicsLHS(x)
 
 
+class Dynamics(abc.ABC):
+    @abc.abstractmethod
+    def state_variables(self) -> List[str]:
+        pass
+
+    @abc.abstractmethod
+    def input_names(self) -> List[str]:
+        pass
+
+    @abc.abstractmethod
+    def time_name(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def evaluate(self, variables: Dict[str, cs.MX], time: cs.MX) -> Dict[str, cs.MX]:
+        pass
+
+
 @dataclasses.dataclass
-class Dynamics:
+class TypedDynamics(Dynamics):
     _lhs: DynamicsLHS = dataclasses.field(default=None)
     lhs: dataclasses.InitVar[DynamicsLHS] = None
     _rhs: DynamicsRHS = dataclasses.field(default=None)
