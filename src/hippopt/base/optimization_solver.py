@@ -1,28 +1,17 @@
 import abc
 import dataclasses
-from typing import Generic, List, Tuple, TypeVar
+from typing import List, TypeVar
 
 import casadi as cs
 
 from hippopt.base.optimization_object import TOptimizationObject
 
 TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
-TGenericOptimizationObject = TypeVar("TGenericOptimizationObject")
 
 
-@dataclasses.dataclass
-class SolverOutput(Generic[TGenericOptimizationObject]):
-    values: TGenericOptimizationObject = dataclasses.field(default=None)
-    cost_value: float = None
-
-    _values: dataclasses.InitVar[TGenericOptimizationObject] = dataclasses.field(
-        default=None
-    )
-    _cost_value: dataclasses.InitVar[float] = dataclasses.field(default=None)
-
-    def __post_init__(self, _values: TGenericOptimizationObject, _cost_value: float):
-        self.values = _values
-        self.cost_value = _cost_value
+class SolutionNotAvailableException(Exception):
+    def __init__(self):
+        super().__init__("No solution is available. Was solve() called successfully?")
 
 
 @dataclasses.dataclass
@@ -46,11 +35,11 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def solve(self) -> SolverOutput:
+    def solve(self) -> None:
         pass
 
     @abc.abstractmethod
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
+    def get_values(self) -> TOptimizationObject | List[TOptimizationObject]:
         pass
 
     @abc.abstractmethod

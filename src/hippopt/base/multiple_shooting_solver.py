@@ -1,6 +1,6 @@
 import copy
 import dataclasses
-from typing import List, Tuple
+from typing import List
 
 import casadi as cs
 import numpy as np
@@ -9,7 +9,7 @@ from .dynamics import TDynamics
 from .opti_solver import OptiSolver
 from .optimal_control_solver import OptimalControlSolver
 from .optimization_object import OptimizationObject, TOptimizationObject
-from .optimization_solver import OptimizationSolver, SolverOutput, TOptimizationSolver
+from .optimization_solver import OptimizationSolver, TOptimizationSolver
 
 
 @dataclasses.dataclass
@@ -136,11 +136,11 @@ class MultipleShootingSolver(OptimalControlSolver):
     ):
         self._optimization_solver.set_initial_guess(initial_guess=initial_guess)
 
-    def solve(self) -> SolverOutput:
-        return self._optimization_solver.solve()
+    def solve(self) -> None:
+        self._optimization_solver.solve()
 
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject] | None:
-        return self._optimization_solver.get_solution()
+    def get_values(self) -> TOptimizationObject | List[TOptimizationObject] | None:
+        return self._optimization_solver.get_values()
 
     def get_cost_value(self) -> float | None:
         return self._optimization_solver.get_cost_value()

@@ -2,12 +2,18 @@ import abc
 import dataclasses
 import types
 from enum import Enum
-from typing import Generator
+from typing import Generator, Generic, TypeVar
 
 import casadi as cs
 
-from hippopt.base.optimal_control_solver import TOptimalControlSolver
-from hippopt.base.optimization_solver import TOptimizationSolver
+TGenericOptimizationObject = TypeVar("TGenericOptimizationObject")
+TGenericSolver = TypeVar("TGenericSolver")
+TInputObjects = TypeVar("TInputObjects")
+
+
+class ProblemNotSolvedException(Exception):
+    def __init__(self):
+        super().__init__("No solution is available. Was solve() called successfully?")
 
 
 class ExpressionType(Enum):
@@ -17,7 +23,25 @@ class ExpressionType(Enum):
 
 
 @dataclasses.dataclass
-class Problem(abc.ABC):
+class Output(Generic[TGenericOptimizationObject]):
+    values: TGenericOptimizationObject = dataclasses.field(default=None)
+    cost_value: float = None
+
+    _values: dataclasses.InitVar[TGenericOptimizationObject] = dataclasses.field(
+        default=None
+    )
+    _cost_value: dataclasses.InitVar[float] = dataclasses.field(default=None)
+
+    def __post_init__(self, _values: TGenericOptimizationObject, _cost_value: float):
+        self.values = _values
+        self.cost_value = _cost_value
+
+
+@dataclasses.dataclass
+class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
+    _solver: TGenericSolver = dataclasses.field(default=None)
+    _output: Output[TInputObjects] = dataclasses.field(default=None)
+
     def add_cost(
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
@@ -79,6 +103,19 @@ class Problem(abc.ABC):
                 case _:
                     pass
 
-    @abc.abstractmethod
-    def solver(self) -> TOptimizationSolver | TOptimalControlSolver:
-        pass
+    def solver(self) -> TGenericSolver:
+        return self._solver
+
+    def solve(self) -> Output:
+        self.solver().solve()
+        self._output = Output(
+            _cost_value=self.solver().get_cost_value(),
+            _values=self.solver().get_values(),
+        )
+        return self._output
+
+    def get_output(self) -> Output:
+        if self._output is None:
+            raise ProblemNotSolvedException
+
+        return self._output

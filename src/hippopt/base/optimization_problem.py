@@ -1,24 +1,26 @@
 import dataclasses
-from typing import List
+from typing import Tuple, TypeVar
 
 from hippopt.base.opti_solver import OptiSolver
-from hippopt.base.optimal_control_solver import TOptimalControlSolver
-from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
 from hippopt.base.optimization_solver import OptimizationSolver, TOptimizationSolver
 from hippopt.base.problem import Problem
 
+TInputObjects = TypeVar("TInputObjects")
+TOptimizationProblem = TypeVar("TOptimizationProblem", bound="OptimizationProblem")
+
 
 @dataclasses.dataclass
-class OptimizationProblem(Problem):
-    input_structure: dataclasses.InitVar[OptimizationObject | List[TOptimizationObject]]
+class OptimizationProblem(Problem[TOptimizationSolver, TInputObjects]):
+    input_structure: dataclasses.InitVar[TInputObjects] = dataclasses.field(
+        default=None
+    )
     optimization_solver: dataclasses.InitVar[OptimizationSolver] = dataclasses.field(
         default=None
     )
-    _solver: TOptimizationSolver = dataclasses.field(default=None)
 
     def __post_init__(
         self,
-        input_structure: OptimizationObject | List[TOptimizationObject],
+        input_structure: TInputObjects,
         optimization_solver: TOptimizationSolver = None,
     ):
         self._solver = (
@@ -32,13 +34,10 @@ class OptimizationProblem(Problem):
     @classmethod
     def create(
         cls,
-        input_structure: TOptimizationObject | List[TOptimizationObject],
+        input_structure: TInputObjects,
         optimization_solver: TOptimizationSolver = None,
-    ):
+    ) -> Tuple[TOptimizationProblem, TInputObjects]:
         new_problem = cls(
             input_structure=input_structure, optimization_solver=optimization_solver
         )
         return new_problem, new_problem._solver.get_optimization_objects()
-
-    def solver(self) -> TOptimizationSolver | TOptimalControlSolver:
-        return self._solver

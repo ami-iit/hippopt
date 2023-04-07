@@ -45,7 +45,7 @@ def test_opti_solver():
         expression=(var.variable[k] >= c[k] for k in range(size)),  # noqa
     )
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(size)
     expected_cost = 0
@@ -61,7 +61,7 @@ def test_opti_solver():
     assert output.values.variable == pytest.approx(expected_x)
     assert output.cost_value == pytest.approx(expected_cost)
 
-    assert problem.solver().get_solution().variable == pytest.approx(expected_x)
+    assert problem.solver().get_values().variable == pytest.approx(expected_x)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
@@ -102,7 +102,7 @@ def test_opti_solver_with_parameters():
 
     problem.solver().set_initial_guess(initial_guess=initial_guess)
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(3)
     expected_cost = 0
@@ -119,9 +119,7 @@ def test_opti_solver_with_parameters():
     assert output.cost_value == pytest.approx(expected_cost)
     assert output.values.parameter == pytest.approx(c)
 
-    assert problem.solver().get_solution().composite.variable == pytest.approx(
-        expected_x
-    )
+    assert problem.solver().get_values().composite.variable == pytest.approx(expected_x)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
@@ -159,7 +157,7 @@ def test_opti_solver_with_parameters_and_lists():
 
     problem.solver().set_initial_guess(initial_guess=initial_guess)
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(3)
     expected_cost = 0
@@ -200,7 +198,7 @@ def test_switch_costs():
     initial_problem.add_expression(
         ExpressionType.subject_to, variables.x + variables.y == a - 1
     )  # noqa
-    output = initial_problem.solver().solve()
+    output = initial_problem.solve()
     expected_cost = a + (a - 2) ** 2
     assert output.cost_value == pytest.approx(expected=expected_cost, rel=0.1)
     assert output.values.x == pytest.approx(a - 2, rel=0.1)
@@ -217,7 +215,7 @@ def test_switch_costs():
         new_variables.x * new_variables.x + 1,
         expected_value=1,
     )
-    output = new_problem.solver().solve()
+    output = new_problem.solve()
     expected_cost = a * (a - 1) ** 2
     assert output.cost_value == pytest.approx(expected=expected_cost, rel=0.1)
     assert output.values.x == pytest.approx(0, abs=1e-4)
@@ -233,7 +231,7 @@ def test_switch_constraints():
     initial_problem.add_expression(
         ExpressionType.subject_to, variables.x + variables.y == a - 1
     )  # noqa
-    initial_output = initial_problem.solver().solve()
+    initial_output = initial_problem.solve()
 
     new_problem, new_variables = OptimizationProblem.create(input_structure=SwitchVar())
     new_problem.add_expression(
@@ -245,7 +243,7 @@ def test_switch_constraints():
     new_problem.add_expression(
         ExpressionType.minimize, new_variables.x == 5, scaling=1.0
     )
-    output = new_problem.solver().solve()
+    output = new_problem.solve()
     assert output.cost_value == pytest.approx(
         expected=initial_output.cost_value, rel=0.1
     )

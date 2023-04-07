@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, ClassVar, Type, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from hippopt.base.optimization_object import OptimizationObject
 

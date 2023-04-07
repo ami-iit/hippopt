@@ -9,6 +9,7 @@ from .base.optimization_object import (
     default_storage_field,
 )
 from .base.optimization_problem import OptimizationProblem
+from .base.optimization_solver import SolutionNotAvailableException
 from .base.parameter import Parameter, TParameter
-from .base.problem import ExpressionType
+from .base.problem import ExpressionType, ProblemNotSolvedException
 from .base.variable import TVariable, Variable
