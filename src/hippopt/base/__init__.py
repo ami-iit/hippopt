@@ -1,5 +1,6 @@
 from . import (
     dynamics,
+    implicit_single_step_integrator,
     multiple_shooting_solver,
     opti_solver,
     optimal_control_problem,
@@ -9,5 +10,6 @@ from . import (
     optimization_solver,
     parameter,
     problem,
+    single_step_integrator,
     variable,
 )
