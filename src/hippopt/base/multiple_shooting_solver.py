@@ -8,7 +8,7 @@ import numpy as np
 from .dynamics import TDynamics
 from .opti_solver import OptiSolver
 from .optimal_control_solver import OptimalControlSolver
-from .optimization_object import OptimizationObject, TOptimizationObject
+from .optimization_object import OptimizationObject, TimeExpansion, TOptimizationObject
 from .optimization_solver import OptimizationSolver, TOptimizationSolver
 
 
@@ -50,10 +50,6 @@ class MultipleShootingSolver(OptimalControlSolver):
                     "The specified horizon needs to be a strictly positive integer"
                 )
 
-        expand_storage = False
-        if "expand_storage" in kwargs:
-            expand_storage = bool(kwargs["expand_storage"])
-
         output = copy.deepcopy(input_structure)
         for field in dataclasses.fields(output):
             horizon_length = default_horizon_length
@@ -80,17 +76,26 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             field_value = output.__getattribute__(field.name)
 
+            expand_storage = False
+            if OptimizationObject.TimeExpansionField in field.metadata:
+                expand_storage = (
+                    field.metadata[OptimizationObject.TimeExpansionField]
+                    is TimeExpansion.Matrix
+                )
+
             if OptimizationObject.StorageTypeField in field.metadata and expand_storage:
                 if not isinstance(field_value, np.ndarray):
                     raise ValueError(
                         "Field "
                         + field.name
-                        + 'is not a Numpy array. Cannot expand it to the horizon. Consider using "expand_storage=False"'
+                        + "is not a Numpy array. Cannot expand it to the horizon."
+                        ' Consider using "TimeExpansion.List" as time_expansion strategy.'
                     )
 
                 if field_value.ndim > 1 and field_value.shape[1] > 1:
                     raise ValueError(
                         "Cannot expand " + field.name + " since it is already a matrix."
+                        ' Consider using "TimeExpansion.List" as time_expansion strategy.'
                     )
                 output.__setattr__(
                     field.name, np.zeros(field_value.shape[0], horizon_length)

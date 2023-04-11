@@ -1,6 +1,7 @@
 import abc
 import copy
 import dataclasses
+from enum import Enum
 from typing import Any, ClassVar, Type, TypeVar
 
 import casadi as cs
@@ -10,13 +11,19 @@ TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
 StorageType = cs.MX | np.ndarray
 
 
+class TimeExpansion(Enum):
+    List = 0
+    Matrix = 1
+
+
 @dataclasses.dataclass
 class OptimizationObject(abc.ABC):
     StorageType: ClassVar[str] = "generic"
     StorageTypeField: ClassVar[str] = "StorageType"
     TimeDependentField: ClassVar[str] = "TimeDependent"
+    TimeExpansionField: ClassVar[str] = "TimeExpansion"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
-        StorageType=StorageType, TimeDependent=False
+        StorageType=StorageType, TimeDependent=False, TimeExpansion=TimeExpansion.List
     )
 
     @classmethod

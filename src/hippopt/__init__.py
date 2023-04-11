@@ -5,6 +5,7 @@ from .base.optimal_control_problem import OptimalControlProblem
 from .base.optimization_object import (
     OptimizationObject,
     StorageType,
+    TimeExpansion,
     TOptimizationObject,
     default_storage_field,
 )
