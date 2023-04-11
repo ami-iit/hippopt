@@ -127,8 +127,8 @@ class MultipleShootingSolver(OptimalControlSolver):
         return self._optimization_solver.get_optimization_objects()
 
     # TODO Stefano: To implement
-    def add_dynamics(self, time_derivative: TDynamics, **kwargs):
-        lhs_names = time_derivative.state_variables()
+    def add_dynamics(self, dynamics: TDynamics, **kwargs):
+        lhs_names = dynamics.state_variables()
 
         lhs_list = lhs_names if isinstance(lhs_names, list) else [lhs_names]
 

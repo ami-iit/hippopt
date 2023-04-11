@@ -49,5 +49,5 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
         )
         return new_problem, new_problem._solver.get_optimization_objects()
 
-    def add_dynamics(self, time_derivative: TDynamics, **kwargs):
-        self.solver().add_dynamics(time_derivative, **kwargs)
+    def add_dynamics(self, dynamics: TDynamics, **kwargs):
+        self.solver().add_dynamics(dynamics, **kwargs)
