@@ -27,12 +27,10 @@ class ImplicitTrapezoid(SingleStepIntegrator):
         x0: Dict[str, cs.MX],
         xf: Dict[str, cs.MX],
         dt: cs.MX,
-        t0: cs.MX = None,
+        t0: cs.MX = 0,
     ) -> Dict[str, cs.MX]:
-        _t0 = t0 if t0 is not None else cs.MX(0)
-
-        f_initial = self._f.evaluate(variables=x0, time=_t0)
-        f_final = self._f.evaluate(variables=xf, time=_t0 + dt)
+        f_initial = self._f.evaluate(variables=x0, time=t0)
+        f_final = self._f.evaluate(variables=xf, time=t0 + dt)
 
         output = {}
         for x in self._f.state_variables():

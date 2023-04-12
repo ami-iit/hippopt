@@ -20,7 +20,7 @@ class SingleStepIntegrator(abc.ABC):
         x0: Dict[str, cs.MX],
         xf: Dict[str, cs.MX],
         dt: cs.MX,
-        t0: cs.MX = None,
+        t0: cs.MX = 0,
     ) -> Dict[str, cs.MX]:
         pass
 
