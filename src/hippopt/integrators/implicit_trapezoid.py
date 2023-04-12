@@ -27,7 +27,7 @@ class ImplicitTrapezoid(SingleStepIntegrator):
         x0: Dict[str, cs.MX],
         xf: Dict[str, cs.MX],
         dt: cs.MX,
-        t0: cs.MX = cs.MX(0.0),
+        t0: cs.MX = 0.0,
     ) -> Dict[str, cs.MX]:
         f_initial = self._f.evaluate(variables=x0, time=t0)
         f_final = self._f.evaluate(variables=xf, time=t0 + dt)

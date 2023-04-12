@@ -27,7 +27,7 @@ class ForwardEuler(SingleStepIntegrator):
         x0: Dict[str, cs.MX],
         xf: Dict[str, cs.MX],  # xf not used
         dt: cs.MX,
-        t0: cs.MX = cs.MX(0.0),
+        t0: cs.MX = 0.0,
     ) -> Dict[str, cs.MX]:
         f = self._f.evaluate(variables=x0, time=t0)
 
