@@ -38,14 +38,16 @@ class DynamicsRHS:
         input_dict = {}
 
         for name in self.input_names():
-            if input not in variables:
+            if name == time_name:
+                input_dict[time_name] = time
+                continue
+
+            if name not in variables:
                 raise ValueError(name + " input not found in variables.")
             key = name if name not in self._names_map else self._names_map[name]
             input_dict[key] = variables[name]
 
-        input_dict[time_name] = time
-
-        return self._f(input_dict)
+        return self._f(**input_dict)
 
     def input_names(self) -> List[str]:
         function_inputs = self._f.name_in()
@@ -80,7 +82,7 @@ class DynamicsLHS:
         self._t_label = t_label if isinstance(t_label, str) else "t"
 
     def equal(self, f: cs.Function, names_map: Dict[str, str] = None) -> TDynamics:
-        rhs = DynamicsRHS(f, names_map)
+        rhs = DynamicsRHS(f=f, names_map_in=names_map)
         if len(rhs.outputs()) != len(self._x):
             raise ValueError(
                 "The number of outputs of the dynamics function does not match the specified number of state variables."
@@ -104,7 +106,7 @@ class DynamicsLHS:
 
 
 def dot(x: str | List[str], t: str = "t") -> TDynamicsLHS:
-    return DynamicsLHS(x, t_label=t)
+    return DynamicsLHS(x=x, t_label=t)
 
 
 class Dynamics(abc.ABC):
@@ -150,7 +152,11 @@ class TypedDynamics(Dynamics):
             variables=variables, time=time, time_name=self._lhs.time_label()
         )
 
-        assert len(f_output) == len(self._rhs.outputs()) == self._lhs.state_variables()
+        assert (
+            len(f_output)
+            == len(self._rhs.outputs())
+            == len(self._lhs.state_variables())
+        )
 
         output_dict = {}
 

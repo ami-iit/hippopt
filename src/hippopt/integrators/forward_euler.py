@@ -11,7 +11,7 @@ from hippopt.base.single_step_integrator import (
 
 
 @dataclasses.dataclass
-class ImplicitTrapezoid(SingleStepIntegrator):
+class ForwardEuler(SingleStepIntegrator):
     _f: Dynamics = dataclasses.field(default=None)
     f: dataclasses.InitVar[Dynamics] = dataclasses.field(default=None)
 
@@ -25,15 +25,14 @@ class ImplicitTrapezoid(SingleStepIntegrator):
     def step(
         self,
         x0: Dict[str, cs.MX],
-        xf: Dict[str, cs.MX],
+        xf: Dict[str, cs.MX],  # xf not used
         dt: cs.MX,
         t0: cs.MX = cs.MX(0.0),
     ) -> Dict[str, cs.MX]:
-        f_initial = self._f.evaluate(variables=x0, time=t0)
-        f_final = self._f.evaluate(variables=xf, time=t0 + dt)
+        f = self._f.evaluate(variables=x0, time=t0)
 
         output = {}
         for x in self._f.state_variables():
-            output[x] = x0[x] + 0.5 * dt * (f_initial[x] + f_final[x])
+            output[x] = x0[x] + dt * f[x]
 
         return output

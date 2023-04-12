@@ -20,13 +20,18 @@ class SingleStepIntegrator(abc.ABC):
         x0: Dict[str, cs.MX],
         xf: Dict[str, cs.MX],
         dt: cs.MX,
-        t0: cs.MX = 0,
+        t0: cs.MX = cs.MX(0.0),
     ) -> Dict[str, cs.MX]:
         pass
 
 
 def step(
-    cls: Type[SingleStepIntegrator], dynamics: Dynamics, **kwargs
+    cls: Type[SingleStepIntegrator],
+    dynamics: Dynamics,
+    x0: Dict[str, cs.MX],
+    xf: Dict[str, cs.MX],
+    dt: cs.MX,
+    t0: cs.MX = cs.MX(0.0),
 ) -> Dict[str, cs.MX]:
     integrator = cls.create(dynamics=dynamics)
-    return integrator.step(**kwargs)
+    return integrator.step(x0=x0, xf=xf, dt=dt, t0=t0)
