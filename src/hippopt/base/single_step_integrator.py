@@ -15,7 +15,13 @@ class SingleStepIntegrator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def step(self, **kwargs) -> Dict[str, cs.MX]:
+    def step(
+        self,
+        x0: Dict[str, cs.MX],
+        xf: Dict[str, cs.MX],
+        dt: cs.MX,
+        t0: cs.MX = None,
+    ) -> Dict[str, cs.MX]:
         pass
 
 
