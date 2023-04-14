@@ -69,10 +69,10 @@ class OptiSolver(OptimizationSolver):
             if value.ndim < 2:
                 value = np.expand_dims(value, axis=1)
 
-        if storage_type is Variable.StorageType:
+        if storage_type is Variable.StorageTypeValue:
             return self._solver.variable(*value.shape)
 
-        if storage_type is Parameter.StorageType:
+        if storage_type is Parameter.StorageTypeValue:
             return self._solver.parameter(*value.shape)
 
         raise ValueError("Unsupported input storage type")
@@ -164,11 +164,11 @@ class OptiSolver(OptimizationSolver):
             if has_storage_field and (
                 (
                     field.metadata[OptimizationObject.StorageTypeField]
-                    is Variable.StorageType
+                    is Variable.StorageTypeValue
                 )
                 or (
                     field.metadata[OptimizationObject.StorageTypeField]
-                    is Parameter.StorageType
+                    is Parameter.StorageTypeValue
                 )
             ):
                 var = dataclasses.asdict(variables)[field.name]
@@ -204,7 +204,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                is Variable.StorageType
+                is Variable.StorageTypeValue
             ):
                 guess = dataclasses.asdict(initial_guess)[field.name]
 
@@ -246,7 +246,7 @@ class OptiSolver(OptimizationSolver):
             if (
                 has_storage_field
                 and field.metadata[OptimizationObject.StorageTypeField]
-                is Parameter.StorageType
+                is Parameter.StorageTypeValue
             ):
                 guess = dataclasses.asdict(initial_guess)[field.name]
 

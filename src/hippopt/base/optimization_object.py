@@ -18,7 +18,7 @@ class TimeExpansion(Enum):
 
 @dataclasses.dataclass
 class OptimizationObject(abc.ABC):
-    StorageType: ClassVar[str] = "generic"
+    StorageTypeValue: ClassVar[str] = "generic"
     StorageTypeField: ClassVar[str] = "StorageType"
     TimeDependentField: ClassVar[str] = "TimeDependent"
     TimeExpansionField: ClassVar[str] = "TimeExpansion"

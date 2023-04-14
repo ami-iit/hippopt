@@ -15,10 +15,10 @@ class VariableType(Enum):
 class Variable(OptimizationObject):
     """"""
 
-    StorageType: ClassVar[str] = "variable"
+    StorageTypeValue: ClassVar[str] = "variable"
     VariableTypeField: ClassVar[str] = "VariableType"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
-        StorageType=StorageType,
+        StorageType=StorageTypeValue,
         TimeDependent=True,
         TimeExpansion=TimeExpansion.List,
         VariableType=VariableType.continuous,

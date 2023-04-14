@@ -10,9 +10,9 @@ TParameter = TypeVar("TParameter", bound="Parameter")
 class Parameter(OptimizationObject):
     """"""
 
-    StorageType: ClassVar[str] = "parameter"
+    StorageTypeValue: ClassVar[str] = "parameter"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
-        StorageType=StorageType,
+        StorageType=StorageTypeValue,
         TimeDependent=False,
         TimeExpansion=TimeExpansion.List,
     )
