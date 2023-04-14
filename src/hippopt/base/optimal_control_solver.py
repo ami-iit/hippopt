@@ -11,5 +11,5 @@ TOptimalControlSolver = TypeVar("TOptimalControlSolver", bound="OptimalControlSo
 @dataclasses.dataclass
 class OptimalControlSolver(OptimizationSolver):
     @abc.abstractmethod
-    def add_dynamics(self, dynamics: TDynamics, **kwargs):
+    def add_dynamics(self, dynamics: TDynamics, **kwargs) -> None:
         pass

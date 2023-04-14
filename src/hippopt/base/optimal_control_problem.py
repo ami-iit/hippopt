@@ -49,5 +49,6 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
         )
         return new_problem, new_problem._solver.get_optimization_objects()
 
-    def add_dynamics(self, dynamics: TDynamics, **kwargs):
+    # TODO Stefano. Add the possibility to set the dynamics as cost
+    def add_dynamics(self, dynamics: TDynamics, **kwargs) -> None:
         self.solver().add_dynamics(dynamics, **kwargs)

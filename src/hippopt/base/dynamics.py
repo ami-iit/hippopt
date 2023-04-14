@@ -24,7 +24,8 @@ class DynamicsRHS:
         :param names_map_in: A dict describing how to switch from the input names to those used in the function.
          The key is the name provided by the user, while the value is the input name expected by the function.
          It is also possible to specify labels for nested variables using ".", e.g. "a.b" corresponds
-         to the variable "b" within "a". This is valid only for the keys.
+         to the variable "b" within "a".
+         This is valid only for the keys.
          If time is an input, its label needs to be provided using the "dot" function.
         :return: Nothing
         """

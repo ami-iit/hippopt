@@ -119,3 +119,6 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
             raise ProblemNotSolvedException
 
         return self._output
+
+
+# TODO Stefano: Add possibility to get the task list
