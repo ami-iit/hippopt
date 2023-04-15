@@ -69,3 +69,7 @@ class OptimizationObject(abc.ABC):
 
 def default_storage_field(cls: Type[OptimizationObject], **kwargs):
     return cls.default_storage_field(**kwargs)
+
+
+def time_varying_metadata(time_varying: bool = True):
+    return {OptimizationObject.TimeDependentField: time_varying}
