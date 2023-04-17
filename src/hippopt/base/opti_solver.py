@@ -11,6 +11,7 @@ from hippopt.base.optimization_solver import (
     SolutionNotAvailableException,
 )
 from hippopt.base.parameter import Parameter
+from hippopt.base.problem import Problem
 from hippopt.base.variable import Variable
 
 
@@ -39,6 +40,7 @@ class OptiSolver(OptimizationSolver):
     _variables: TOptimizationObject | List[TOptimizationObject] = dataclasses.field(
         default=None
     )
+    _problem: Problem = dataclasses.field(default=None)
 
     def __post_init__(
         self,
@@ -353,6 +355,12 @@ class OptiSolver(OptimizationSolver):
         self,
     ) -> TOptimizationObject | List[TOptimizationObject]:
         return self._variables
+
+    def register_problem(self, problem: Problem) -> None:
+        self._problem = problem
+
+    def get_problem(self) -> Problem:
+        return self._problem
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]

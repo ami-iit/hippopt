@@ -28,7 +28,7 @@ class OptimizationProblem(Problem[TOptimizationSolver, TInputObjects]):
             if isinstance(optimization_solver, OptimizationSolver)
             else OptiSolver()
         )
-
+        self._solver.register_problem(self)
         self._solver.generate_optimization_objects(input_structure=input_structure)
 
     @classmethod

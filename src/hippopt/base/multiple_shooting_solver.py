@@ -1,6 +1,6 @@
 import copy
 import dataclasses
-import re
+import itertools
 from collections.abc import Iterator
 from typing import Dict, List, Tuple
 
@@ -14,7 +14,8 @@ from .opti_solver import OptiSolver
 from .optimal_control_solver import OptimalControlSolver
 from .optimization_object import OptimizationObject, TimeExpansion, TOptimizationObject
 from .optimization_solver import OptimizationSolver, TOptimizationSolver
-from .single_step_integrator import SingleStepIntegrator
+from .problem import ExpressionType, Problem
+from .single_step_integrator import SingleStepIntegrator, step
 
 
 @dataclasses.dataclass
@@ -28,6 +29,9 @@ class MultipleShootingSolver(OptimalControlSolver):
         default=None
     )
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
+    _flattened_variables: List[
+        Dict[str, Tuple[int, Iterator[cs.MX]]]
+    ] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
@@ -45,21 +49,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             if isinstance(default_integrator, SingleStepIntegrator)
             else ImplicitTrapezoid()
         )
-
-        # TODO Stefano: Implement
-
-    # def _get_variable_from_string(
-    #     self, name: str, list_index: int
-    # ) -> Tuple[dict, cs.MX] | Tuple[dict, List[cs.MX]]:
-    #     self._optimization_solver.get_optimization_objects()
-    #
-    #     rad = re.split(pattern=".|].|]", string=name, maxsplit=1)[
-    #         0
-    #     ]  # Get the string before the first occurrence
-    #     # of either . or ]. or ]
-    #     if rad.find("[") >= 0:
-    #         pass
-    #     pass
+        self._flattened_variables = []
 
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
@@ -113,12 +103,12 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             field_value = output.__getattribute__(field.name)
 
-            expand_storage = False
-            if OptimizationObject.TimeExpansionField in field.metadata:
-                expand_storage = (
-                    field.metadata[OptimizationObject.TimeExpansionField]
-                    is TimeExpansion.Matrix
-                )
+            expand_storage = (
+                field.metadata[OptimizationObject.TimeExpansionField]
+                is TimeExpansion.Matrix
+                if OptimizationObject.TimeExpansionField in field.metadata
+                else False
+            )
 
             if OptimizationObject.StorageTypeField in field.metadata:
                 if expand_storage:
@@ -168,11 +158,16 @@ class MultipleShootingSolver(OptimalControlSolver):
 
                 output.__setattr__(field.name, output_value)
 
-        return self._optimization_solver.generate_optimization_objects(
+        variables = self._optimization_solver.generate_optimization_objects(
             input_structure=output, **kwargs
         )
 
-    # TODO Stefano: Implement
+        self._flattened_variables.append(
+            self._generate_flatten_optimization_objects(object_in=variables)
+        )
+
+        return variables
+
     def _generate_flatten_optimization_objects(
         self,
         object_in: TOptimizationObject | List[TOptimizationObject],
@@ -182,9 +177,12 @@ class MultipleShootingSolver(OptimalControlSolver):
             int, Iterator[TOptimizationObject | List[TOptimizationObject]]
         ] = None,
     ) -> Dict[str, Tuple[int, Iterator[cs.MX]]]:
+        assert (bool(top_level) != bool(base_iterator is not None)) or (
+            not top_level and base_iterator is None
+        )  # Cannot be top level and have base iterator
         output = {}
         for field in dataclasses.fields(object_in):
-            field_value = output.__getattribute__(field.name)
+            field_value = object_in.__getattribute__(field.name)
 
             time_dependent = (
                 OptimizationObject.TimeDependentField in field.metadata
@@ -192,18 +190,18 @@ class MultipleShootingSolver(OptimalControlSolver):
                 and top_level  # only top level variables can be time dependent
             )
 
-            expand_storage = False
-            if OptimizationObject.TimeExpansionField in field.metadata:
-                expand_storage = (
-                    field.metadata[OptimizationObject.TimeExpansionField]
-                    is TimeExpansion.Matrix
-                )
+            expand_storage = (
+                field.metadata[OptimizationObject.TimeExpansionField]
+                is TimeExpansion.Matrix
+                if OptimizationObject.TimeExpansionField in field.metadata
+                else False
+            )
 
             # cases:
-            # storage time dependent or not,
-            # aggregate not time dependent (otherwise it would be a list),
-            # list[aggregate] time dependent or not,
-            # list[list of aggregate] but only if time dependent
+            # storage, time dependent or not,
+            # aggregate, not time dependent (otherwise it would be a list),
+            # list[aggregate], time dependent or not,
+            # list[list of aggregate], but only if time dependent
 
             if OptimizationObject.StorageTypeField in field.metadata:  # storage
                 if not time_dependent:
@@ -216,7 +214,10 @@ class MultipleShootingSolver(OptimalControlSolver):
                             new_generator,
                         )
                     else:
-                        output[base_string + field.name] = (1, [field_value])
+                        output[base_string + field.name] = (
+                            1,
+                            itertools.repeat(field_value),
+                        )
                     continue
 
                 if expand_storage:
@@ -227,7 +228,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                     )
                     continue
 
-                assert isinstance(field_value, list)
+                assert isinstance(
+                    field_value, list
+                )  # time dependent and not expand_storage
                 n = len(field_value)  # list case
                 output[base_string + field.name] = (
                     n,
@@ -235,7 +238,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
                 continue
 
-            if isinstance(field_value, OptimizationObject):  # aggregate
+            if isinstance(
+                field_value, OptimizationObject
+            ):  # aggregate (cannot be time dependent)
                 generator = (
                     (val.__getattribute__(field.name) for val in base_iterator[1])
                     if base_iterator is not None
@@ -246,7 +251,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                     object_in=field_value,
                     top_level=False,
                     base_string=base_string + field.name + ".",
-                    base_iterator=(base_iterator[0], generator),
+                    base_iterator=(base_iterator[0], generator)
+                    if generator is not None
+                    else None,
                 )
                 continue
 
@@ -266,26 +273,45 @@ class MultipleShootingSolver(OptimalControlSolver):
                         output = output | self._generate_flatten_optimization_objects(
                             object_in=field_value,
                             top_level=False,
-                            base_string=base_string + field.name + "[" + str(k) + "].",
-                            base_iterator=(base_iterator[0], generator),
+                            base_string=base_string
+                            + field.name
+                            + "["
+                            + str(k)
+                            + "].",  # we flatten the list. Note the added [k]
+                            base_iterator=(base_iterator[0], generator)
+                            if generator is not None
+                            else None,
                         )
                     continue
-
+                # If we are time dependent (and hence top_level has to be true), there is no base generator
                 generator = (val for val in field_value)
                 for k in range(len(field_value)):
                     output = output | self._generate_flatten_optimization_objects(
                         object_in=field_value,
                         top_level=False,
-                        base_string=base_string + field.name + ".",
+                        base_string=base_string
+                        + field.name
+                        + ".",  # we don't flatten the list
                         base_iterator=(len(field_value), generator),
                     )
                 continue
 
-            if isinstance(field_value, list) and all(
-                isinstance(elem, list) for elem in field_value
-            ):  # list[list[aggregate]]
-                # TODO Stefano: finish the cases down below
-                pass
+            if (
+                isinstance(field_value, list)
+                and time_dependent
+                and all(isinstance(elem, list) for elem in field_value)
+            ):  # list[list[aggregate]], only time dependent
+                generator = (val for val in field_value)
+                for k in range(len(field_value)):
+                    output = output | self._generate_flatten_optimization_objects(
+                        object_in=field_value,
+                        top_level=False,
+                        base_string=base_string
+                        + field.name
+                        + ".",  # we don't flatten the list
+                        base_iterator=(len(field_value), generator),
+                    )
+                continue
 
         return output
 
@@ -294,14 +320,25 @@ class MultipleShootingSolver(OptimalControlSolver):
     ) -> TOptimizationObject | List[TOptimizationObject]:
         return self._optimization_solver.get_optimization_objects()
 
-    # TODO Stefano: To implement
-    def add_dynamics(self, dynamics: TDynamics, **kwargs) -> None:
+    def register_problem(self, problem: Problem) -> None:
+        self._optimization_solver.register_problem(problem)
+
+    def get_problem(self) -> Problem:
+        return self._optimization_solver.get_problem()
+
+    def add_dynamics(
+        self,
+        dynamics: TDynamics,
+        t0: cs.MX = cs.MX(0.0),
+        mode: ExpressionType = ExpressionType.subject_to,
+        **kwargs
+    ) -> None:
         if "dt" not in kwargs:
             raise ValueError(
                 "MultipleShootingSolver needs dt to be specified when adding a dynamics"
             )
 
-        top_level_index = -1
+        top_level_index = 0
         if isinstance(self.get_optimization_objects(), list):
             if "top_level_index" not in kwargs:
                 raise ValueError(
@@ -311,14 +348,32 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         dt_in = kwargs["dt"]
 
-        dt = [{OptimizationObject.TimeDependentField: False}, cs.MX(0)]
+        max_n = 0
+
+        if "max_steps" in kwargs:
+            max_n = kwargs["max_steps"]
+
+            if not isinstance(max_n, int) or max_n < 2:
+                raise ValueError(
+                    "max_steps is specified, but it needs to be an integer greater than 1"
+                )
+
+        dt_size = 1
 
         if isinstance(dt_in, float):
-            dt[1] = dt_in
+            dt_generator = itertools.repeat(cs.MX(dt_in))
         elif isinstance(dt_in, str):
-            dt = self._get_variable_from_string(dt_in, top_level_index)
+            if dt_in not in self._flattened_variables[top_level_index]:
+                raise ValueError(
+                    "The specified dt name is not found in the optimization variables"
+                )
+            dt_var_tuple = self._flattened_variables[top_level_index][dt_in]
+            dt_size = dt_var_tuple[0]
+            dt_generator = dt_var_tuple[1]
         else:
             raise ValueError("Unsupported dt type")
+
+        dt_tuple = (dt_size, dt_generator)
 
         integrator = (
             kwargs["integrator"]
@@ -328,14 +383,76 @@ class MultipleShootingSolver(OptimalControlSolver):
         )
 
         variables = {}
+        n = max_n
         for var in dynamics.state_variables():
-            variables[var] = self._get_variable_from_string(var, top_level_index)
+            if var not in self._flattened_variables[top_level_index]:
+                raise ValueError(
+                    "Variable " + var + " not found in the optimization variables."
+                )
+            var_tuple = self._flattened_variables[top_level_index][var]
+            var_n = var_tuple[0]
+            if n == 0:
+                if var_n < 2:
+                    raise ValueError(
+                        "The state variable " + var + " is not time dependent."
+                    )
+                n = var_n
 
-        # lhs_names = dynamics.state_variables()
-        #
-        # lhs_vars = []
-        # for name in lhs_names:
-        #     lhs_vars.append(self.get_optimization_objects().__getattribute__(name))
+            if var_n < n:
+                raise ValueError(
+                    "The state variable " + var + " has a too short prediction horizon."
+                )
+
+            variables[var] = var_tuple
+
+        if 1 < dt_tuple[0] < n:
+            raise ValueError("The specified dt has a too small prediction horizon.")
+
+        additional_inputs = {}
+        for inp in dynamics.input_names():
+            if inp not in self._flattened_variables[top_level_index]:
+                raise ValueError(
+                    "Variable " + inp + " not found in the optimization variables."
+                )
+
+            if inp not in variables:
+                inp_tuple = self._flattened_variables[top_level_index][inp]
+
+                inp_n = inp_tuple[0]
+
+                if 1 < inp_n < n:
+                    raise ValueError(
+                        "The input "
+                        + inp
+                        + " is time dependent, but it has a too small prediction horizon."
+                    )
+
+                additional_inputs[inp] = inp_tuple
+
+        x_k = {name: next(var_tuple[1]) for name, var_tuple in variables}
+        u_k = {name: next(inp_tuple[1]) for name, inp_tuple in additional_inputs}
+
+        for i in range(n - 1):
+            x_next = {name: next(var_tuple[1]) for name, var_tuple in variables}
+            u_next = {name: next(inp_tuple[1]) for name, inp_tuple in additional_inputs}
+            dt = next(dt_tuple[1])
+            integrated = step(
+                integrator,
+                dynamics=dynamics,
+                x0=x_k | u_k,
+                xf=x_next | u_next,
+                dt=dt,
+                t0=t0 + cs.MX(i) * dt,
+            )
+
+            self.get_problem().add_expression(
+                mode=mode,
+                expression=(cs.MX(val == integrated[name]) for name, val in x_next),
+                **kwargs
+            )
+
+            x_k = x_next
+            u_k = u_next
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | List[TOptimizationObject]

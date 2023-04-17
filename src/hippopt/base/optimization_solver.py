@@ -5,6 +5,7 @@ from typing import List, TypeVar
 import casadi as cs
 
 from hippopt.base.optimization_object import TOptimizationObject
+from hippopt.base.problem import Problem
 
 TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
 
@@ -26,6 +27,14 @@ class OptimizationSolver(abc.ABC):
     def get_optimization_objects(
         self,
     ) -> TOptimizationObject | List[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
+    def register_problem(self, problem: Problem) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_problem(self) -> Problem:
         pass
 
     @abc.abstractmethod

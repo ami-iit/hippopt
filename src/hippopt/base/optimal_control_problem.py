@@ -1,13 +1,15 @@
 import dataclasses
 from typing import Tuple, TypeVar
 
+import casadi as cs
+
 from hippopt.base.dynamics import TDynamics
 from hippopt.base.multiple_shooting_solver import MultipleShootingSolver
 from hippopt.base.optimal_control_solver import (
     OptimalControlSolver,
     TOptimalControlSolver,
 )
-from hippopt.base.problem import Problem
+from hippopt.base.problem import ExpressionType, Problem
 
 TInputObjects = TypeVar("TInputObjects")
 TOptimalControlProblem = TypeVar(
@@ -34,7 +36,7 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
             if isinstance(optimal_control_solver, OptimalControlSolver)
             else MultipleShootingSolver()
         )
-
+        self._solver.register_problem(self)
         self._solver.generate_optimization_objects(input_structure=input_structure)
 
     @classmethod
@@ -49,6 +51,11 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
         )
         return new_problem, new_problem._solver.get_optimization_objects()
 
-    # TODO Stefano. Add the possibility to set the dynamics as cost
-    def add_dynamics(self, dynamics: TDynamics, **kwargs) -> None:
-        self.solver().add_dynamics(dynamics, **kwargs)
+    def add_dynamics(
+        self,
+        dynamics: TDynamics,
+        t0: cs.MX = cs.MX(0.0),
+        mode: ExpressionType = ExpressionType.subject_to,
+        **kwargs
+    ) -> None:
+        self.solver().add_dynamics(dynamics=dynamics, t0=t0, mode=mode, **kwargs)
