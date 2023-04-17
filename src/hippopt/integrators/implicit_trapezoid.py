@@ -32,8 +32,9 @@ class ImplicitTrapezoid(SingleStepIntegrator):
         f_initial = self._f.evaluate(variables=x0, time=t0)
         f_final = self._f.evaluate(variables=xf, time=t0 + dt)
 
-        output = {}
-        for x in self._f.state_variables():
-            output[x] = x0[x] + 0.5 * dt * (f_initial[x] + f_final[x])
+        output = {
+            x: x0[x] + 0.5 * dt * (f_initial[x] + f_final[x])
+            for x in self._f.state_variables()
+        }
 
         return output

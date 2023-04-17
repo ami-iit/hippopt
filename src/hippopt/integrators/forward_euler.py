@@ -31,8 +31,6 @@ class ForwardEuler(SingleStepIntegrator):
     ) -> Dict[str, cs.MX]:
         f = self._f.evaluate(variables=x0, time=t0)
 
-        output = {}
-        for x in self._f.state_variables():
-            output[x] = x0[x] + dt * f[x]
+        output = {x: x0[x] + dt * f[x] for x in self._f.state_variables()}
 
         return output

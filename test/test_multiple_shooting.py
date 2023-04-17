@@ -36,3 +36,4 @@ def test_variables_to_horizon():
 
 
 # TODO Stefano: add test with expand_storage and selecting different horizons
+# TODO Stefano: add test on multiple shooting

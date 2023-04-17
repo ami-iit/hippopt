@@ -445,6 +445,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                 t0=t0 + cs.MX(i) * dt,
             )
 
+            # In the following, we add the dynamics expressions through the problem interface, rather than the
+            # solver interface. In this way, we can exploit the machinery handling the generators,
+            # and we can switch the dynamics from constraints to costs
             self.get_problem().add_expression(
                 mode=mode,
                 expression=(cs.MX(val == integrated[name]) for name, val in x_next),
