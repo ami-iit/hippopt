@@ -2,7 +2,8 @@ import copy
 import dataclasses
 import itertools
 from collections.abc import Iterator
-from typing import Dict, List, Tuple
+from functools import partial
+from typing import Callable, Dict, List, Tuple
 
 import casadi as cs
 import numpy as np
@@ -30,7 +31,7 @@ class MultipleShootingSolver(OptimalControlSolver):
     )
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
     _flattened_variables: List[
-        Dict[str, Tuple[int, Iterator[cs.MX]]]
+        Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]
     ] = dataclasses.field(default=None)
 
     def __post_init__(
@@ -174,9 +175,9 @@ class MultipleShootingSolver(OptimalControlSolver):
         top_level: bool = True,
         base_string: str = "",
         base_iterator: Tuple[
-            int, Iterator[TOptimizationObject | List[TOptimizationObject]]
+            int, Callable[[], Iterator[TOptimizationObject | List[TOptimizationObject]]]
         ] = None,
-    ) -> Dict[str, Tuple[int, Iterator[cs.MX]]]:
+    ) -> Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]:
         assert (bool(top_level) != bool(base_iterator is not None)) or (
             not top_level and base_iterator is None
         )  # Cannot be top level and have base iterator
@@ -206,43 +207,71 @@ class MultipleShootingSolver(OptimalControlSolver):
             if OptimizationObject.StorageTypeField in field.metadata:  # storage
                 if not time_dependent:
                     if base_iterator is not None:
-                        new_generator = (
-                            val.__getattribute__(field.name) for val in base_iterator[1]
+                        # generators cannot be rewound, but we might need to reuse them. Hence, we store
+                        # a lambda that can return a generator. Since in python it is not possible
+                        # to have capture lists as in C++, we use partial from functools
+                        # to store the inputs of the lambda within itself
+                        # (inspired from https://stackoverflow.com/a/10101476)
+                        new_generator = partial(
+                            (
+                                lambda name, base_generator_fun: (
+                                    val.__getattribute__(name)
+                                    for val in base_generator_fun()
+                                )
+                            ),
+                            field.name,
+                            base_iterator[1],
                         )
                         output[base_string + field.name] = (
                             base_iterator[0],
                             new_generator,
                         )
                     else:
+                        constant_generator = partial(
+                            (lambda value: itertools.repeat(value)), field_value
+                        )
                         output[base_string + field.name] = (
                             1,
-                            itertools.repeat(field_value),
+                            constant_generator,
                         )
                     continue
 
                 if expand_storage:
                     n = field_value.shape[1]
-                    output[base_string + field.name] = (
+                    new_generator = partial(
+                        (lambda value, dim: (value[:, i] for i in range(dim))),
+                        field_value,
                         n,
-                        (field_value[:, k] for k in range(n)),
                     )
+                    output[base_string + field.name] = (n, new_generator)
                     continue
 
                 assert isinstance(
                     field_value, list
                 )  # time dependent and not expand_storage
                 n = len(field_value)  # list case
-                output[base_string + field.name] = (
+                new_generator = partial(
+                    (lambda value, dim: (value[i] for i in range(dim))),
+                    field_value,
                     n,
-                    (field_value[k] for k in range(n)),
                 )
+                output[base_string + field.name] = (n, new_generator)
                 continue
 
             if isinstance(
                 field_value, OptimizationObject
             ):  # aggregate (cannot be time dependent)
                 generator = (
-                    (val.__getattribute__(field.name) for val in base_iterator[1])
+                    partial(
+                        (
+                            lambda name, base_generator_fun: (
+                                val.__getattribute__(name)
+                                for val in base_generator_fun()
+                            )
+                        ),
+                        field.name,
+                        base_iterator[1],
+                    )
                     if base_iterator is not None
                     else None
                 )
@@ -263,9 +292,16 @@ class MultipleShootingSolver(OptimalControlSolver):
                 if not time_dependent:
                     for k in range(len(field_value)):
                         generator = (
-                            (
-                                val.__getattribute__(field.name)[k]
-                                for val in base_iterator[1]
+                            partial(
+                                (
+                                    lambda name, base_generator_fun, i: (
+                                        val.__getattribute__(name)[i]
+                                        for val in base_generator_fun()
+                                    )
+                                ),
+                                field.name,
+                                base_iterator[1],
+                                k,
                             )
                             if base_iterator is not None
                             else None
@@ -284,7 +320,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                         )
                     continue
                 # If we are time dependent (and hence top_level has to be true), there is no base generator
-                generator = (val for val in field_value)
+                new_generator = partial(
+                    (lambda value: (val for val in value)), field_value
+                )
                 for k in range(len(field_value)):
                     output = output | self._generate_flatten_optimization_objects(
                         object_in=field_value,
@@ -292,7 +330,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                         base_string=base_string
                         + field.name
                         + ".",  # we don't flatten the list
-                        base_iterator=(len(field_value), generator),
+                        base_iterator=(len(field_value), new_generator),
                     )
                 continue
 
@@ -301,7 +339,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                 and time_dependent
                 and all(isinstance(elem, list) for elem in field_value)
             ):  # list[list[aggregate]], only time dependent
-                generator = (val for val in field_value)
+                new_generator = partial(
+                    (lambda value: (val for val in value)), field_value
+                )
                 for k in range(len(field_value)):
                     output = output | self._generate_flatten_optimization_objects(
                         object_in=field_value,
@@ -309,7 +349,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                         base_string=base_string
                         + field.name
                         + ".",  # we don't flatten the list
-                        base_iterator=(len(field_value), generator),
+                        base_iterator=(len(field_value), new_generator),
                     )
                 continue
 
@@ -403,7 +443,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                     "The state variable " + var + " has a too short prediction horizon."
                 )
 
-            variables[var] = var_tuple
+            # With var_tuple[1]() we get a new generator for the specific variable
+            variables[var] = (var_tuple[0], var_tuple[1]())
 
         if 1 < dt_tuple[0] < n:
             raise ValueError("The specified dt has a too small prediction horizon.")
@@ -427,7 +468,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                         + " is time dependent, but it has a too small prediction horizon."
                     )
 
-                additional_inputs[inp] = inp_tuple
+                additional_inputs[inp] = (inp_tuple[0], inp_tuple[1]())
 
         x_k = {name: next(var_tuple[1]) for name, var_tuple in variables}
         u_k = {name: next(inp_tuple[1]) for name, inp_tuple in additional_inputs}
