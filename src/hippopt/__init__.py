@@ -9,6 +9,7 @@ from .base.optimization_object import (
     TimeExpansion,
     TOptimizationObject,
     default_storage_field,
+    time_varying_metadata,
 )
 from .base.optimization_problem import OptimizationProblem
 from .base.optimization_solver import SolutionNotAvailableException

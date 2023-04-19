@@ -152,7 +152,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 OptimizationObject.TimeDependentField
                 in field.metadata  # If true, the field has to be true, see above
                 or custom_horizon
-            ):  # Nested variables are extended only if it is set as time dependent or if explicitly specified
+            ):  # Nested variables are extended only if it is set as time dependent or if it has custom horizon
                 output_value = []
                 for _ in range(horizon_length):
                     output_value.append(copy.deepcopy(field_value))
@@ -307,7 +307,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                             else None
                         )
                         output = output | self._generate_flattened_optimization_objects(
-                            object_in=field_value,
+                            object_in=field_value[k],
                             top_level=False,
                             base_string=base_string
                             + field.name
@@ -325,7 +325,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
                 for k in range(len(field_value)):
                     output = output | self._generate_flattened_optimization_objects(
-                        object_in=field_value,
+                        object_in=field_value[k],
                         top_level=False,
                         base_string=base_string
                         + field.name
@@ -344,7 +344,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
                 for k in range(len(field_value)):
                     output = output | self._generate_flattened_optimization_objects(
-                        object_in=field_value,
+                        object_in=field_value[k],
                         top_level=False,
                         base_string=base_string
                         + field.name
