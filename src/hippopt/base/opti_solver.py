@@ -8,6 +8,7 @@ import numpy as np
 from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
 from hippopt.base.optimization_solver import (
     OptimizationSolver,
+    ProblemNotRegisteredException,
     SolutionNotAvailableException,
 )
 from hippopt.base.parameter import Parameter
@@ -360,6 +361,8 @@ class OptiSolver(OptimizationSolver):
         self._problem = problem
 
     def get_problem(self) -> Problem:
+        if self._problem is None:
+            raise ProblemNotRegisteredException
         return self._problem
 
     def set_initial_guess(

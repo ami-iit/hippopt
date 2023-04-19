@@ -15,6 +15,11 @@ class SolutionNotAvailableException(Exception):
         super().__init__("No solution is available. Was solve() called successfully?")
 
 
+class ProblemNotRegisteredException(Exception):
+    def __init__(self):
+        super().__init__("No problem has been registered.")
+
+
 @dataclasses.dataclass
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
