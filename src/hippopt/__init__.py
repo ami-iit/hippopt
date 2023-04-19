@@ -9,6 +9,7 @@ from .base.optimization_object import (
     TimeExpansion,
     TOptimizationObject,
     default_storage_field,
+    default_storage_metadata,
     time_varying_metadata,
 )
 from .base.optimization_problem import OptimizationProblem

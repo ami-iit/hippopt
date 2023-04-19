@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 from typing import Any, ClassVar, TypeVar
 
@@ -18,16 +19,13 @@ class Parameter(OptimizationObject):
     )
 
     @classmethod
-    def default_storage_field(
+    def default_storage_metadata(
         cls,
         time_dependent: bool = False,
         time_expansion: TimeExpansion = TimeExpansion.List,
     ):
-        cls_dict = cls.StorageTypeMetadata
+        cls_dict = copy.deepcopy(cls.StorageTypeMetadata)
         cls_dict[OptimizationObject.TimeDependentField] = time_dependent
         cls_dict[OptimizationObject.TimeExpansionField] = time_expansion
 
-        return dataclasses.field(
-            default=None,
-            metadata=cls_dict,
-        )
+        return cls_dict

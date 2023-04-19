@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 from enum import Enum
 from typing import Any, ClassVar, TypeVar
@@ -25,18 +26,15 @@ class Variable(OptimizationObject):
     )
 
     @classmethod
-    def default_storage_field(
+    def default_storage_metadata(
         cls,
         time_dependent: bool = True,
         time_expansion: TimeExpansion = TimeExpansion.List,
         variable_type: VariableType = VariableType.continuous,
-    ):
-        cls_dict = cls.StorageTypeMetadata
+    ) -> dict:
+        cls_dict = copy.deepcopy(cls.StorageTypeMetadata)
         cls_dict[OptimizationObject.TimeDependentField] = time_dependent
         cls_dict[OptimizationObject.TimeExpansionField] = time_expansion
         cls_dict[cls.VariableTypeField] = variable_type
 
-        return dataclasses.field(
-            default=None,
-            metadata=cls_dict,
-        )
+        return cls_dict

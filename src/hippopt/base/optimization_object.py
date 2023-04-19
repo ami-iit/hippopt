@@ -27,7 +27,7 @@ class OptimizationObject(abc.ABC):
     )
 
     @classmethod
-    def default_storage_field(cls, **kwargs):
+    def default_storage_metadata(cls, **kwargs) -> dict:
         pass
 
     # TODO Stefano: how to deal with the case where the field is a list of objects?
@@ -67,8 +67,14 @@ class OptimizationObject(abc.ABC):
         return output
 
 
+def default_storage_metadata(cls: Type[OptimizationObject], **kwargs) -> dict:
+    return cls.default_storage_metadata(**kwargs)
+
+
 def default_storage_field(cls: Type[OptimizationObject], **kwargs):
-    return cls.default_storage_field(**kwargs)
+    return dataclasses.field(
+        default=None, metadata=default_storage_metadata(cls, **kwargs)
+    )
 
 
 def time_varying_metadata(time_varying: bool = True):
