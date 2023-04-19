@@ -18,16 +18,12 @@ TOptimalControlProblem = TypeVar(
 
 @dataclasses.dataclass
 class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
-    input_structure: dataclasses.InitVar[TInputObjects] = dataclasses.field(
-        default=None
-    )
     optimal_control_solver: dataclasses.InitVar[
         OptimalControlSolver
     ] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
-        input_structure: TInputObjects,
         optimal_control_solver: TOptimalControlSolver = None,
     ):
         self._solver = (
@@ -36,17 +32,19 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
             else MultipleShootingSolver()
         )
         self._solver.register_problem(self)
-        self._solver.generate_optimization_objects(input_structure=input_structure)
 
     @classmethod
     def create(
         cls,
         input_structure: TInputObjects,
         optimal_control_solver: TOptimalControlSolver = None,
+        **kwargs
     ) -> Tuple[TOptimalControlProblem, TInputObjects]:
         new_problem = cls(
-            input_structure=input_structure,
             optimal_control_solver=optimal_control_solver,
+        )
+        new_problem._solver.generate_optimization_objects(
+            input_structure=input_structure, **kwargs
         )
         return new_problem, new_problem._solver.get_optimization_objects()
 
