@@ -10,6 +10,7 @@ from hippopt import (
     OptimizationObject,
     Parameter,
     StorageType,
+    TimeExpansion,
     Variable,
     default_storage_field,
     time_varying_metadata,
@@ -17,7 +18,7 @@ from hippopt import (
 
 
 @dataclasses.dataclass
-class MyTestVar(OptimizationObject):
+class MyTestVarMS(OptimizationObject):
     variable: StorageType = default_storage_field(Variable)
     parameter: StorageType = default_storage_field(Parameter)
     string: str = "test"
@@ -29,15 +30,26 @@ class MyTestVar(OptimizationObject):
 
 @dataclasses.dataclass
 class MyCompositeTestVar(OptimizationObject):
-    composite: MyTestVar | List[MyTestVar] = dataclasses.field(
-        default_factory=MyTestVar, metadata=time_varying_metadata()
+    composite: MyTestVarMS | List[MyTestVarMS] = dataclasses.field(
+        default_factory=MyTestVarMS, metadata=time_varying_metadata()
     )
+    fixed: MyTestVarMS | list[MyTestVarMS] = dataclasses.field(
+        default_factory=MyTestVarMS
+    )
+    extended: StorageType = default_storage_field(
+        cls=Variable, time_expansion=TimeExpansion.Matrix
+    )
+
+    def __post_init__(self):
+        self.extended = np.zeros((3, 1))
 
 
 def test_simple_variables_to_horizon():
     horizon_len = 10
     solver = MultipleShootingSolver()
-    var = solver.generate_optimization_objects(MyTestVar(), horizon=horizon_len)
+    structure = MyTestVarMS()
+
+    var = solver.generate_optimization_objects(structure, horizon=horizon_len)
     assert var.string == "test"
     assert len(var.variable) == horizon_len
     assert all(v.shape == (3, 1) for v in var.variable)
@@ -54,13 +66,27 @@ def test_composite_variables_to_horizon():
     assert all(comp.string == "test" for comp in var.composite)
     assert len(var.composite) == horizon_len
     assert all(c.variable.shape == (3, 1) for c in var.composite)
+    assert isinstance(var.fixed, MyTestVarMS)  # not a list
+    assert var.extended.shape == (3, 10)
+
+
+def test_composite_variables_custom_horizon():
+    horizon_len = 10
+    solver = MultipleShootingSolver()
+    var = solver.generate_optimization_objects(
+        MyCompositeTestVar(), horizon=horizon_len, horizons={"fixed": horizon_len}
+    )
+    assert all(comp.string == "test" for comp in var.composite)
+    assert len(var.composite) == horizon_len
+    assert all(c.variable.shape == (3, 1) for c in var.composite)
+    assert len(var.fixed) == horizon_len
 
 
 def test_flattened_variables_simple():
     horizon_len = 10
 
     problem, var = OptimalControlProblem.create(
-        input_structure=MyTestVar(), horizon=horizon_len
+        input_structure=MyTestVarMS(), horizon=horizon_len
     )
 
     var_flat = problem.solver().get_flattened_optimization_objects()
@@ -98,3 +124,4 @@ def test_flattened_variables_composite():
 # TODO Stefano: add test with expand_storage and selecting different horizons
 # TODO Stefano: add test with composite variables and with lists
 # TODO Stefano: add test on multiple shooting add_dynamics
+# TODO Stefano: change List to list

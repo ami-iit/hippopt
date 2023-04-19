@@ -129,7 +129,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                             ' Consider using "TimeExpansion.List" as time_expansion strategy.'
                         )
                     output.__setattr__(
-                        field.name, np.zeros(field_value.shape[0], horizon_length)
+                        field.name, np.zeros((field_value.shape[0], horizon_length))
                     )  # This is only needed to get the structure for the optimization variables.
                 else:
                     output_value = []
