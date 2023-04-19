@@ -164,12 +164,12 @@ class MultipleShootingSolver(OptimalControlSolver):
         )
 
         self._flattened_variables.append(
-            self._generate_flatten_optimization_objects(object_in=variables)
+            self._generate_flattened_optimization_objects(object_in=variables)
         )
 
         return variables
 
-    def _generate_flatten_optimization_objects(
+    def _generate_flattened_optimization_objects(
         self,
         object_in: TOptimizationObject | List[TOptimizationObject],
         top_level: bool = True,
@@ -276,7 +276,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                     else None
                 )
 
-                output = output | self._generate_flatten_optimization_objects(
+                output = output | self._generate_flattened_optimization_objects(
                     object_in=field_value,
                     top_level=False,
                     base_string=base_string + field.name + ".",
@@ -306,7 +306,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                             if base_iterator is not None
                             else None
                         )
-                        output = output | self._generate_flatten_optimization_objects(
+                        output = output | self._generate_flattened_optimization_objects(
                             object_in=field_value,
                             top_level=False,
                             base_string=base_string
@@ -324,7 +324,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                     (lambda value: (val for val in value)), field_value
                 )
                 for k in range(len(field_value)):
-                    output = output | self._generate_flatten_optimization_objects(
+                    output = output | self._generate_flattened_optimization_objects(
                         object_in=field_value,
                         top_level=False,
                         base_string=base_string
@@ -343,7 +343,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                     (lambda value: (val for val in value)), field_value
                 )
                 for k in range(len(field_value)):
-                    output = output | self._generate_flatten_optimization_objects(
+                    output = output | self._generate_flattened_optimization_objects(
                         object_in=field_value,
                         top_level=False,
                         base_string=base_string
@@ -366,6 +366,11 @@ class MultipleShootingSolver(OptimalControlSolver):
     def get_problem(self) -> Problem:
         return self._optimization_solver.get_problem()
 
+    def get_flattened_optimization_objects(
+        self,
+    ) -> List[Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]]:
+        return self._flattened_variables
+
     def add_dynamics(
         self,
         dynamics: TDynamics,
@@ -373,6 +378,34 @@ class MultipleShootingSolver(OptimalControlSolver):
         mode: ExpressionType = ExpressionType.subject_to,
         **kwargs
     ) -> None:
+        """
+        Add a dynamics to the optimal control problem
+        :param dynamics: The dynamics to add. The variables involved need to have a name corresponding to the name of
+                         a flattened variable. If the variable is nested, you can use "." as separator (e.g. "a.b" will
+                         look for variable b within a). If there is a list, you can use "[k]" with "k" the element
+                         to pick. For example "a.b[k].c" will look for variable "c" defined in the k-th element of "b"
+                         within "a". Only the top level variables can be time dependent. In this case, "a" could be time
+                         dependent and being a list, but this is automatically detected, and there is no need to specify
+                         the time-dependency. The "[k]" keyword is used only in case the list is not time-dependent.
+        :param t0: The initial time
+        :param mode: Optional argument to set the mode with which the dynamics is added to the problem.
+                     Default: constraint
+        :param kwargs: Additional arguments. There are some required arguments:
+                                            - "dt": the integration time delta. It can either be a float in case it is
+                                                    constant, or a string to indicate the (flattened) name of the
+                                                    variable to use.
+
+                                            Optional arguments:
+                                            - "top_level_index": this defines the index to use in case we have a
+                                                                 list of optimization objects. This is used only if
+                                                                 the top level is a list.
+                                            - "max_steps": the number of integration steps. If not specified, the entire
+                                                           horizon of the specific state variable is used
+                                            - "integrator": specify the `SingleStepIntegrator` to use. This needs to be
+                                                            a type
+                                            - optional arguments of the `Problem.add_expression` method.
+        :return: None
+        """
         if "dt" not in kwargs:
             raise ValueError(
                 "MultipleShootingSolver needs dt to be specified when adding a dynamics"
