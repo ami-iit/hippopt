@@ -3,9 +3,8 @@ from typing import Tuple, TypeVar
 
 from hippopt.base.opti_solver import OptiSolver
 from hippopt.base.optimization_solver import OptimizationSolver, TOptimizationSolver
-from hippopt.base.problem import Problem
+from hippopt.base.problem import Problem, TInputObjects
 
-TInputObjects = TypeVar("TInputObjects")
 TOptimizationProblem = TypeVar("TOptimizationProblem", bound="OptimizationProblem")
 
 

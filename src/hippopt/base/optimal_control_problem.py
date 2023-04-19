@@ -9,9 +9,8 @@ from hippopt.base.optimal_control_solver import (
     OptimalControlSolver,
     TOptimalControlSolver,
 )
-from hippopt.base.problem import ExpressionType, Problem
+from hippopt.base.problem import ExpressionType, Problem, TInputObjects
 
-TInputObjects = TypeVar("TInputObjects")
 TOptimalControlProblem = TypeVar(
     "TOptimalControlProblem", bound="OptimalControlProblem"
 )
