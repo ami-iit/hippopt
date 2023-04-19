@@ -5,6 +5,7 @@ import numpy as np
 
 from hippopt import (
     MultipleShootingSolver,
+    OptimalControlProblem,
     OptimizationObject,
     Parameter,
     StorageType,
@@ -35,5 +36,29 @@ def test_variables_to_horizon():
     assert var.parameter.shape == (3, 1)
 
 
+def test_flattened_variables_simple():
+    horizon_len = 10
+
+    problem, var = OptimalControlProblem.create(
+        input_structure=MyTestVar(), horizon=horizon_len
+    )
+
+    var_flat = problem.solver().get_flattened_optimization_objects()
+    assert "string" not in var_flat
+    assert var_flat[0]["variable"][0] == horizon_len
+    assert var_flat[0]["parameter"][0] == 1
+    assert next(var_flat[0]["parameter"][1]()) is var.parameter
+    assert (
+        next(var_flat[0]["parameter"][1]()) is var.parameter
+    )  # check that we can use the generator twice
+    variable_gen = var_flat[0]["variable"][1]()
+    assert all(next(variable_gen) is v for v in var.variable)
+    variable_gen = var_flat[0]["variable"][1]()
+    assert all(
+        next(variable_gen) is v for v in var.variable
+    )  # check that we can use the generator twice
+
+
 # TODO Stefano: add test with expand_storage and selecting different horizons
-# TODO Stefano: add test on multiple shooting
+# TODO Stefano: add test with composite variables and with lists
+# TODO Stefano: add test on multiple shooting add_dynamics
