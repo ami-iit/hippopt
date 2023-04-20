@@ -90,7 +90,8 @@ class OptiSolver(OptimizationSolver):
 
             is_list = isinstance(composite_value, list)
             list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) for elem in composite_value
+                isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                for elem in composite_value
             )
 
             if (
@@ -131,14 +132,7 @@ class OptiSolver(OptimizationSolver):
     def _generate_objects_from_list(
         self, input_structure: List[TOptimizationObject]
     ) -> List[TOptimizationObject]:
-        list_of_optimization_objects = isinstance(input_structure, list) and all(
-            isinstance(elem, OptimizationObject) for elem in input_structure
-        )
-
-        assert (
-            isinstance(input_structure, OptimizationObject)
-            or list_of_optimization_objects
-        )
+        assert isinstance(input_structure, list)
 
         output = copy.deepcopy(input_structure)
         for i in range(len(output)):
@@ -147,7 +141,7 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
-    # TODO Stefano: Handle the case where the storage is a list
+    # TODO Stefano: Handle the case where the storage is a list or a list of list
     def _generate_solution_output(
         self, variables: TOptimizationObject | List[TOptimizationObject]
     ) -> TOptimizationObject | List[TOptimizationObject]:
@@ -195,7 +189,7 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
-    # TODO Stefano: Handle the case where the storage is a list
+    # TODO Stefano: Handle the case where the storage is a list or a list of list
     def _set_initial_guess_internal(
         self,
         initial_guess: TOptimizationObject,

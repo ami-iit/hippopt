@@ -135,8 +135,10 @@ def test_flattened_variables_composite():
     assert next(var_flat[0]["fixed.variable"][1]()) is var.fixed.variable
     assert next(var_flat[0]["fixed.parameter"][1]()) is var.fixed.parameter
     for i in range(3):
+        assert all(isinstance(c.variable, cs.MX) for c in var.composite_list[i])
         variable_gen = var_flat[0]["composite_list[" + str(i) + "].variable"][1]()
         assert all(next(variable_gen) is c.variable for c in var.composite_list[i])
+        assert all(isinstance(c.parameter, cs.MX) for c in var.composite_list[i])
         parameter_gen = var_flat[0]["composite_list[" + str(i) + "].parameter"][1]()
         assert all(next(parameter_gen) is c.parameter for c in var.composite_list[i])
         assert (
