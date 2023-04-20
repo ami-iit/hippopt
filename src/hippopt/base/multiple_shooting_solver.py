@@ -141,23 +141,34 @@ class MultipleShootingSolver(OptimalControlSolver):
                 continue
 
             if (
-                isinstance(field_value, OptimizationObject)
-                or (
-                    isinstance(field_value, list)
-                    and all(
-                        isinstance(elem, OptimizationObject) for elem in field_value
-                    )
-                )
-            ) and (
-                OptimizationObject.TimeDependentField
-                in field.metadata  # If true, the field has to be true, see above
-                or custom_horizon
-            ):  # Nested variables are extended only if it is set as time dependent or if it has custom horizon
+                OptimizationObject.TimeDependentField not in field.metadata
+                and not custom_horizon
+            ):
+                continue  # We expand nested variables (following two cases) only if time dependent
+
+            if isinstance(field_value, OptimizationObject):
                 output_value = []
                 for _ in range(horizon_length):
                     output_value.append(copy.deepcopy(field_value))
 
                 output.__setattr__(field.name, output_value)
+                continue
+
+            if isinstance(field_value, list) and all(
+                isinstance(elem, OptimizationObject) for elem in field_value
+            ):  # Nested variables are extended only if it is set as time dependent or if it has custom horizon
+                if not len(field_value):  # skip empty lists
+                    continue
+
+                output_value = []
+                for el in field_value:
+                    element = []
+                    for _ in range(horizon_length):
+                        element.append(copy.deepcopy(el))
+                    output_value.append(element)
+
+                output.__setattr__(field.name, output_value)
+                continue
 
         variables = self._optimization_solver.generate_optimization_objects(
             input_structure=output, **kwargs
@@ -319,19 +330,32 @@ class MultipleShootingSolver(OptimalControlSolver):
                             else None,
                         )
                     continue
+
+                if not len(field_value):
+                    continue
+
+                iterable = iter(field_value)
+                first = next(iterable)
+                all_same = all(
+                    isinstance(el, type(first)) for el in iterable
+                )  # check that each element has same type
+
+                if not all_same:
+                    continue
+
                 # If we are time dependent (and hence top_level has to be true), there is no base generator
                 new_generator = partial(
                     (lambda value: (val for val in value)), field_value
                 )
-                for k in range(len(field_value)):
-                    output = output | self._generate_flattened_optimization_objects(
-                        object_in=field_value[k],
-                        top_level=False,
-                        base_string=base_string
-                        + field.name
-                        + ".",  # we don't flatten the list
-                        base_iterator=(len(field_value), new_generator),
-                    )
+
+                output = output | self._generate_flattened_optimization_objects(
+                    object_in=first,  # since they are al equal, expand only the first and exploit base_iterator
+                    top_level=False,
+                    base_string=base_string
+                    + field.name
+                    + ".",  # we don't flatten the list
+                    base_iterator=(len(field_value), new_generator),
+                )
                 continue
 
             if (
@@ -339,16 +363,25 @@ class MultipleShootingSolver(OptimalControlSolver):
                 and time_dependent
                 and all(isinstance(elem, list) for elem in field_value)
             ):  # list[list[aggregate]], only time dependent
-                new_generator = partial(
-                    (lambda value: (val for val in value)), field_value
-                )
                 for k in range(len(field_value)):
+                    inner_list = field_value[k]
+
+                    iterable = iter(inner_list)
+                    first = next(iterable)
+                    all_same = all(
+                        isinstance(el, type(first)) for el in iterable
+                    )  # check that each element has same type
+
+                    if not all_same:
+                        break
+
+                    new_generator = partial(
+                        (lambda value: (val for val in value)), inner_list
+                    )
                     output = output | self._generate_flattened_optimization_objects(
-                        object_in=field_value[k],
+                        object_in=first,
                         top_level=False,
-                        base_string=base_string
-                        + field.name
-                        + ".",  # we don't flatten the list
+                        base_string=base_string + field.name + "[" + str(k) + "].",
                         base_iterator=(len(field_value), new_generator),
                     )
                 continue

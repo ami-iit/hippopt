@@ -40,8 +40,19 @@ class MyCompositeTestVar(OptimizationObject):
         cls=Variable, time_expansion=TimeExpansion.Matrix
     )
 
+    composite_list: list[MyTestVarMS] | list[list[MyTestVarMS]] = dataclasses.field(
+        default=None, metadata=time_varying_metadata()
+    )
+
+    fixed_list: list[MyTestVarMS] = dataclasses.field(default=None)
+
     def __post_init__(self):
         self.extended = np.zeros((3, 1))
+        self.composite_list = []
+        self.fixed_list = []
+        for _ in range(3):
+            self.composite_list.append(MyTestVarMS())
+            self.fixed_list.append(MyTestVarMS())
 
 
 def test_simple_variables_to_horizon():
@@ -80,6 +91,8 @@ def test_composite_variables_custom_horizon():
     assert len(var.composite) == horizon_len
     assert all(c.variable.shape == (3, 1) for c in var.composite)
     assert len(var.fixed) == horizon_len
+    assert len(var.composite_list) == 3
+    assert all(len(el) == horizon_len for el in var.composite_list)  # noqa
 
 
 def test_flattened_variables_simple():
@@ -119,9 +132,23 @@ def test_flattened_variables_composite():
     assert all(next(par_gen) is c.parameter for c in var.composite)
     variable_gen = var_flat[0]["composite.variable"][1]()
     assert all(next(variable_gen) is c.variable for c in var.composite)
+    assert next(var_flat[0]["fixed.variable"][1]()) is var.fixed.variable
+    assert next(var_flat[0]["fixed.parameter"][1]()) is var.fixed.parameter
+    for i in range(3):
+        variable_gen = var_flat[0]["composite_list[" + str(i) + "].variable"][1]()
+        assert all(next(variable_gen) is c.variable for c in var.composite_list[i])
+        parameter_gen = var_flat[0]["composite_list[" + str(i) + "].parameter"][1]()
+        assert all(next(parameter_gen) is c.parameter for c in var.composite_list[i])
+        assert (
+            next(var_flat[0]["fixed_list[" + str(i) + "].variable"][1]())
+            is var.fixed_list[i].variable
+        )
+        assert (
+            next(var_flat[0]["fixed_list[" + str(i) + "].parameter"][1]())
+            is var.fixed_list[i].parameter
+        )
 
 
-# TODO Stefano: add test with expand_storage and selecting different horizons
-# TODO Stefano: add test with composite variables and with lists
+# TODO Stefano: add test with top level lists
 # TODO Stefano: add test on multiple shooting add_dynamics
 # TODO Stefano: change List to list

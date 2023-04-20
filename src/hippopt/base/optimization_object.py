@@ -8,7 +8,7 @@ import casadi as cs
 import numpy as np
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
-StorageType = cs.MX | np.ndarray
+StorageType = cs.MX | np.ndarray | list[cs.MX] | list[np.ndarray]
 
 
 class TimeExpansion(Enum):
