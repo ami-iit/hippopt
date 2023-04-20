@@ -137,18 +137,22 @@ def test_flattened_variables_composite():
     for i in range(3):
         assert all(isinstance(c.variable, cs.MX) for c in var.composite_list[i])
         variable_gen = var_flat[0]["composite_list[" + str(i) + "].variable"][1]()
+        assert var_flat[0]["composite_list[" + str(i) + "].variable"][0] == horizon_len
         assert all(next(variable_gen) is c.variable for c in var.composite_list[i])
         assert all(isinstance(c.parameter, cs.MX) for c in var.composite_list[i])
         parameter_gen = var_flat[0]["composite_list[" + str(i) + "].parameter"][1]()
         assert all(next(parameter_gen) is c.parameter for c in var.composite_list[i])
+        assert var_flat[0]["composite_list[" + str(i) + "].parameter"][0] == horizon_len
         assert (
             next(var_flat[0]["fixed_list[" + str(i) + "].variable"][1]())
             is var.fixed_list[i].variable
         )
+        assert var_flat[0]["fixed_list[" + str(i) + "].variable"][0] == 1
         assert (
             next(var_flat[0]["fixed_list[" + str(i) + "].parameter"][1]())
             is var.fixed_list[i].parameter
         )
+        assert var_flat[0]["fixed_list[" + str(i) + "].parameter"][0] == 1
 
 
 # TODO Stefano: add test with top level lists

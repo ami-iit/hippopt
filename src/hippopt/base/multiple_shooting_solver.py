@@ -366,6 +366,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                 for k in range(len(field_value)):
                     inner_list = field_value[k]
 
+                    if not len(inner_list):
+                        break
+
                     iterable = iter(inner_list)
                     first = next(iterable)
                     all_same = all(
@@ -382,7 +385,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                         object_in=first,
                         top_level=False,
                         base_string=base_string + field.name + "[" + str(k) + "].",
-                        base_iterator=(len(field_value), new_generator),
+                        base_iterator=(len(inner_list), new_generator),
                     )
                 continue
 
