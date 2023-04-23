@@ -180,5 +180,4 @@ def test_flattened_variables_composite():
             assert var_flat[j]["fixed_list[" + str(i) + "].parameter"][0] == 1
 
 
-# TODO Stefano: add test with top level lists
 # TODO Stefano: add test on multiple shooting add_dynamics

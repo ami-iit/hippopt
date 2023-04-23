@@ -5,7 +5,11 @@ from typing import Any, ClassVar
 import casadi as cs
 import numpy as np
 
-from hippopt.base.optimization_object import OptimizationObject, TOptimizationObject
+from hippopt.base.optimization_object import (
+    OptimizationObject,
+    StorageType,
+    TOptimizationObject,
+)
 from hippopt.base.optimization_solver import (
     OptimizationSolver,
     ProblemNotRegisteredException,
@@ -60,7 +64,9 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
 
-    def _generate_opti_object(self, storage_type: str, name: str, value) -> cs.MX:
+    def _generate_opti_object(
+        self, storage_type: str, name: str, value: StorageType
+    ) -> cs.MX:
         if value is None:
             raise ValueError("Field " + name + " is tagged as storage, but it is None.")
 
@@ -141,18 +147,17 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
-    # TODO Stefano: Handle the case where the storage is a list or a list of list
     def _generate_solution_output(
-        self, variables: TOptimizationObject | list[TOptimizationObject]
+        self,
+        variables: TOptimizationObject
+        | list[TOptimizationObject]
+        | list[list[TOptimizationObject]],
     ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
 
         if isinstance(variables, list):
-            i = 0
-            for element in variables:
-                output[i] = self._generate_solution_output(element)
-                i += 1
-
+            for i in range(len(variables)):
+                output[i] = self._generate_solution_output(variables[i])
             return output
 
         for field in dataclasses.fields(variables):
@@ -168,15 +173,23 @@ class OptiSolver(OptimizationSolver):
                     is Parameter.StorageTypeValue
                 )
             ):
-                var = dataclasses.asdict(variables)[field.name]
-                output.__setattr__(field.name, np.array(self._opti_solution.value(var)))
+                var = variables.__getattribute__(field.name)
+                if isinstance(var, list):
+                    output_val = []
+                    for el in var:
+                        output_val.append(np.array(self._opti_solution.value(el)))
+                else:
+                    output_val = np.array(self._opti_solution.value(var))
+
+                output.__setattr__(field.name, output_val)
                 continue
 
             composite_variable = variables.__getattribute__(field.name)
 
             is_list = isinstance(composite_variable, list)
             list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) for elem in composite_variable
+                isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                for elem in composite_variable
             )
 
             if (
@@ -189,97 +202,153 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
-    # TODO Stefano: Handle the case where the storage is a list or a list of list
+    def _set_opti_guess(
+        self, storage_type: str, variable: cs.MX, value: np.ndarray
+    ) -> None:
+        match storage_type:
+            case Variable.StorageTypeValue:
+                self._solver.set_initial(variable, value)
+            case Parameter.StorageTypeValue:
+                self._solver.set_value(variable, value)
+
+        return
+
     def _set_initial_guess_internal(
         self,
-        initial_guess: TOptimizationObject,
-        corresponding_variable: TOptimizationObject,
+        initial_guess: TOptimizationObject
+        | list[TOptimizationObject]
+        | list[list[TOptimizationObject]],
+        corresponding_variable: TOptimizationObject
+        | list[TOptimizationObject]
+        | list[list[TOptimizationObject]],
+        base_name: str = "",
     ) -> None:
+        if isinstance(initial_guess, list):
+            if not isinstance(corresponding_variable, list):
+                raise ValueError(
+                    "The input guess is a list, but the specified variable "
+                    + base_name
+                    + " is not"
+                )
+
+            if len(corresponding_variable) != len(initial_guess):
+                raise ValueError(
+                    "The input guess is a list but the variable "
+                    + base_name
+                    + " has a different dimension. Expected: "
+                    + str(len(corresponding_variable))
+                    + " Input: "
+                    + str(len(initial_guess))
+                )
+
+            for i in range(len(corresponding_variable)):
+                self._set_initial_guess_internal(
+                    initial_guess=initial_guess[i],
+                    corresponding_variable=corresponding_variable[i],
+                    base_name=base_name + "[" + str(i) + "].",
+                )
+            return
+
         for field in dataclasses.fields(initial_guess):
-            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
-
-            if (
-                has_storage_field
-                and field.metadata[OptimizationObject.StorageTypeField]
-                is Variable.StorageTypeValue
-            ):
-                guess = dataclasses.asdict(initial_guess)[field.name]
+            if OptimizationObject.StorageTypeField in field.metadata:
+                guess = initial_guess.__getattribute__(field.name)
 
                 if guess is None:
                     continue
 
-                if not isinstance(guess, np.ndarray):
-                    raise ValueError(
-                        "The guess for the field "
-                        + field.name
-                        + " is not an numpy array."
-                    )
-
                 if not hasattr(corresponding_variable, field.name):
                     raise ValueError(
                         "The guess has the field "
-                        + field.name
-                        + " but it is not present in the optimization variables"
-                    )
-
-                corresponding_variable_value = corresponding_variable.__getattribute__(
-                    field.name
-                )
-
-                input_shape = (
-                    guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
-                )
-
-                if corresponding_variable_value.shape != input_shape:
-                    raise ValueError(
-                        "The guess has the field "
-                        + field.name
-                        + " but its dimension does not match with the corresponding optimization variable"
-                    )
-
-                self._solver.set_initial(corresponding_variable_value, guess)
-                continue
-
-            if (
-                has_storage_field
-                and field.metadata[OptimizationObject.StorageTypeField]
-                is Parameter.StorageTypeValue
-            ):
-                guess = dataclasses.asdict(initial_guess)[field.name]
-
-                if guess is None:
-                    continue
-
-                if not isinstance(guess, np.ndarray):
-                    raise ValueError(
-                        "The guess for the field "
-                        + field.name
-                        + " is not an numpy array."
-                    )
-
-                if not hasattr(corresponding_variable, field.name):
-                    raise ValueError(
-                        "The guess has the field "
+                        + base_name
                         + field.name
                         + " but it is not present in the optimization parameters"
                     )
 
-                corresponding_parameter_value = corresponding_variable.__getattribute__(
+                corresponding_value = corresponding_variable.__getattribute__(
                     field.name
                 )
+
+                if isinstance(corresponding_value, list):
+                    if not isinstance(guess, list):
+                        raise ValueError(
+                            "The guess for the field "
+                            + base_name
+                            + field.name
+                            + " is supposed to be a list."
+                        )
+
+                    if len(corresponding_value) == len(guess):
+                        raise ValueError(
+                            "The guess for the field "
+                            + base_name
+                            + field.name
+                            + " is a list of the wrong size. Expected: "
+                            + str(len(corresponding_value))
+                            + ". Guess: "
+                            + str(len(guess))
+                        )
+
+                    for i in range(len(corresponding_value)):
+                        if not isinstance(guess[i], np.ndarray):
+                            raise ValueError(
+                                "The guess for the field "
+                                + base_name
+                                + field.name
+                                + "["
+                                + str(i)
+                                + "] is not an numpy array."
+                            )
+
+                        input_shape = (
+                            guess[i].shape
+                            if len(guess[i].shape) > 1
+                            else (guess[i].shape[0], 1)
+                        )
+
+                        if corresponding_value[i].shape != input_shape:
+                            raise ValueError(
+                                "The dimension of the guess for the field "
+                                + base_name
+                                + field.name
+                                + "["
+                                + str(i)
+                                + "] does not match with the corresponding optimization variable"
+                            )
+
+                        self._set_opti_guess(
+                            storage_type=field.metadata[
+                                OptimizationObject.StorageTypeField
+                            ],
+                            variable=corresponding_value[i],
+                            value=guess[i],
+                        )
+                    continue
+
+                if not isinstance(guess, np.ndarray):
+                    raise ValueError(
+                        "The guess for the field "
+                        + base_name
+                        + field.name
+                        + " is not an numpy array."
+                    )
 
                 input_shape = (
                     guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
                 )
 
-                if corresponding_parameter_value.shape != input_shape:
+                if corresponding_value.shape != input_shape:
                     raise ValueError(
                         "The guess has the field "
+                        + base_name
                         + field.name
                         + " but its dimension does not match with the corresponding optimization variable"
                     )
 
-                self._solver.set_value(corresponding_parameter_value, guess)
+                self._set_opti_guess(
+                    storage_type=field.metadata[OptimizationObject.StorageTypeField],
+                    variable=corresponding_value,
+                    value=guess,
+                )
                 continue
 
             composite_variable_guess = initial_guess.__getattribute__(field.name)
@@ -288,56 +357,19 @@ class OptiSolver(OptimizationSolver):
                 if not hasattr(corresponding_variable, field.name):
                     raise ValueError(
                         "The guess has the field "
+                        + base_name
                         + field.name
                         + " but it is not present in the optimization structure"
                     )
 
-                self._set_initial_guess_internal(
-                    initial_guess=composite_variable_guess,
-                    corresponding_variable=corresponding_variable.__getattribute__(
-                        field.name
-                    ),
-                )
-                continue
-
-            is_list = isinstance(composite_variable_guess, list)
-            list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject)
-                for elem in composite_variable_guess
-            )
-
-            if list_of_optimization_objects:
-                if not hasattr(corresponding_variable, field.name):
-                    raise ValueError(
-                        "The guess has the field "
-                        + field.name
-                        + " but it is not present in the optimization structure"
-                    )
-                corresponding_nested_variable = corresponding_variable.__getattribute__(
+            self._set_initial_guess_internal(
+                initial_guess=composite_variable_guess,
+                corresponding_variable=corresponding_variable.__getattribute__(
                     field.name
-                )
-
-                if not isinstance(corresponding_nested_variable, list):
-                    raise ValueError(
-                        "The guess has the field "
-                        + field.name
-                        + " as list, but the corresponding structure is not a list"
-                    )
-
-                i = 0
-                for element in composite_variable_guess:
-                    if i >= len(corresponding_nested_variable):
-                        raise ValueError(
-                            "The input guess is the list "
-                            + field.name
-                            + " but the corresponding variable structure is not a list"
-                        )
-
-                    self._set_initial_guess_internal(
-                        initial_guess=element,
-                        corresponding_variable=corresponding_nested_variable[i],
-                    )
-                    i += 1
+                ),
+                base_name=base_name + field.name + ".",
+            )
+            continue
 
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
@@ -362,25 +394,6 @@ class OptiSolver(OptimizationSolver):
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
-        if isinstance(initial_guess, list):
-            if not isinstance(self._variables, list):
-                raise ValueError(
-                    "The input guess is a list, but the specified variables structure is not"
-                )
-
-            i = 0
-            for element in initial_guess:
-                if i >= len(self._variables):
-                    raise ValueError(
-                        "The input guess is a list, but the specified variables structure is not"
-                    )
-
-                self._set_initial_guess_internal(
-                    initial_guess=element, corresponding_variable=self._variables[i]
-                )
-                i += 1
-            return
-
         self._set_initial_guess_internal(
             initial_guess=initial_guess, corresponding_variable=self._variables
         )
