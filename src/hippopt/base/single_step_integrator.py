@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Type, TypeVar
+from typing import Type, TypeVar
 
 import casadi as cs
 
@@ -17,21 +17,21 @@ class SingleStepIntegrator(abc.ABC):
     @abc.abstractmethod
     def step(
         self,
-        x0: Dict[str, cs.MX],
-        xf: Dict[str, cs.MX],
+        x0: dict[str, cs.MX],
+        xf: dict[str, cs.MX],
         dt: cs.MX,
         t0: cs.MX = 0.0,
-    ) -> Dict[str, cs.MX]:
+    ) -> dict[str, cs.MX]:
         pass
 
 
 def step(
     cls: Type[SingleStepIntegrator],
     dynamics: Dynamics,
-    x0: Dict[str, cs.MX],
-    xf: Dict[str, cs.MX],
+    x0: dict[str, cs.MX],
+    xf: dict[str, cs.MX],
     dt: cs.MX,
     t0: cs.MX = 0.0,
-) -> Dict[str, cs.MX]:
+) -> dict[str, cs.MX]:
     integrator = cls.create(dynamics=dynamics)
     return integrator.step(x0=x0, xf=xf, dt=dt, t0=t0)

@@ -1,5 +1,4 @@
 import dataclasses
-from typing import Dict
 
 import casadi as cs
 
@@ -24,11 +23,11 @@ class ForwardEuler(SingleStepIntegrator):
 
     def step(
         self,
-        x0: Dict[str, cs.MX],
-        xf: Dict[str, cs.MX],  # xf not used
+        x0: dict[str, cs.MX],
+        xf: dict[str, cs.MX],  # xf not used
         dt: cs.MX,
         t0: cs.MX = 0.0,
-    ) -> Dict[str, cs.MX]:
+    ) -> dict[str, cs.MX]:
         f = self._f.evaluate(variables=x0, time=t0)
 
         output = {x: x0[x] + dt * f[x] for x in self._f.state_variables()}

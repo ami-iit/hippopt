@@ -1,5 +1,4 @@
 import dataclasses
-from typing import Dict
 
 import casadi as cs
 
@@ -24,11 +23,11 @@ class ImplicitTrapezoid(SingleStepIntegrator):
 
     def step(
         self,
-        x0: Dict[str, cs.MX],
-        xf: Dict[str, cs.MX],
+        x0: dict[str, cs.MX],
+        xf: dict[str, cs.MX],
         dt: cs.MX,
         t0: cs.MX = 0.0,
-    ) -> Dict[str, cs.MX]:
+    ) -> dict[str, cs.MX]:
         f_initial = self._f.evaluate(variables=x0, time=t0)
         f_final = self._f.evaluate(variables=xf, time=t0 + dt)
 

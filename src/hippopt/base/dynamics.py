@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Dict, Tuple, TypeVar
+from typing import Tuple, TypeVar
 
 import casadi as cs
 
@@ -11,12 +11,12 @@ TDynamicsLHS = TypeVar("TDynamicsLHS", bound="DynamicsLHS")
 @dataclasses.dataclass
 class DynamicsRHS:
     _f: cs.Function = dataclasses.field(default=None)
-    _names_map: Dict[str, str] = dataclasses.field(default=None)
-    _names_map_inv: Dict[str, str] = dataclasses.field(default=None)
+    _names_map: dict[str, str] = dataclasses.field(default=None)
+    _names_map_inv: dict[str, str] = dataclasses.field(default=None)
     f: dataclasses.InitVar[cs.Function] = None
-    names_map_in: dataclasses.InitVar[Dict[str, str]] = None
+    names_map_in: dataclasses.InitVar[dict[str, str]] = None
 
-    def __post_init__(self, f: cs.Function, names_map_in: Dict[str, str]):
+    def __post_init__(self, f: cs.Function, names_map_in: dict[str, str]):
         """
         Create the DynamicsRHS object
         :param f: The CasADi function describing the dynamics. The output order should match the list provided
@@ -34,8 +34,8 @@ class DynamicsRHS:
         self._names_map_inv = {v: k for k, v in self._names_map.items()}  # inverse dict
 
     def evaluate(
-        self, variables: Dict[str, cs.MX], time: cs.MX, time_name: str
-    ) -> Dict[str, cs.MX]:
+        self, variables: dict[str, cs.MX], time: cs.MX, time_name: str
+    ) -> dict[str, cs.MX]:
         input_dict = {}
 
         for name in self.input_names():
@@ -82,7 +82,7 @@ class DynamicsLHS:
         self._x = x if isinstance(x, list) else [x]
         self._t_label = t_label if isinstance(t_label, str) else "t"
 
-    def equal(self, f: cs.Function, names_map: Dict[str, str] = None) -> TDynamics:
+    def equal(self, f: cs.Function, names_map: dict[str, str] = None) -> TDynamics:
         rhs = DynamicsRHS(f=f, names_map_in=names_map)
         if len(rhs.outputs()) != len(self._x):
             raise ValueError(
@@ -91,7 +91,7 @@ class DynamicsLHS:
         return TypedDynamics(lhs=self, rhs=rhs)
 
     def __eq__(
-        self, other: cs.Function | Tuple[cs.Function, Dict[str, str]]
+        self, other: cs.Function | Tuple[cs.Function, dict[str, str]]
     ) -> TDynamics:
         if isinstance(other, Tuple):
             return self.equal(f=other[0], names_map=other[1])
@@ -124,7 +124,7 @@ class Dynamics(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def evaluate(self, variables: Dict[str, cs.MX], time: cs.MX) -> Dict[str, cs.MX]:
+    def evaluate(self, variables: dict[str, cs.MX], time: cs.MX) -> dict[str, cs.MX]:
         pass
 
 
@@ -148,7 +148,7 @@ class TypedDynamics(Dynamics):
     def time_name(self) -> str:
         return self._lhs.time_label()
 
-    def evaluate(self, variables: Dict[str, cs.MX], time: cs.MX) -> Dict[str, cs.MX]:
+    def evaluate(self, variables: dict[str, cs.MX], time: cs.MX) -> dict[str, cs.MX]:
         f_output = self._rhs.evaluate(
             variables=variables, time=time, time_name=self._lhs.time_label()
         )

@@ -3,7 +3,7 @@ import dataclasses
 import itertools
 from collections.abc import Iterator
 from functools import partial
-from typing import Callable, Dict, Tuple
+from typing import Callable, Tuple
 
 import casadi as cs
 import numpy as np
@@ -31,7 +31,7 @@ class MultipleShootingSolver(OptimalControlSolver):
     )
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
     _flattened_variables: list[
-        Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]
+        dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]
     ] = dataclasses.field(default=None)
 
     def __post_init__(
@@ -188,7 +188,7 @@ class MultipleShootingSolver(OptimalControlSolver):
         base_iterator: Tuple[
             int, Callable[[], Iterator[TOptimizationObject | list[TOptimizationObject]]]
         ] = None,
-    ) -> Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]:
+    ) -> dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]:
         assert (bool(top_level) != bool(base_iterator is not None)) or (
             not top_level and base_iterator is None
         )  # Cannot be top level and have base iterator
@@ -404,7 +404,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def get_flattened_optimization_objects(
         self,
-    ) -> list[Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]]:
+    ) -> list[dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]]:
         return self._flattened_variables
 
     def add_dynamics(
