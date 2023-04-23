@@ -52,17 +52,9 @@ class MultipleShootingSolver(OptimalControlSolver):
         )
         self._flattened_variables = []
 
-    def generate_optimization_objects(
+    def _extend_structure_to_horizon(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
-        if isinstance(input_structure, list):
-            output_list = []
-            for element in input_structure:
-                output_list.append(
-                    self.generate_optimization_objects(element, **kwargs)
-                )
-            return output_list
-
         if "horizon" not in kwargs and "horizons" not in kwargs:
             return self._optimization_solver.generate_optimization_objects(
                 input_structure=input_structure, **kwargs
@@ -170,13 +162,37 @@ class MultipleShootingSolver(OptimalControlSolver):
                 output.__setattr__(field.name, output_value)
                 continue
 
-        variables = self._optimization_solver.generate_optimization_objects(
-            input_structure=output, **kwargs
-        )
+        return output
 
-        self._flattened_variables.append(
-            self._generate_flattened_optimization_objects(object_in=variables)
-        )
+    def generate_optimization_objects(
+        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        if isinstance(input_structure, list):
+            expanded_structure = []
+            for element in input_structure:
+                expanded_structure.append(
+                    self._extend_structure_to_horizon(input_structure=element, **kwargs)
+                )
+
+            variables = self._optimization_solver.generate_optimization_objects(
+                input_structure=expanded_structure, **kwargs
+            )
+
+            for var in variables:
+                self._flattened_variables.append(
+                    self._generate_flattened_optimization_objects(object_in=var)
+                )
+
+        else:
+            expanded_structure = self._extend_structure_to_horizon(
+                input_structure=input_structure, **kwargs
+            )
+            variables = self._optimization_solver.generate_optimization_objects(
+                input_structure=expanded_structure, **kwargs
+            )
+            self._flattened_variables.append(
+                self._generate_flattened_optimization_objects(object_in=variables)
+            )
 
         return variables
 
