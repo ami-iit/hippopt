@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Tuple, TypeVar
+from typing import TypeVar
 
 import casadi as cs
 
@@ -39,7 +39,7 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
         input_structure: TInputObjects,
         optimal_control_solver: TOptimalControlSolver = None,
         **kwargs
-    ) -> Tuple[TOptimalControlProblem, TInputObjects]:
+    ) -> tuple[TOptimalControlProblem, TInputObjects]:
         new_problem = cls(
             optimal_control_solver=optimal_control_solver,
         )

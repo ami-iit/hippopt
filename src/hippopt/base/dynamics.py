@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Tuple, TypeVar
+from typing import TypeVar
 
 import casadi as cs
 
@@ -91,9 +91,9 @@ class DynamicsLHS:
         return TypedDynamics(lhs=self, rhs=rhs)
 
     def __eq__(
-        self, other: cs.Function | Tuple[cs.Function, dict[str, str]]
+        self, other: cs.Function | tuple[cs.Function, dict[str, str]]
     ) -> TDynamics:
-        if isinstance(other, Tuple):
+        if isinstance(other, tuple):
             return self.equal(f=other[0], names_map=other[1])
 
         assert isinstance(other, cs.Function)

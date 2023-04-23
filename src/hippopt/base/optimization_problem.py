@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Tuple, TypeVar
+from typing import TypeVar
 
 from hippopt.base.opti_solver import OptiSolver
 from hippopt.base.optimization_solver import OptimizationSolver, TOptimizationSolver
@@ -31,7 +31,7 @@ class OptimizationProblem(Problem[TOptimizationSolver, TInputObjects]):
         input_structure: TInputObjects,
         optimization_solver: TOptimizationSolver = None,
         **kwargs
-    ) -> Tuple[TOptimizationProblem, TInputObjects]:
+    ) -> tuple[TOptimizationProblem, TInputObjects]:
         new_problem = cls(optimization_solver=optimization_solver)
         new_problem._solver.generate_optimization_objects(
             input_structure=input_structure, **kwargs
