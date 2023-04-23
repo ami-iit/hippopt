@@ -30,8 +30,8 @@ class DynamicsRHS:
         :return: Nothing
         """
         self._f = f
-        self._names_map = names_map_in
-        self._names_map_inv = {v: k for k, v in names_map_in.items()}  # inverse dict
+        self._names_map = names_map_in if names_map_in else {}
+        self._names_map_inv = {v: k for k, v in self._names_map.items()}  # inverse dict
 
     def evaluate(
         self, variables: Dict[str, cs.MX], time: cs.MX, time_name: str

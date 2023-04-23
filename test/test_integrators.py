@@ -22,6 +22,18 @@ class Vars:
     lam: cs.MX = dataclasses.field(default_factory=cs.MX)
 
 
+def test_simple_dynamics_creation_with_operator():
+    _x = cs.MX.sym("x", 1)
+    _x_dot = -2.0 * _x
+
+    f = cs.Function("test", [_x], [_x_dot], ["x"], ["x_dot"])
+
+    dynamics = dot("x") == f  # noqa
+
+    assert dynamics.state_variables() == ["x"]
+    assert dynamics.input_names() == ["x"]
+
+
 def test_dynamics_creation_with_operator():
     f = get_test_function()
 
