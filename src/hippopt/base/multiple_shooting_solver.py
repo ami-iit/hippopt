@@ -3,7 +3,7 @@ import dataclasses
 import itertools
 from collections.abc import Iterator
 from functools import partial
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, Tuple
 
 import casadi as cs
 import numpy as np
@@ -30,7 +30,7 @@ class MultipleShootingSolver(OptimalControlSolver):
         default=None
     )
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
-    _flattened_variables: List[
+    _flattened_variables: list[
         Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]
     ] = dataclasses.field(default=None)
 
@@ -53,8 +53,8 @@ class MultipleShootingSolver(OptimalControlSolver):
         self._flattened_variables = []
 
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         if isinstance(input_structure, list):
             output_list = []
             for element in input_structure:
@@ -182,11 +182,11 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def _generate_flattened_optimization_objects(
         self,
-        object_in: TOptimizationObject | List[TOptimizationObject],
+        object_in: TOptimizationObject | list[TOptimizationObject],
         top_level: bool = True,
         base_string: str = "",
         base_iterator: Tuple[
-            int, Callable[[], Iterator[TOptimizationObject | List[TOptimizationObject]]]
+            int, Callable[[], Iterator[TOptimizationObject | list[TOptimizationObject]]]
         ] = None,
     ) -> Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]:
         assert (bool(top_level) != bool(base_iterator is not None)) or (
@@ -393,7 +393,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def get_optimization_objects(
         self,
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         return self._optimization_solver.get_optimization_objects()
 
     def register_problem(self, problem: Problem) -> None:
@@ -404,7 +404,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def get_flattened_optimization_objects(
         self,
-    ) -> List[Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]]:
+    ) -> list[Dict[str, Tuple[int, Callable[[], Iterator[cs.MX]]]]]:
         return self._flattened_variables
 
     def add_dynamics(
@@ -568,14 +568,14 @@ class MultipleShootingSolver(OptimalControlSolver):
             u_k = u_next
 
     def set_initial_guess(
-        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
+        self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ):
         self._optimization_solver.set_initial_guess(initial_guess=initial_guess)
 
     def solve(self) -> None:
         self._optimization_solver.solve()
 
-    def get_values(self) -> TOptimizationObject | List[TOptimizationObject] | None:
+    def get_values(self) -> TOptimizationObject | list[TOptimizationObject] | None:
         return self._optimization_solver.get_values()
 
     def get_cost_value(self) -> float | None:

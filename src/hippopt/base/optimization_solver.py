@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import List, TypeVar
+from typing import TypeVar
 
 import casadi as cs
 
@@ -24,14 +24,14 @@ class ProblemNotRegisteredException(Exception):
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         pass
 
     @abc.abstractmethod
     def get_optimization_objects(
         self,
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         pass
 
     @abc.abstractmethod
@@ -44,7 +44,7 @@ class OptimizationSolver(abc.ABC):
 
     @abc.abstractmethod
     def set_initial_guess(
-        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
+        self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
         pass
 
@@ -53,7 +53,7 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_values(self) -> TOptimizationObject | List[TOptimizationObject]:
+    def get_values(self) -> TOptimizationObject | list[TOptimizationObject]:
         pass
 
     @abc.abstractmethod

@@ -1,5 +1,4 @@
 import dataclasses
-from typing import List
 
 import casadi as cs
 import numpy as np
@@ -30,7 +29,7 @@ class MyTestVarMS(OptimizationObject):
 
 @dataclasses.dataclass
 class MyCompositeTestVar(OptimizationObject):
-    composite: MyTestVarMS | List[MyTestVarMS] = dataclasses.field(
+    composite: MyTestVarMS | list[MyTestVarMS] = dataclasses.field(
         default_factory=MyTestVarMS, metadata=time_varying_metadata()
     )
     fixed: MyTestVarMS | list[MyTestVarMS] = dataclasses.field(
@@ -157,4 +156,3 @@ def test_flattened_variables_composite():
 
 # TODO Stefano: add test with top level lists
 # TODO Stefano: add test on multiple shooting add_dynamics
-# TODO Stefano: change List to list

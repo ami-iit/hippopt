@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Dict, List, Tuple, TypeVar
+from typing import Dict, Tuple, TypeVar
 
 import casadi as cs
 
@@ -50,7 +50,7 @@ class DynamicsRHS:
 
         return self._f(**input_dict)
 
-    def input_names(self) -> List[str]:
+    def input_names(self) -> list[str]:
         function_inputs = self._f.name_in()
         output = []
         for el in function_inputs:
@@ -59,18 +59,18 @@ class DynamicsRHS:
 
         return output
 
-    def outputs(self) -> List[str]:
+    def outputs(self) -> list[str]:
         return self._f.name_out()
 
 
 @dataclasses.dataclass
 class DynamicsLHS:
-    _x: List[str] = dataclasses.field(default=None)
-    x: dataclasses.InitVar[List[str] | str] = None
+    _x: list[str] = dataclasses.field(default=None)
+    x: dataclasses.InitVar[list[str] | str] = None
     _t_label: str = "t"
     t_label: dataclasses.InitVar[str] = None
 
-    def __post_init__(self, x: List[str] | str, t_label: str):
+    def __post_init__(self, x: list[str] | str, t_label: str):
         """
         Constructs the DynamicsLHS object
         :param x: List of variable names on the left hand side of dot{x} = f(y).
@@ -99,24 +99,24 @@ class DynamicsLHS:
         assert isinstance(other, cs.Function)
         return self.equal(f=other)
 
-    def state_variables(self) -> List[str]:
+    def state_variables(self) -> list[str]:
         return self._x
 
     def time_label(self) -> str:
         return self._t_label
 
 
-def dot(x: str | List[str], t: str = "t") -> TDynamicsLHS:
+def dot(x: str | list[str], t: str = "t") -> TDynamicsLHS:
     return DynamicsLHS(x=x, t_label=t)
 
 
 class Dynamics(abc.ABC):
     @abc.abstractmethod
-    def state_variables(self) -> List[str]:
+    def state_variables(self) -> list[str]:
         pass
 
     @abc.abstractmethod
-    def input_names(self) -> List[str]:
+    def input_names(self) -> list[str]:
         pass
 
     @abc.abstractmethod
@@ -139,10 +139,10 @@ class TypedDynamics(Dynamics):
         self._lhs = lhs
         self._rhs = rhs
 
-    def state_variables(self) -> List[str]:
+    def state_variables(self) -> list[str]:
         return [x for x in self._lhs.state_variables() if x]  # Remove empty strings
 
-    def input_names(self) -> List[str]:
+    def input_names(self) -> list[str]:
         return self._rhs.input_names()
 
     def time_name(self) -> str:

@@ -1,6 +1,6 @@
 import copy
 import dataclasses
-from typing import Any, ClassVar, List
+from typing import Any, ClassVar
 
 import casadi as cs
 import numpy as np
@@ -34,11 +34,11 @@ class OptiSolver(OptimizationSolver):
     _cost: cs.MX = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
     _opti_solution: cs.OptiSol = dataclasses.field(default=None)
-    _output_solution: TOptimizationObject | List[
+    _output_solution: TOptimizationObject | list[
         TOptimizationObject
     ] = dataclasses.field(default=None)
     _output_cost: float = dataclasses.field(default=None)
-    _variables: TOptimizationObject | List[TOptimizationObject] = dataclasses.field(
+    _variables: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
     _problem: Problem = dataclasses.field(default=None)
@@ -130,8 +130,8 @@ class OptiSolver(OptimizationSolver):
         return output
 
     def _generate_objects_from_list(
-        self, input_structure: List[TOptimizationObject]
-    ) -> List[TOptimizationObject]:
+        self, input_structure: list[TOptimizationObject]
+    ) -> list[TOptimizationObject]:
         assert isinstance(input_structure, list)
 
         output = copy.deepcopy(input_structure)
@@ -143,8 +143,8 @@ class OptiSolver(OptimizationSolver):
 
     # TODO Stefano: Handle the case where the storage is a list or a list of list
     def _generate_solution_output(
-        self, variables: TOptimizationObject | List[TOptimizationObject]
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+        self, variables: TOptimizationObject | list[TOptimizationObject]
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
 
         if isinstance(variables, list):
@@ -340,15 +340,15 @@ class OptiSolver(OptimizationSolver):
                     i += 1
 
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         if isinstance(input_structure, OptimizationObject):
             return self._generate_objects_from_instance(input_structure=input_structure)
         return self._generate_objects_from_list(input_structure=input_structure)
 
     def get_optimization_objects(
         self,
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+    ) -> TOptimizationObject | list[TOptimizationObject]:
         return self._variables
 
     def register_problem(self, problem: Problem) -> None:
@@ -360,7 +360,7 @@ class OptiSolver(OptimizationSolver):
         return self._problem
 
     def set_initial_guess(
-        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
+        self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
         if isinstance(initial_guess, list):
             if not isinstance(self._variables, list):
@@ -409,7 +409,7 @@ class OptiSolver(OptimizationSolver):
         self._output_cost = self._opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(self._variables)
 
-    def get_values(self) -> TOptimizationObject | List[TOptimizationObject]:
+    def get_values(self) -> TOptimizationObject | list[TOptimizationObject]:
         if self._output_solution is None:
             raise SolutionNotAvailableException
         return self._output_solution
