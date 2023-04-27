@@ -1,27 +1,29 @@
 import dataclasses
 
+import casadi as cs
 import numpy as np
 
 from hippopt import (
+    ContinuousVariable,
     OptimizationObject,
+    OptiSolver,
     Parameter,
     StorageType,
     TOptimizationObject,
-    Variable,
     default_storage_field,
 )
 
 
 @dataclasses.dataclass
-class TestVariable(OptimizationObject):
-    storage: StorageType = default_storage_field(cls=Variable)
+class MyTestVariable(OptimizationObject):
+    storage: StorageType = default_storage_field(cls=ContinuousVariable)
 
     def __post_init__(self):
         self.storage = np.ones(shape=3)
 
 
 @dataclasses.dataclass
-class TestParameter(OptimizationObject):
+class MyTestParameter(OptimizationObject):
     storage: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):
@@ -29,14 +31,14 @@ class TestParameter(OptimizationObject):
 
 
 def test_zero_variable():
-    test_var = TestVariable()
+    test_var = MyTestVariable()
     test_var_zero = test_var.get_default_initialized_object()
     assert test_var_zero.storage.shape == (3,)
     assert np.all(test_var_zero.storage == 0)
 
 
 def test_zero_parameter():
-    test_par = TestParameter()
+    test_par = MyTestParameter()
     test_par_zero = test_par.get_default_initialized_object()
     assert test_par_zero.storage.shape == (3,)
     assert np.all(test_par_zero.storage == 0)
@@ -44,7 +46,7 @@ def test_zero_parameter():
 
 @dataclasses.dataclass
 class CustomInitializationVariable(OptimizationObject):
-    variable: StorageType = default_storage_field(cls=Variable)
+    variable: StorageType = default_storage_field(cls=ContinuousVariable)
     parameter: StorageType = default_storage_field(cls=Parameter)
 
     def __post_init__(self):
@@ -71,18 +73,19 @@ def test_custom_initialization():
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomInitializationVariable
+    aggregated: CustomInitializationVariable = dataclasses.field(
+        default_factory=CustomInitializationVariable
+    )
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
     def __post_init__(self):
-        self.aggregated = CustomInitializationVariable()
         self.other_parameter = np.ones(3)
         self.other = "untouched"
 
 
 def test_aggregated():
-    test_var = AggregateClass(aggregated=CustomInitializationVariable())
+    test_var = AggregateClass()
     test_var_init = test_var.get_default_initialized_object()
     assert test_var_init.aggregated.parameter.shape == (3,)
     assert np.all(test_var_init.aggregated.parameter == 0)
@@ -91,3 +94,35 @@ def test_aggregated():
     assert test_var_init.other_parameter.shape == (3,)
     assert np.all(test_var_init.other_parameter == 0)
     assert test_var_init.other == "untouched"
+
+
+def test_generate_objects():
+    test_var = AggregateClass()
+    solver = OptiSolver()
+    opti_var = solver.generate_optimization_objects(test_var)
+    assert isinstance(opti_var.aggregated.parameter, cs.MX)
+    assert opti_var.aggregated.parameter.shape == (3, 1)
+    assert isinstance(opti_var.aggregated.variable, cs.MX)
+    assert opti_var.aggregated.variable.shape == (3, 1)
+    assert isinstance(opti_var.other_parameter, cs.MX)
+    assert opti_var.other_parameter.shape == (3, 1)
+    assert opti_var.other == "untouched"
+    assert solver.get_optimization_objects() is opti_var
+
+
+def test_generate_objects_list():
+    test_var_list = []
+    for _ in range(2):
+        test_var_list.append(AggregateClass())
+    solver = OptiSolver()
+    opti_var_list = solver.generate_optimization_objects(test_var_list)
+    assert len(opti_var_list) == 2
+    for opti_var in opti_var_list:
+        assert isinstance(opti_var.aggregated.parameter, cs.MX)
+        assert opti_var.aggregated.parameter.shape == (3, 1)
+        assert isinstance(opti_var.aggregated.variable, cs.MX)
+        assert opti_var.aggregated.variable.shape == (3, 1)
+        assert isinstance(opti_var.other_parameter, cs.MX)
+        assert opti_var.other_parameter.shape == (3, 1)
+        assert opti_var.other == "untouched"
+    assert solver.get_optimization_objects() is opti_var_list
