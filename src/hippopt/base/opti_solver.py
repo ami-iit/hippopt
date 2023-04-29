@@ -250,12 +250,12 @@ class OptiSolver(OptimizationSolver):
             return
 
         for field in dataclasses.fields(initial_guess):
+            guess = initial_guess.__getattribute__(field.name)
+
+            if guess is None:
+                continue
+
             if OptimizationObject.StorageTypeField in field.metadata:
-                guess = initial_guess.__getattribute__(field.name)
-
-                if guess is None:
-                    continue
-
                 if not hasattr(corresponding_variable, field.name):
                     raise ValueError(
                         "The guess has the field "
@@ -416,6 +416,7 @@ class OptiSolver(OptimizationSolver):
         )
 
     def solve(self) -> None:
+        self._cost = self._cost if self._cost is not None else cs.MX(0)
         self._solver.minimize(self._cost)
         # TODO Stefano: Consider solution state
         self._opti_solution = self._solver.solve()

@@ -555,12 +555,14 @@ class MultipleShootingSolver(OptimalControlSolver):
 
                 additional_inputs[inp] = (inp_tuple[0], inp_tuple[1]())
 
-        x_k = {name: next(var_tuple[1]) for name, var_tuple in variables}
-        u_k = {name: next(inp_tuple[1]) for name, inp_tuple in additional_inputs}
+        x_k = {name: next(variables[name][1]) for name in variables}
+        u_k = {name: next(additional_inputs[name][1]) for name in additional_inputs}
 
         for i in range(n - 1):
-            x_next = {name: next(var_tuple[1]) for name, var_tuple in variables}
-            u_next = {name: next(inp_tuple[1]) for name, inp_tuple in additional_inputs}
+            x_next = {name: next(variables[name][1]) for name in variables}
+            u_next = {
+                name: next(additional_inputs[name][1]) for name in additional_inputs
+            }
             dt = next(dt_tuple[1])
             integrated = step(
                 integrator,
@@ -576,7 +578,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             # and we can switch the dynamics from constraints to costs
             self.get_problem().add_expression(
                 mode=mode,
-                expression=(cs.MX(val == integrated[name]) for name, val in x_next),
+                expression=(cs.MX(x_next[name] == integrated[name]) for name in x_next),
                 **kwargs
             )
 

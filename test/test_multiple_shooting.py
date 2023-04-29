@@ -4,6 +4,7 @@ import casadi as cs
 import numpy as np
 
 from hippopt import (
+    ForwardEuler,
     MultipleShootingSolver,
     OptimalControlProblem,
     OptimizationObject,
@@ -12,6 +13,7 @@ from hippopt import (
     TimeExpansion,
     Variable,
     default_storage_field,
+    dot,
     time_varying_metadata,
 )
 
@@ -180,4 +182,78 @@ def test_flattened_variables_composite():
             assert var_flat[j]["fixed_list[" + str(i) + "].parameter"][0] == 1
 
 
-# TODO Stefano: add test on multiple shooting add_dynamics
+@dataclasses.dataclass
+class MassFallingState(OptimizationObject):
+    x: StorageType = default_storage_field(Variable)
+    v: StorageType = default_storage_field(Variable)
+
+    def __post_init__(self):
+        self.x = np.zeros(1)
+        self.v = np.zeros(1)
+
+    @staticmethod
+    def get_dynamics():
+        _x = cs.MX.sym("x", 1)
+        _v = cs.MX.sym("v", 1)
+        _g = cs.MX.sym("g", 1)
+
+        x_dot = _v
+        v_dot = _g
+
+        return cs.Function(
+            "dynamics",
+            [_x, _v, _g],
+            [x_dot, v_dot],
+            ["x", "v", "g"],
+            ["x_dot", "v_dot"],
+        )
+
+
+@dataclasses.dataclass
+class MassFallingTestVariables(OptimizationObject):
+    masses: list[MassFallingState] = dataclasses.field(
+        metadata=time_varying_metadata(), default=None
+    )
+    g: StorageType = default_storage_field(Parameter)
+
+    def __post_init__(self):
+        self.g = -9.81 * np.ones(1)
+        self.masses = []
+        for _ in range(2):
+            self.masses.append(MassFallingState())
+
+
+def test_multiple_shooting():
+    guess = MassFallingTestVariables()
+    guess.masses = None
+
+    problem, var = OptimalControlProblem.create(
+        input_structure=MassFallingTestVariables(),
+        horizon=100,
+    )
+
+    problem.add_dynamics(
+        dot(["masses[0].x", "masses[0].v"])
+        == (MassFallingState.get_dynamics(), {"masses[0].x": "x", "masses[0].v": "v"}),
+        dt=0.01,
+        integrator=ForwardEuler,
+    )
+
+    problem.add_constraint(var.masses[0][0].x == 0)
+    problem.add_constraint(var.masses[0][0].v == 0)
+
+    problem.add_dynamics(
+        dot(["masses[1].x", "masses[1].v"])
+        == (MassFallingState.get_dynamics(), {"masses[1].x": "x", "masses[1].v": "v"}),
+        dt=0.01,
+        integrator=ForwardEuler,
+    )
+
+    problem.add_constraint(var.masses[1][0].x == 0)
+    problem.add_constraint(var.masses[1][0].v == 0)
+
+    problem.set_initial_guess(guess)
+
+    sol = problem.solve()
+
+    # TODO Stefano: check that the output makes sense

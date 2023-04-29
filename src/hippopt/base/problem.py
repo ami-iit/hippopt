@@ -6,6 +6,8 @@ from typing import Generator, Generic, TypeVar
 
 import casadi as cs
 
+from hippopt.base.optimization_object import TOptimizationObject
+
 TGenericOptimizationObject = TypeVar("TGenericOptimizationObject")
 TGenericSolver = TypeVar("TGenericSolver")
 TInputObjects = TypeVar("TInputObjects")
@@ -41,6 +43,11 @@ class Output(Generic[TGenericOptimizationObject]):
 class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
     _solver: TGenericSolver = dataclasses.field(default=None)
     _output: Output[TInputObjects] = dataclasses.field(default=None)
+
+    def set_initial_guess(
+        self, initial_guess: TOptimizationObject | list[TOptimizationObject]
+    ) -> None:
+        self.solver().set_initial_guess(initial_guess)
 
     def add_cost(
         self,
