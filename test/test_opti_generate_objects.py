@@ -8,14 +8,13 @@ from hippopt import (
     OptiSolver,
     Parameter,
     StorageType,
-    TOptimizationObject,
     Variable,
     default_storage_field,
 )
 
 
 @dataclasses.dataclass
-class CustomInitializationVariable(OptimizationObject):
+class CustomVariable(OptimizationObject):
     variable: StorageType = default_storage_field(cls=Variable)
     parameter: StorageType = default_storage_field(cls=Parameter)
 
@@ -23,20 +22,10 @@ class CustomInitializationVariable(OptimizationObject):
         self.variable = np.ones(shape=3)
         self.parameter = np.ones(shape=3)
 
-    def get_default_initialization(
-        self: TOptimizationObject, field_name: str
-    ) -> np.ndarray:
-        if field_name == "variable":
-            return 2 * np.ones(2)
-
-        return OptimizationObject.get_default_initialization(self, field_name)
-
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomInitializationVariable = dataclasses.field(
-        default_factory=CustomInitializationVariable
-    )
+    aggregated: CustomVariable = dataclasses.field(default_factory=CustomVariable)
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
