@@ -274,3 +274,5 @@ def test_multiple_shooting():
         assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
         expected_position += dt * expected_velocity
         expected_velocity += dt * guess.g
+
+    # TODO: add test on names

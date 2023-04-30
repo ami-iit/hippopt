@@ -19,6 +19,7 @@ class OptimalControlSolver(OptimizationSolver):
         dynamics: TDynamics,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
+        name: str = None,
         **kwargs
     ) -> None:
         pass

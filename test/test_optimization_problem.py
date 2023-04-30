@@ -262,3 +262,6 @@ def test_opti_failure():
         print("Received error: ", err)
     else:
         assert False
+
+
+# TODO: add test on names

@@ -41,12 +41,16 @@ class OptiSolver(OptimizationSolver):
     )
 
     _cost: cs.MX = dataclasses.field(default=None)
+    _cost_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
+    _constraint_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
     _opti_solution: cs.OptiSol = dataclasses.field(default=None)
     _output_solution: TOptimizationObject | list[
         TOptimizationObject
     ] = dataclasses.field(default=None)
     _output_cost: float = dataclasses.field(default=None)
+    _cost_values: dict[str, float] = dataclasses.field(default=None)
+    _constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
     _variables: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
@@ -68,6 +72,8 @@ class OptiSolver(OptimizationSolver):
         self._solver.solver(
             self._inner_solver, self._options_plugin, self._options_solver
         )
+        self._cost_expressions = {}
+        self._constraint_expressions = {}
 
     def _generate_opti_object(
         self, storage_type: str, name: str, value: StorageType
@@ -430,6 +436,18 @@ class OptiSolver(OptimizationSolver):
 
         self._output_cost = self._opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(self._variables)
+        self._cost_values = {
+            name: float(self._opti_solution.value(self._cost_expressions[name]))
+            for name in self._cost_expressions
+        }
+        self._constraint_values = {
+            name: np.array(
+                self._opti_solution.value(
+                    self._solver.dual(self._constraint_expressions[name])
+                )
+            )
+            for name in self._constraint_expressions
+        }
 
     def get_values(self) -> TOptimizationObject | list[TOptimizationObject]:
         if self._output_solution is None:
@@ -441,15 +459,43 @@ class OptiSolver(OptimizationSolver):
             raise SolutionNotAvailableException
         return self._output_cost
 
-    def add_cost(self, input_cost: cs.MX) -> None:
+    def add_cost(self, input_cost: cs.MX, name: str = None) -> None:
+        if name is None:
+            name = str(input_cost)
+
+        if name in self._cost_expressions:
+            raise ValueError("The cost " + name + " is already present.")
+
         if self._cost is None:
             self._cost = input_cost
             return
 
         self._cost += input_cost
 
-    def add_constraint(self, input_constraint: cs.MX) -> None:
+        self._cost_expressions[name] = input_cost
+
+    def add_constraint(self, input_constraint: cs.MX, name: str = None) -> None:
+        if name is None:
+            name = str(input_constraint)
+
+        if name in self._constraint_expressions:
+            raise ValueError("The constraint " + name + " is already present.")
+
         self._solver.subject_to(input_constraint)
+
+        self._constraint_expressions[name] = input_constraint
 
     def cost_function(self) -> cs.MX:
         return self._cost
+
+    def get_cost_expressions(self) -> dict[str, cs.MX]:
+        return self._cost_expressions
+
+    def get_constraint_expressions(self) -> dict[str, cs.MX]:
+        return self._constraint_expressions
+
+    def get_cost_values(self) -> dict[str, float]:
+        return self._cost_values
+
+    def get_constraint_values(self) -> dict[str, np.ndarray]:
+        return self._constraint_values

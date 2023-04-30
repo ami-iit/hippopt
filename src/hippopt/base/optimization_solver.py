@@ -3,6 +3,7 @@ import dataclasses
 from typing import TypeVar
 
 import casadi as cs
+import numpy as np
 
 from hippopt.base.optimization_object import TOptimizationObject
 from hippopt.base.problem import Problem
@@ -61,9 +62,25 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_cost(self, input_cost: cs.MX) -> None:
+    def add_cost(self, input_cost: cs.MX, name: str = None) -> None:
         pass
 
     @abc.abstractmethod
-    def add_constraint(self, input_constraint: cs.MX) -> None:
+    def add_constraint(self, input_constraint: cs.MX, name: str = None) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_cost_expressions(self) -> dict[str, cs.MX]:
+        pass
+
+    @abc.abstractmethod
+    def get_constraint_expressions(self) -> dict[str, cs.MX]:
+        pass
+
+    @abc.abstractmethod
+    def get_cost_values(self) -> dict[str, float]:
+        pass
+
+    @abc.abstractmethod
+    def get_constraint_values(self) -> dict[str, np.ndarray]:
         pass

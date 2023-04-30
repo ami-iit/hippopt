@@ -428,6 +428,7 @@ class MultipleShootingSolver(OptimalControlSolver):
         dynamics: TDynamics,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
+        name: str = None,
         **kwargs
     ) -> None:
         """
@@ -442,6 +443,7 @@ class MultipleShootingSolver(OptimalControlSolver):
         :param t0: The initial time
         :param mode: Optional argument to set the mode with which the dynamics is added to the problem.
                      Default: constraint
+        :param name: The name used when adding the dynamics expression.
         :param kwargs: Additional arguments. There are some required arguments:
                                             - "dt": the integration time delta. It can either be a float in case it is
                                                     constant, or a string to indicate the (flattened) name of the
@@ -557,6 +559,12 @@ class MultipleShootingSolver(OptimalControlSolver):
 
                 additional_inputs[inp] = (inp_tuple[0], inp_tuple[1]())
 
+        base_name = (
+            name
+            if name is not None
+            else "dot(" + ", ".join(dynamics.state_variables()) + ")"
+        )
+
         x_k = {name: next(variables[name][1]) for name in variables}
         u_k = {name: next(additional_inputs[name][1]) for name in additional_inputs}
 
@@ -575,12 +583,15 @@ class MultipleShootingSolver(OptimalControlSolver):
                 t0=t0 + cs.MX(i) * dt,
             )
 
+            name = base_name + "[" + str(i) + "]"
+
             # In the following, we add the dynamics expressions through the problem interface, rather than the
             # solver interface. In this way, we can exploit the machinery handling the generators,
             # and we can switch the dynamics from constraints to costs
             self.get_problem().add_expression(
                 mode=mode,
                 expression=(cs.MX(x_next[name] == integrated[name]) for name in x_next),
+                name=name,
                 **kwargs
             )
 
@@ -601,11 +612,25 @@ class MultipleShootingSolver(OptimalControlSolver):
     def get_cost_value(self) -> float | None:
         return self._optimization_solver.get_cost_value()
 
-    def add_cost(self, input_cost: cs.MX):
-        self._optimization_solver.add_cost(input_cost=input_cost)
+    def add_cost(self, input_cost: cs.MX, name: str = None):
+        self._optimization_solver.add_cost(input_cost=input_cost, name=name)
 
-    def add_constraint(self, input_constraint: cs.MX):
-        self._optimization_solver.add_constraint(input_constraint=input_constraint)
+    def add_constraint(self, input_constraint: cs.MX, name: str = None):
+        self._optimization_solver.add_constraint(
+            input_constraint=input_constraint, name=name
+        )
 
     def cost_function(self) -> cs.MX:
         return self._optimization_solver.cost_function()
+
+    def get_cost_expressions(self) -> dict[str, cs.MX]:
+        return self._optimization_solver.get_cost_expressions()
+
+    def get_constraint_expressions(self) -> dict[str, cs.MX]:
+        return self._optimization_solver.get_constraint_expressions()
+
+    def get_cost_values(self) -> dict[str, float]:
+        return self._optimization_solver.get_cost_values()
+
+    def get_constraint_values(self) -> dict[str, np.ndarray]:
+        return self._optimization_solver.get_constraint_values()

@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Generator, Generic, TypeVar
 
 import casadi as cs
+import numpy as np
 
 from hippopt.base.optimization_object import TOptimizationObject
 
@@ -27,16 +28,32 @@ class ExpressionType(Enum):
 @dataclasses.dataclass
 class Output(Generic[TGenericOptimizationObject]):
     values: TGenericOptimizationObject = dataclasses.field(default=None)
-    cost_value: float = None
+    cost_value: float = dataclasses.field(default=None)
+    cost_values: dict[str, float] = dataclasses.field(default=None)
+    constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
 
     _values: dataclasses.InitVar[TGenericOptimizationObject] = dataclasses.field(
         default=None
     )
     _cost_value: dataclasses.InitVar[float] = dataclasses.field(default=None)
+    _cost_values: dataclasses.InitVar[dict[str, np.ndarray]] = dataclasses.field(
+        default=None
+    )
+    _constraint_values: dataclasses.InitVar[dict[str, np.ndarray]] = dataclasses.field(
+        default=None
+    )
 
-    def __post_init__(self, _values: TGenericOptimizationObject, _cost_value: float):
+    def __post_init__(
+        self,
+        _values: TGenericOptimizationObject,
+        _cost_value: float,
+        _cost_values: dict[str, float],
+        _constraint_values: dict[str, np.ndarray],
+    ):
         self.values = _values
         self.cost_value = _cost_value
+        self.cost_values = _cost_values
+        self.constraint_values = _constraint_values
 
 
 @dataclasses.dataclass
@@ -53,10 +70,16 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
         scaling: float | cs.MX = 1.0,
+        name: str = None,
     ) -> None:
         if isinstance(expression, types.GeneratorType):
+            i = 0
             for expr in expression:
-                self.add_cost(expr, scaling)
+                input_name = name
+                if input_name is not None:
+                    input_name = input_name + "{" + str(i) + "}"
+                self.add_cost(expression=expr, scaling=scaling, name=input_name)
+                i += 1
         else:
             assert isinstance(expression, cs.MX)
             if expression.is_op(cs.OP_LE) or expression.is_op(cs.OP_LT):
@@ -65,18 +88,28 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
                 )
             if expression.is_op(cs.OP_EQ):
                 error_expr = expression.dep(0) - expression.dep(1)
-                self.solver().add_cost(scaling * cs.sumsqr(error_expr))
+                self.solver().add_cost(
+                    input_cost=scaling * cs.sumsqr(error_expr), name=name
+                )
             else:
-                self.solver().add_cost(scaling * expression)  # noqa
+                self.solver().add_cost(input_cost=scaling * expression, name=name)
 
     def add_constraint(
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
         expected_value: float | cs.MX = 0.0,
+        name: str = None,
     ) -> None:
         if isinstance(expression, types.GeneratorType):
+            i = 0
             for expr in expression:
-                self.add_constraint(expr, expected_value)
+                input_name = name
+                if input_name is not None:
+                    input_name = input_name + "{" + str(i) + "}"
+                self.add_constraint(
+                    expression=expr, expected_value=expected_value, name=input_name
+                )
+                i += 1
         else:
             assert isinstance(expression, cs.MX)
             if (
@@ -84,29 +117,37 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
                 or expression.is_op(cs.OP_LT)
                 or expression.is_op(cs.OP_EQ)
             ):
-                self.solver().add_constraint(expression)
+                self.solver().add_constraint(input_constraint=expression, name=name)
             else:
                 if not expression.is_scalar():
                     raise ValueError("The input expression is not supported.")
-                self.solver().add_constraint(expression == expected_value)  # noqa
+                self.solver().add_constraint(
+                    input_constraint=expression == expected_value, name=name
+                )
 
     def add_expression(
         self,
         mode: ExpressionType,
         expression: cs.MX | Generator[cs.MX, None, None],
+        name: str = None,
         **kwargs,
     ) -> None:
         if isinstance(expression, types.GeneratorType):
+            i = 0
             for expr in expression:
-                self.add_expression(mode, expr)
+                input_name = name
+                if input_name is not None:
+                    input_name = input_name + "{" + str(i) + "}"
+                self.add_expression(mode=mode, expression=expr, name=input_name)
+                i += 1
         else:
             assert isinstance(expression, cs.MX)
             match mode:
                 case ExpressionType.subject_to:
-                    self.add_constraint(expression, **kwargs)
+                    self.add_constraint(expression=expression, name=name, **kwargs)
 
                 case ExpressionType.minimize:
-                    self.add_cost(expression, **kwargs)
+                    self.add_cost(expression=expression, name=name, **kwargs)
                 case _:
                     pass
 
@@ -118,6 +159,8 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         self._output = Output(
             _cost_value=self.solver().get_cost_value(),
             _values=self.solver().get_values(),
+            _cost_values=self.solver().get_cost_values(),
+            _constraint_values=self.solver().get_constraint_values(),
         )
         return self._output
 
@@ -128,4 +171,4 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         return self._output
 
 
-# TODO Stefano: Add possibility to get the task list
+# TODO: Add possibility to get cost and constraints expressions
