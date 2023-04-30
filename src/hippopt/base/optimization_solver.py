@@ -82,5 +82,5 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_constraint_values(self) -> dict[str, np.ndarray]:
+    def get_constraint_multipliers(self) -> dict[str, np.ndarray]:
         pass

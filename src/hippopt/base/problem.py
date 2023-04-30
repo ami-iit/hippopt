@@ -30,7 +30,7 @@ class Output(Generic[TGenericOptimizationObject]):
     values: TGenericOptimizationObject = dataclasses.field(default=None)
     cost_value: float = dataclasses.field(default=None)
     cost_values: dict[str, float] = dataclasses.field(default=None)
-    constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
+    constraint_multipliers: dict[str, np.ndarray] = dataclasses.field(default=None)
 
     _values: dataclasses.InitVar[TGenericOptimizationObject] = dataclasses.field(
         default=None
@@ -39,21 +39,21 @@ class Output(Generic[TGenericOptimizationObject]):
     _cost_values: dataclasses.InitVar[dict[str, np.ndarray]] = dataclasses.field(
         default=None
     )
-    _constraint_values: dataclasses.InitVar[dict[str, np.ndarray]] = dataclasses.field(
-        default=None
-    )
+    _constraint_multipliers: dataclasses.InitVar[
+        dict[str, np.ndarray]
+    ] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
         _values: TGenericOptimizationObject,
         _cost_value: float,
         _cost_values: dict[str, float],
-        _constraint_values: dict[str, np.ndarray],
+        _constraint_multipliers: dict[str, np.ndarray],
     ):
         self.values = _values
         self.cost_value = _cost_value
         self.cost_values = _cost_values
-        self.constraint_values = _constraint_values
+        self.constraint_multipliers = _constraint_multipliers
 
 
 @dataclasses.dataclass
@@ -151,6 +151,12 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
                 case _:
                     pass
 
+    def get_cost_expressions(self) -> dict[str, cs.MX]:
+        return self.solver().get_cost_expressions()
+
+    def get_constraint_expressions(self) -> dict[str, cs.MX]:
+        return self.solver().get_constraint_expressions()
+
     def solver(self) -> TGenericSolver:
         return self._solver
 
@@ -160,7 +166,7 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
             _cost_value=self.solver().get_cost_value(),
             _values=self.solver().get_values(),
             _cost_values=self.solver().get_cost_values(),
-            _constraint_values=self.solver().get_constraint_values(),
+            _constraint_multipliers=self.solver().get_constraint_multipliers(),
         )
         return self._output
 
@@ -169,6 +175,3 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
             raise ProblemNotSolvedException
 
         return self._output
-
-
-# TODO: Add possibility to get cost and constraints expressions

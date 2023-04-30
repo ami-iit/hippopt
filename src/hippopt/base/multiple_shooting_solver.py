@@ -632,5 +632,5 @@ class MultipleShootingSolver(OptimalControlSolver):
     def get_cost_values(self) -> dict[str, float]:
         return self._optimization_solver.get_cost_values()
 
-    def get_constraint_values(self) -> dict[str, np.ndarray]:
-        return self._optimization_solver.get_constraint_values()
+    def get_constraint_multipliers(self) -> dict[str, np.ndarray]:
+        return self._optimization_solver.get_constraint_multipliers()

@@ -497,5 +497,5 @@ class OptiSolver(OptimizationSolver):
     def get_cost_values(self) -> dict[str, float]:
         return self._cost_values
 
-    def get_constraint_values(self) -> dict[str, np.ndarray]:
+    def get_constraint_multipliers(self) -> dict[str, np.ndarray]:
         return self._constraint_values
