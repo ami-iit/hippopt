@@ -2,8 +2,10 @@ import dataclasses
 
 import casadi as cs
 import numpy as np
+import pytest
 
 from hippopt import (
+    ExpressionType,
     ForwardEuler,
     MultipleShootingSolver,
     OptimalControlProblem,
@@ -227,33 +229,48 @@ def test_multiple_shooting():
     guess = MassFallingTestVariables()
     guess.masses = None
 
+    horizon = 100
+    dt = 0.01
+    initial_position = 0
+    initial_velocity = 0
+
     problem, var = OptimalControlProblem.create(
         input_structure=MassFallingTestVariables(),
-        horizon=100,
+        horizon=horizon,
     )
 
     problem.add_dynamics(
         dot(["masses[0].x", "masses[0].v"])
         == (MassFallingState.get_dynamics(), {"masses[0].x": "x", "masses[0].v": "v"}),
-        dt=0.01,
+        dt=dt,
         integrator=ForwardEuler,
     )
 
-    problem.add_constraint(var.masses[0][0].x == 0)
-    problem.add_constraint(var.masses[0][0].v == 0)
+    problem.add_constraint(var.masses[0][0].x == initial_position)
+    problem.add_constraint(var.masses[0][0].v == initial_velocity)
 
     problem.add_dynamics(
         dot(["masses[1].x", "masses[1].v"])
         == (MassFallingState.get_dynamics(), {"masses[1].x": "x", "masses[1].v": "v"}),
-        dt=0.01,
+        dt=dt,
         integrator=ForwardEuler,
+        mode=ExpressionType.minimize,
     )
 
-    problem.add_constraint(var.masses[1][0].x == 0)
-    problem.add_constraint(var.masses[1][0].v == 0)
+    problem.add_constraint(var.masses[1][0].x == initial_position)
+    problem.add_constraint(var.masses[1][0].v == initial_velocity)
 
     problem.set_initial_guess(guess)
 
     sol = problem.solve()
 
-    # TODO Stefano: check that the output makes sense
+    expected_position = initial_position
+    expected_velocity = initial_velocity
+
+    for i in range(horizon):
+        assert float(sol.values.masses[0][i].x) == pytest.approx(expected_position)
+        assert float(sol.values.masses[0][i].v) == pytest.approx(expected_velocity)
+        assert float(sol.values.masses[1][i].x) == pytest.approx(expected_position)
+        assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
+        expected_position += dt * expected_velocity
+        expected_velocity += dt * guess.g

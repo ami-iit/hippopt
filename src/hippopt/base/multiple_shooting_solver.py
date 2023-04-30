@@ -501,13 +501,13 @@ class MultipleShootingSolver(OptimalControlSolver):
         dt_tuple = (dt_size, dt_generator)
 
         integrator = (
-            kwargs["integrator"]
-            if "integrator" in kwargs
-            else self._default_integrator
+            kwargs["integrator"] if "integrator" in kwargs else self._default_integrator
         )
 
         if not issubclass(integrator, SingleStepIntegrator):
-            raise ValueError("The integrator has been defined, but it is not a subclass of SingleStepIntegrator")
+            raise ValueError(
+                "The integrator has been defined, but it is not a subclass of SingleStepIntegrator"
+            )
 
         variables = {}
         n = max_n
