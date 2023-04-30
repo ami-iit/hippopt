@@ -6,6 +6,7 @@ import pytest
 
 from hippopt import (
     ExpressionType,
+    OptiFailure,
     OptimizationObject,
     OptimizationProblem,
     Parameter,
@@ -248,3 +249,16 @@ def test_switch_constraints():
         expected=initial_output.cost_value, rel=0.1
     )
     assert output.values.x == pytest.approx(initial_output.values.x)
+
+
+def test_opti_failure():
+    problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
+    problem.add_constraint(variables.x == 1)
+    problem.add_constraint(variables.x == 10)
+
+    try:
+        problem.solve()
+    except OptiFailure as err:
+        print("Received error: ", err)
+    else:
+        assert False

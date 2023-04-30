@@ -20,6 +20,11 @@ from hippopt.base.problem import Problem
 from hippopt.base.variable import Variable
 
 
+class OptiFailure(Exception):
+    def __init__(self, message: Exception):
+        super().__init__("Opti failed to solve the problem. Message: " + str(message))
+
+
 @dataclasses.dataclass
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
@@ -418,8 +423,11 @@ class OptiSolver(OptimizationSolver):
     def solve(self) -> None:
         self._cost = self._cost if self._cost is not None else cs.MX(0)
         self._solver.minimize(self._cost)
-        # TODO Stefano: Consider solution state
-        self._opti_solution = self._solver.solve()
+        try:
+            self._opti_solution = self._solver.solve()
+        except Exception as err:  # noqa
+            raise OptiFailure(message=err)
+
         self._output_cost = self._opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(self._variables)
 
