@@ -246,7 +246,9 @@ def test_multiple_shooting():
         integrator=ForwardEuler,
     )
 
-    problem.add_constraint(var.masses[0][0].x == initial_position)
+    initial_position_constraint = var.masses[0][0].x == initial_position
+
+    problem.add_constraint(initial_position_constraint, name="initial_position")
     problem.add_constraint(var.masses[0][0].v == initial_velocity)
 
     problem.add_dynamics(
@@ -264,6 +266,12 @@ def test_multiple_shooting():
 
     sol = problem.solve()
 
+    assert (
+        problem.get_constraint_expressions()["initial_position"]
+        is initial_position_constraint
+    )
+    assert "initial_position" in sol.constraint_multipliers
+
     expected_position = initial_position
     expected_velocity = initial_velocity
 
@@ -274,5 +282,3 @@ def test_multiple_shooting():
         assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
         expected_position += dt * expected_velocity
         expected_velocity += dt * guess.g
-
-    # TODO: add test on names

@@ -242,13 +242,14 @@ def test_switch_constraints():
         ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
     )  # noqa
     new_problem.add_expression(
-        ExpressionType.minimize, new_variables.x == 5, scaling=1.0
+        ExpressionType.minimize, new_variables.x == 5, scaling=1.0, name="new_cost"
     )
     output = new_problem.solve()
     assert output.cost_value == pytest.approx(
         expected=initial_output.cost_value, rel=0.1
     )
     assert output.values.x == pytest.approx(initial_output.values.x)
+    assert output.cost_values["new_cost"] == pytest.approx((output.values.x - 5) ** 2)
 
 
 def test_opti_failure():
@@ -262,6 +263,3 @@ def test_opti_failure():
         print("Received error: ", err)
     else:
         assert False
-
-
-# TODO: add test on names

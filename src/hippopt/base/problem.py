@@ -71,13 +71,16 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         expression: cs.MX | Generator[cs.MX, None, None],
         scaling: float | cs.MX = 1.0,
         name: str = None,
+        **_,  # Ignore unused kwargs
     ) -> None:
         if isinstance(expression, types.GeneratorType):
             i = 0
             for expr in expression:
                 input_name = name
                 if input_name is not None:
-                    input_name = input_name + "{" + str(i) + "}"
+                    input_name = (
+                        input_name + "{" + str(i) + "}"
+                    )  # Otherwise we have name duplication
                 self.add_cost(expression=expr, scaling=scaling, name=input_name)
                 i += 1
         else:
@@ -99,13 +102,16 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         expression: cs.MX | Generator[cs.MX, None, None],
         expected_value: float | cs.MX = 0.0,
         name: str = None,
+        **_,  # Ignore unused kwargs
     ) -> None:
         if isinstance(expression, types.GeneratorType):
             i = 0
             for expr in expression:
                 input_name = name
                 if input_name is not None:
-                    input_name = input_name + "{" + str(i) + "}"
+                    input_name = (
+                        input_name + "{" + str(i) + "}"
+                    )  # Otherwise we have name duplication
                 self.add_constraint(
                     expression=expr, expected_value=expected_value, name=input_name
                 )
@@ -132,24 +138,14 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         name: str = None,
         **kwargs,
     ) -> None:
-        if isinstance(expression, types.GeneratorType):
-            i = 0
-            for expr in expression:
-                input_name = name
-                if input_name is not None:
-                    input_name = input_name + "{" + str(i) + "}"
-                self.add_expression(mode=mode, expression=expr, name=input_name)
-                i += 1
-        else:
-            assert isinstance(expression, cs.MX)
-            match mode:
-                case ExpressionType.subject_to:
-                    self.add_constraint(expression=expression, name=name, **kwargs)
+        match mode:
+            case ExpressionType.subject_to:
+                self.add_constraint(expression=expression, name=name, **kwargs)
 
-                case ExpressionType.minimize:
-                    self.add_cost(expression=expression, name=name, **kwargs)
-                case _:
-                    pass
+            case ExpressionType.minimize:
+                self.add_cost(expression=expression, name=name, **kwargs)
+            case _:
+                pass
 
     def get_cost_expressions(self) -> dict[str, cs.MX]:
         return self.solver().get_cost_expressions()
