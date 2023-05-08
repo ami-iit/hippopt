@@ -51,11 +51,19 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
     def add_dynamics(
         self,
         dynamics: TDynamics,
+        x0: dict[str, cs.MX] = None,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
         name: str = None,
+        x0_name: str = None,
         **kwargs
     ) -> None:
         self.solver().add_dynamics(
-            dynamics=dynamics, t0=t0, mode=mode, name=name, **kwargs
+            dynamics=dynamics,
+            x0=x0,
+            t0=t0,
+            mode=mode,
+            name=name,
+            x0_name=x0_name,
+            **kwargs
         )

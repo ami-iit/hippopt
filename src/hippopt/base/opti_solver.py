@@ -468,9 +468,8 @@ class OptiSolver(OptimizationSolver):
 
         if self._cost is None:
             self._cost = input_cost
-            return
-
-        self._cost += input_cost
+        else:
+            self._cost += input_cost
 
         self._cost_expressions[name] = input_cost
 

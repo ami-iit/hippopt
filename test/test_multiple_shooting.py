@@ -231,7 +231,7 @@ def test_multiple_shooting():
 
     horizon = 100
     dt = 0.01
-    initial_position = 0
+    initial_position = 1.0
     initial_velocity = 0
 
     problem, var = OptimalControlProblem.create(
@@ -255,12 +255,11 @@ def test_multiple_shooting():
         dot(["masses[1].x", "masses[1].v"])
         == (MassFallingState.get_dynamics(), {"masses[1].x": "x", "masses[1].v": "v"}),
         dt=dt,
+        x0={"masses[1].x": initial_position, "masses[1].v": initial_velocity},
         integrator=ForwardEuler,
         mode=ExpressionType.minimize,
+        x0_name="initial_condition",
     )
-
-    problem.add_constraint(var.masses[1][0].x == initial_position)
-    problem.add_constraint(var.masses[1][0].v == initial_velocity)
 
     problem.set_initial_guess(guess)
 
@@ -270,6 +269,9 @@ def test_multiple_shooting():
         problem.get_constraint_expressions()["initial_position"]
         is initial_position_constraint
     )
+
+    assert "initial_condition{0}" in problem.get_cost_expressions()
+    assert "initial_condition{1}" in problem.get_cost_expressions()
     assert "initial_position" in sol.constraint_multipliers
 
     expected_position = initial_position

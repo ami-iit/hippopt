@@ -426,9 +426,11 @@ class MultipleShootingSolver(OptimalControlSolver):
     def add_dynamics(
         self,
         dynamics: TDynamics,
+        x0: dict[str, cs.MX] = None,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
         name: str = None,
+        x0_name: str = None,
         **kwargs
     ) -> None:
         """
@@ -440,10 +442,13 @@ class MultipleShootingSolver(OptimalControlSolver):
                          within "a". Only the top level variables can be time dependent. In this case, "a" could be time
                          dependent and being a list, but this is automatically detected, and there is no need to specify
                          the time-dependency. The "[k]" keyword is used only in case the list is not time-dependent.
+        :param x0: The initial state. It is a dictionary with the key equal to the state variable name. If no dict
+                   is provided, or a given variable is not found in the dictionary, the initial condition is not set.
         :param t0: The initial time
         :param mode: Optional argument to set the mode with which the dynamics is added to the problem.
                      Default: constraint
         :param name: The name used when adding the dynamics expression.
+        :param x0_name: The name used when adding the initial condition expression.
         :param kwargs: Additional arguments. There are some required arguments:
                                             - "dt": the integration time delta. It can either be a float in case it is
                                                     constant, or a string to indicate the (flattened) name of the
@@ -567,6 +572,24 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         x_k = {name: next(variables[name][1]) for name in variables}
         u_k = {name: next(additional_inputs[name][1]) for name in additional_inputs}
+
+        initial_conditions = {}
+        if x0 is not None:
+            for var in x_k:
+                if var in x0:
+                    initial_conditions[var] = x0[var]
+
+            # In the following, we add the initial condition expressions through the problem interface.
+            # In this way, we can exploit the machinery handling the generators,
+            # and we can switch the dynamics from constraints to costs
+            self.get_problem().add_expression(
+                mode=mode,
+                expression=(
+                    cs.MX(x_k[name] == x0[name]) for name in initial_conditions
+                ),
+                name=x0_name,
+                **kwargs
+            )
 
         for i in range(n - 1):
             x_next = {name: next(variables[name][1]) for name in variables}

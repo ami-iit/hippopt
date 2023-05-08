@@ -17,9 +17,11 @@ class OptimalControlSolver(OptimizationSolver):
     def add_dynamics(
         self,
         dynamics: TDynamics,
+        x0: dict[str, cs.MX] = None,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
         name: str = None,
+        x0_name: str = None,
         **kwargs
     ) -> None:
         pass
