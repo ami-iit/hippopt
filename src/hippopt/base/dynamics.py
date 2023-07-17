@@ -10,17 +10,21 @@ TDynamicsLHS = TypeVar("TDynamicsLHS", bound="DynamicsLHS")
 
 @dataclasses.dataclass
 class DynamicsRHS:
-    _f: cs.Function = dataclasses.field(default=None)
+    _f: cs.Function | list[str] = dataclasses.field(default=None)
     _names_map: dict[str, str] = dataclasses.field(default=None)
     _names_map_inv: dict[str, str] = dataclasses.field(default=None)
-    f: dataclasses.InitVar[cs.Function] = None
+    f: dataclasses.InitVar[cs.Function | str | list[str]] = None
     names_map_in: dataclasses.InitVar[dict[str, str]] = None
 
-    def __post_init__(self, f: cs.Function, names_map_in: dict[str, str]):
+    def __post_init__(
+        self, f: cs.Function | str | list[str], names_map_in: dict[str, str]
+    ):
         """
         Create the DynamicsRHS object
         :param f: The CasADi function describing the dynamics. The output order should match the list provided
-         in the dot function.
+         in the dot function. As an alternative, if the dynamics is trivial (e.g dot(x) = y),
+         it is possible to pass directly the name of the variable in the right-hand-side, or the list of variables
+         in case the left-hand-side is a list.
         :param names_map_in: A dict describing how to switch from the input names to those used in the function.
          The key is the name provided by the user, while the value is the input name expected by the function.
          It is also possible to specify labels for nested variables using ".", e.g. "a.b" corresponds
@@ -29,7 +33,7 @@ class DynamicsRHS:
          If time is an input, its label needs to be provided using the "dot" function.
         :return: Nothing
         """
-        self._f = f
+        self._f = [f] if isinstance(f, str) else f
         self._names_map = names_map_in if names_map_in else {}
         self._names_map_inv = {v: k for k, v in self._names_map.items()}  # inverse dict
 
@@ -48,10 +52,19 @@ class DynamicsRHS:
             key = name if name not in self._names_map else self._names_map[name]
             input_dict[key] = variables[name]
 
+        if isinstance(self._f, list):
+            return input_dict
+
+        assert isinstance(self._f, cs.Function)
         return self._f(**input_dict)
 
     def input_names(self) -> list[str]:
-        function_inputs = self._f.name_in()
+        if isinstance(self._f, list):
+            function_inputs = self._f
+        else:
+            assert isinstance(self._f, cs.Function)
+            function_inputs = self._f.name_in()
+
         output = []
         for el in function_inputs:
             output_name = self._names_map_inv[el] if el in self._names_map_inv else el
@@ -60,6 +73,10 @@ class DynamicsRHS:
         return output
 
     def outputs(self) -> list[str]:
+        if isinstance(self._f, list):
+            return self._f
+
+        assert isinstance(self._f, cs.Function)
         return self._f.name_out()
 
 
@@ -82,7 +99,9 @@ class DynamicsLHS:
         self._x = x if isinstance(x, list) else [x]
         self._t_label = t_label if isinstance(t_label, str) else "t"
 
-    def equal(self, f: cs.Function, names_map: dict[str, str] = None) -> TDynamics:
+    def equal(
+        self, f: cs.Function | str | list[str], names_map: dict[str, str] = None
+    ) -> TDynamics:
         rhs = DynamicsRHS(f=f, names_map_in=names_map)
         if len(rhs.outputs()) != len(self._x):
             raise ValueError(
@@ -91,12 +110,22 @@ class DynamicsLHS:
         return TypedDynamics(lhs=self, rhs=rhs)
 
     def __eq__(
-        self, other: cs.Function | tuple[cs.Function, dict[str, str]]
+        self,
+        other: cs.Function
+        | str
+        | list[str]
+        | tuple[cs.Function, dict[str, str]]
+        | tuple[str, dict[str, str]]
+        | tuple[list[str], dict[str, str]],
     ) -> TDynamics:
         if isinstance(other, tuple):
             return self.equal(f=other[0], names_map=other[1])
 
-        assert isinstance(other, cs.Function)
+        assert (
+            isinstance(other, cs.Function)
+            or isinstance(other, str)
+            or isinstance(other, list)
+        )
         return self.equal(f=other)
 
     def state_variables(self) -> list[str]:

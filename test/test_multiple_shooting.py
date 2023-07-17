@@ -221,7 +221,7 @@ class MassFallingTestVariables(OptimizationObject):
     def __post_init__(self):
         self.g = -9.81 * np.ones(1)
         self.masses = []
-        for _ in range(2):
+        for _ in range(3):
             self.masses.append(MassFallingState())
 
 
@@ -261,6 +261,14 @@ def test_multiple_shooting():
         x0_name="initial_condition",
     )
 
+    problem.add_dynamics(
+        dot(["masses[2].x", "masses[2].v"]) == ["masses[2].v", "g"],
+        dt=dt,
+        x0={"masses[2].x": initial_position, "masses[2].v": initial_velocity},
+        integrator=ForwardEuler,
+        x0_name="initial_condition_simple",
+    )
+
     problem.set_initial_guess(guess)
 
     sol = problem.solve()
@@ -273,6 +281,8 @@ def test_multiple_shooting():
     assert "initial_condition{0}" in problem.get_cost_expressions()
     assert "initial_condition{1}" in problem.get_cost_expressions()
     assert "initial_position" in sol.constraint_multipliers
+    assert "initial_condition_simple{0}" in sol.constraint_multipliers
+    assert "initial_condition_simple{1}" in sol.constraint_multipliers
 
     expected_position = initial_position
     expected_velocity = initial_velocity
@@ -282,5 +292,7 @@ def test_multiple_shooting():
         assert float(sol.values.masses[0][i].v) == pytest.approx(expected_velocity)
         assert float(sol.values.masses[1][i].x) == pytest.approx(expected_position)
         assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
+        assert float(sol.values.masses[2][i].x) == pytest.approx(expected_position)
+        assert float(sol.values.masses[2][i].v) == pytest.approx(expected_velocity)
         expected_position += dt * expected_velocity
         expected_velocity += dt * guess.g
