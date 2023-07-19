@@ -10,8 +10,7 @@ def centroidal_dynamics_with_point_forces(
     point_force_name: str = "f_#",
     options: dict = None,
 ) -> cs.Function:
-    if options is None:
-        options = dict()
+    options = {} if options is None else options
 
     input_vars = []
 
@@ -46,6 +45,26 @@ def centroidal_dynamics_with_point_forces(
         input_vars,
         [h_g],
         input_names,
-        ["h_g"],
+        ["h_g_dot"],
+        options,
+    )
+
+
+def com_dynamics_from_momentum(
+    mass_name: str = "m", momentum_name: str = "h_g", options: dict = None
+) -> cs.Function:
+    options = {} if options is None else options
+
+    m = cs.MX.sym(mass_name, 1)
+    h_g = cs.MX.sym(momentum_name, 6)
+
+    x_dot = h_g[0:3] / m
+
+    return cs.Function(
+        "com_dynamics_from_momentum",
+        [m, h_g],
+        [x_dot],
+        [mass_name, momentum_name],
+        ["x_dot"],
         options,
     )
