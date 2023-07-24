@@ -4,7 +4,8 @@ import math
 import casadi as cs
 import pytest
 
-from hippopt import ForwardEuler, ImplicitTrapezoid, dot, step
+from hippopt import dot, step
+from hippopt.integrators import ForwardEuler, ImplicitTrapezoid
 
 
 def get_test_function() -> cs.Function:

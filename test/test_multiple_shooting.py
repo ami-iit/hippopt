@@ -6,7 +6,6 @@ import pytest
 
 from hippopt import (
     ExpressionType,
-    ForwardEuler,
     MultipleShootingSolver,
     OptimalControlProblem,
     OptimizationObject,
@@ -16,6 +15,7 @@ from hippopt import (
     Variable,
     default_storage_field,
     dot,
+    integrators,
     time_varying_metadata,
 )
 
@@ -243,7 +243,7 @@ def test_multiple_shooting():
         dot(["masses[0].x", "masses[0].v"])
         == (MassFallingState.get_dynamics(), {"masses[0].x": "x", "masses[0].v": "v"}),
         dt=dt,
-        integrator=ForwardEuler,
+        integrator=integrators.ForwardEuler,
     )
 
     initial_position_constraint = var.masses[0][0].x == initial_position
@@ -256,7 +256,7 @@ def test_multiple_shooting():
         == (MassFallingState.get_dynamics(), {"masses[1].x": "x", "masses[1].v": "v"}),
         dt=dt,
         x0={"masses[1].x": initial_position, "masses[1].v": initial_velocity},
-        integrator=ForwardEuler,
+        integrator=integrators.ForwardEuler,
         mode=ExpressionType.minimize,
         x0_name="initial_condition",
     )
@@ -265,7 +265,7 @@ def test_multiple_shooting():
         dot(["masses[2].x", "masses[2].v"]) == ["masses[2].v", "g"],
         dt=dt,
         x0={"masses[2].x": initial_position, "masses[2].v": initial_velocity},
-        integrator=ForwardEuler,
+        integrator=integrators.ForwardEuler,
         x0_name="initial_condition_simple",
     )
 
