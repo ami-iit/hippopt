@@ -50,6 +50,9 @@ class TerrainDescriptor(abc.ABC):
 
         return self._orientation_function
 
+    def get_point_position_name(self) -> str:
+        return self._point_position_name
+
 
 class PlanarTerrain(TerrainDescriptor):
     def create_height_function(self) -> cs.Function:
