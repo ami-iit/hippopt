@@ -115,3 +115,50 @@ def center_of_mass_position_from_kinematics(
         ["com_position"],
         options,
     )
+
+
+def point_position_from_kinematics(
+    kindyn_object: KinDynComputations,
+    frame_name: str,
+    point_position_in_frame_name: str = "point_position",
+    base_position_name: str = "base_position",
+    base_quaternion_xyzw_name: str = "base_quaternion",
+    joint_positions_name: str = "joint_positions",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+
+    base_position = cs.MX.sym(base_position_name, 3)
+    base_quaternion = cs.MX.sym(base_quaternion_xyzw_name, 4)
+    joint_positions = cs.MX.sym(joint_positions_name, kindyn_object.NDoF)
+    point_position_in_frame = cs.MX.sym(point_position_in_frame_name, 3)
+
+    fk_function = kindyn_object.forward_kinematics_fun(frame=frame_name)
+
+    base_pose = liecasadi.SE3.from_position_quaternion(
+        base_position, base_quaternion
+    ).as_matrix()  # The quaternion is supposed normalized
+
+    frame_pose = fk_function(base_pose, joint_positions)
+
+    point_position = frame_pose[:3, :3] @ point_position_in_frame + frame_pose[:3, 3]
+
+    return cs.Function(
+        "point_position_from_kinematics",
+        [
+            base_position,
+            base_quaternion,
+            joint_positions,
+            point_position_in_frame,
+        ],
+        [point_position],
+        [
+            base_position_name,
+            base_quaternion_xyzw_name,
+            joint_positions_name,
+            point_position_in_frame_name,
+        ],
+        ["point_position"],
+        options,
+    )
