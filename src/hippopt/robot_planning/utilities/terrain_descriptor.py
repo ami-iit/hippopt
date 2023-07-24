@@ -1,70 +1,89 @@
 import abc
+import dataclasses
 
 import casadi as cs
 
 
+@dataclasses.dataclass
 class TerrainDescriptor(abc.ABC):
-    @abc.abstractmethod
-    def height_function(
+    _height_function: cs.Function = dataclasses.field(default=None)
+    _normal_direction_function: cs.Function = dataclasses.field(default=None)
+    _orientation_function: cs.Function = dataclasses.field(default=None)
+    _point_position_name: str = dataclasses.field(default=None)
+    _options: dict = dataclasses.field(default=None)
+    point_position_name: dataclasses.InitVar[str] = dataclasses.field(default=None)
+    options: dataclasses.InitVar[dict] = dataclasses.field(default=None)
+
+    def __post_init__(
         self, point_position_name: str = "point_position", options: dict = None
-    ) -> cs.Function:
+    ):
+        self._options = {} if options is None else options
+        self._point_position_name = point_position_name
+
+    @abc.abstractmethod
+    def create_height_function(self) -> cs.Function:
         pass
 
     @abc.abstractmethod
-    def normal_direction_function(
-        self, point_position_name: str = "point_position_name", options: dict = None
-    ) -> cs.Function:
+    def create_normal_direction_function(self) -> cs.Function:
         pass
 
     @abc.abstractmethod
-    def orientation_function(
-        self, point_position_name: str = "point_position_name", options: dict = None
-    ) -> cs.Function:
+    def create_orientation_function(self) -> cs.Function:
         pass
+
+    def height_function(self) -> cs.Function:
+        if not isinstance(self._height_function, cs.Function):
+            self._height_function = self.create_height_function()
+
+        return self._height_function
+
+    def normal_direction_function(self) -> cs.Function:
+        if not isinstance(self._normal_direction_function, cs.Function):
+            self._normal_direction_function = self.create_normal_direction_function()
+
+        return self._normal_direction_function
+
+    def orientation_function(self) -> cs.Function:
+        if not isinstance(self._orientation_function, cs.Function):
+            self._orientation_function = self.create_orientation_function()
+
+        return self._orientation_function
 
 
 class PlanarTerrain(TerrainDescriptor):
-    def height_function(
-        self, point_position_name: str = "point_position", options: dict = None
-    ) -> cs.Function:
-        options = {} if options is None else options
-        point_position = cs.MX.sym(point_position_name, 3)
+    def create_height_function(self) -> cs.Function:
+        point_position = cs.MX.sym(self._point_position_name, 3)
 
         return cs.Function(
             "planar_terrain_height",
             [point_position],
             [point_position[2]],
-            [point_position_name],
+            [self._point_position_name],
             ["point_height"],
-            options,
+            self._options,
         )
 
-    def normal_direction_function(
-        self, point_position_name: str = "point_position_name", options: dict = None
-    ) -> cs.Function:
-        options = {} if options is None else options
-        point_position = cs.MX.sym(point_position_name, 3)
+    def create_normal_direction_function(self) -> cs.Function:
+        point_position = cs.MX.sym(self._point_position_name, 3)
 
         return cs.Function(
             "planar_terrain_normal",
             [point_position],
             [cs.MX.eye(3)[:, 2]],
-            [point_position_name],
+            [self._point_position_name],
             ["normal_direction"],
-            options,
+            self._options,
         )
 
-    def orientation_function(
-        self, point_position_name: str = "point_position_name", options: dict = None
-    ) -> cs.Function:
-        options = {} if options is None else options
-        point_position = cs.MX.sym(point_position_name, 3)
+    def create_orientation_function(self) -> cs.Function:
+        point_position = cs.MX.sym(self._point_position_name, 3)
 
         return cs.Function(
             "planar_terrain_orientation",
             [point_position],
             [cs.MX.eye(3)],
-            [point_position_name],
+            [self._point_position_name],
             ["plane_rotation"],
-            options,
+            self._options,
         )
