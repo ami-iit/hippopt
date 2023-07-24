@@ -75,3 +75,43 @@ def centroidal_momentum_from_kinematics(
         ["h_g"],
         options,
     )
+
+
+def center_of_mass_position_from_kinematics(
+    kindyn_object: KinDynComputations,
+    base_position_name: str = "base_position",
+    base_quaternion_xyzw_name: str = "base_quaternion",
+    joint_positions_name: str = "joint_positions",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+
+    base_position = cs.MX.sym(base_position_name, 3)
+    base_quaternion = cs.MX.sym(base_quaternion_xyzw_name, 4)
+    joint_positions = cs.MX.sym(joint_positions_name, kindyn_object.NDoF)
+
+    com_function = kindyn_object.CoM_position_fun()
+
+    base_pose = liecasadi.SE3.from_position_quaternion(
+        base_position, base_quaternion
+    ).as_matrix()  # The quaternion is supposed normalized
+
+    com_position = com_function(base_pose, joint_positions)
+
+    return cs.Function(
+        "center_of_mass_position_from_kinematics",
+        [
+            base_position,
+            base_quaternion,
+            joint_positions,
+        ],
+        [com_position],
+        [
+            base_position_name,
+            base_quaternion_xyzw_name,
+            joint_positions_name,
+        ],
+        ["com_position"],
+        options,
+    )
