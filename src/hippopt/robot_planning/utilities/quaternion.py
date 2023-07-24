@@ -1,4 +1,25 @@
 import casadi as cs
+import liecasadi
+
+
+def quaternion_xyzw_normalization(
+    quaternion_xyzw_name: str = "quaternion",
+    options: dict = None,
+    **_,
+) -> cs.Function:
+    options = {} if options is None else options
+    quaternion = cs.MX.sym(quaternion_xyzw_name, 4)
+
+    normalized_quaternion = liecasadi.Quaternion(xyzw=quaternion).normalize()
+
+    return cs.Function(
+        "quaternion_xyzw_normalization",
+        [quaternion],
+        [normalized_quaternion.xyzw],
+        [quaternion_xyzw_name],
+        ["quaternion_normalized"],
+        options,
+    )
 
 
 def quaternion_xyzw_velocity_to_right_trivialized_angular_velocity(
