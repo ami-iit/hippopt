@@ -29,13 +29,19 @@ def normal_force_component(
 
 def friction_cone_square_margin(
     terrain: TerrainDescriptor,
+    point_position_name: str = None,
     point_force_name: str = "point_force",
     static_friction_name: str = "mu_s",
     options: dict = None,
     **_
 ):
     options = {} if options is None else options
-    point_position = cs.MX.sym(terrain.get_point_position_name(), 3)
+    point_position_name = (
+        terrain.get_point_position_name()
+        if point_position_name is None
+        else point_position_name
+    )
+    point_position = cs.MX.sym(point_position_name, 3)
     point_force = cs.MX.sym(point_force_name, 3)
     static_friction = cs.MX.sym(static_friction_name, 1)
 
@@ -47,15 +53,17 @@ def friction_cone_square_margin(
     # but since both sides are positive, we square them both.
     # Their difference needs to remain positive, i.e.
     # (u * fz)^2 - (fx^2 + fy^2) >= 0
-    margin = cs.sumsqr(static_friction * force_in_contact[2]) - cs.sumsqr(
-        force_in_contact[:2]
+    # that is equal to
+    # [-1, -1, u^2] * f.^2
+    margin = cs.horzcat([-1, -1, cs.constpow(static_friction, 2)]) * cs.constpow(
+        force_in_contact, 2
     )
 
     return cs.Function(
         "friction_cone_square_margin",
         [point_position, point_force, static_friction],
         [margin],
-        [terrain.get_point_position_name(), point_force_name, static_friction_name],
+        [point_position_name, point_force_name, static_friction_name],
         ["margin"],
         options,
     )
