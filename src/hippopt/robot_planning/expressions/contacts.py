@@ -5,12 +5,18 @@ from hippopt.robot_planning.utilities.terrain_descriptor import TerrainDescripto
 
 def normal_force_component(
     terrain: TerrainDescriptor,
+    point_position_name: str = None,
     point_force_name: str = "point_force",
     options: dict = None,
     **_
-):
+) -> cs.Function:
     options = {} if options is None else options
-    point_position = cs.MX.sym(terrain.get_point_position_name(), 3)
+    point_position_name = (
+        terrain.get_point_position_name()
+        if point_position_name is None
+        else point_position_name
+    )
+    point_position = cs.MX.sym(point_position_name, 3)
     point_force = cs.MX.sym(point_force_name, 3)
 
     normal_direction_fun = terrain.normal_direction_function()
@@ -21,7 +27,7 @@ def normal_force_component(
         "normal_force_component",
         [point_position, point_force],
         [normal_component],
-        [terrain.get_point_position_name(), point_force_name],
+        [point_position_name, point_force_name],
         ["normal_force"],
         options,
     )
@@ -34,7 +40,7 @@ def friction_cone_square_margin(
     static_friction_name: str = "mu_s",
     options: dict = None,
     **_
-):
+) -> cs.Function:
     options = {} if options is None else options
     point_position_name = (
         terrain.get_point_position_name()
