@@ -162,3 +162,38 @@ def point_position_from_kinematics(
         ["point_position"],
         options,
     )
+
+
+def frames_relative_position(
+    kindyn_object: KinDynComputations,
+    reference_frame: str,
+    target_frame: str,
+    joint_positions_name: str = "joint_positions",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+    joint_positions = cs.MX.sym(joint_positions_name, kindyn_object.NDoF)
+
+    base_pose = cs.DM_eye(4)
+
+    reference_fk_function = kindyn_object.forward_kinematics_fun(frame=reference_frame)
+    target_fk_function = kindyn_object.forward_kinematics_fun(frame=target_frame)
+
+    reference_pose = liecasadi.SE3.from_matrix(
+        reference_fk_function(base_pose, joint_positions)
+    )
+    reference_pose_inverse = reference_pose.inverse()
+    target_pose = target_fk_function(base_pose, joint_positions)
+
+    relative_position = (
+        reference_pose_inverse.rotation().act(target_pose[:3, 3])
+        + reference_pose_inverse.translation()
+    )
+
+    return cs.Function(
+        "frames_relative_position",
+        [joint_positions],
+        [relative_position],
+        "relative_position",
+    )
