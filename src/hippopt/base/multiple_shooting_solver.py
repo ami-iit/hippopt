@@ -110,7 +110,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                             "Field "
                             + field.name
                             + "is not a Numpy array. Cannot expand it to the horizon."
-                            ' Consider using "TimeExpansion.List" as time_expansion strategy.'
+                            ' Consider using "TimeExpansion.List"'
+                            " as time_expansion strategy."
                         )
 
                     if field_value.ndim > 1 and field_value.shape[1] > 1:
@@ -118,11 +119,14 @@ class MultipleShootingSolver(OptimalControlSolver):
                             "Cannot expand "
                             + field.name
                             + " since it is already a matrix."
-                            ' Consider using "TimeExpansion.List" as time_expansion strategy.'
+                            ' Consider using "TimeExpansion.List"'
+                            " as time_expansion strategy."
                         )
+                    # This is only needed to get the structure
+                    # for the optimization variables.
                     output.__setattr__(
                         field.name, np.zeros((field_value.shape[0], horizon_length))
-                    )  # This is only needed to get the structure for the optimization variables.
+                    )
                 else:
                     output_value = []
                     for _ in range(horizon_length):
@@ -136,7 +140,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                 OptimizationObject.TimeDependentField not in field.metadata
                 and not custom_horizon
             ):
-                continue  # We expand nested variables (following two cases) only if time dependent
+                continue
+            # We expand nested variables (following two cases) only if time dependent
 
             if isinstance(field_value, OptimizationObject):
                 output_value = []
@@ -148,7 +153,9 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             if isinstance(field_value, list) and all(
                 isinstance(elem, OptimizationObject) for elem in field_value
-            ):  # Nested variables are extended only if it is set as time dependent or if it has custom horizon
+            ):
+                # Nested variables are extended only if it is set as time dependent
+                #  or if it has custom horizon
                 if not len(field_value):  # skip empty lists
                     continue
 
@@ -234,8 +241,9 @@ class MultipleShootingSolver(OptimalControlSolver):
             if OptimizationObject.StorageTypeField in field.metadata:  # storage
                 if not time_dependent:
                     if base_iterator is not None:
-                        # generators cannot be rewound, but we might need to reuse them. Hence, we store
-                        # a lambda that can return a generator. Since in python it is not possible
+                        # generators cannot be rewound, but we might need to reuse them.
+                        # Hence, we store a lambda that can return a generator.
+                        #  Since in python it is not possible
                         # to have capture lists as in C++, we use partial from functools
                         # to store the inputs of the lambda within itself
                         # (inspired from https://stackoverflow.com/a/10101476)
@@ -359,7 +367,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                 if not all_same:
                     continue
 
-                # If we are time dependent (and hence top_level has to be true), there is no base generator
+                # If we are time dependent (and hence top_level has to be true),
+                # there is no base generator
                 new_generator = partial(
                     (lambda value: (val for val in value)), field_value
                 )
@@ -435,34 +444,51 @@ class MultipleShootingSolver(OptimalControlSolver):
     ) -> None:
         """
         Add a dynamics to the optimal control problem
-        :param dynamics: The dynamics to add. The variables involved need to have a name corresponding to the name of
-                         a flattened variable. If the variable is nested, you can use "." as separator (e.g. "a.b" will
-                         look for variable b within a). If there is a list, you can use "[k]" with "k" the element
-                         to pick. For example "a.b[k].c" will look for variable "c" defined in the k-th element of "b"
-                         within "a". Only the top level variables can be time dependent. In this case, "a" could be time
-                         dependent and being a list, but this is automatically detected, and there is no need to specify
-                         the time-dependency. The "[k]" keyword is used only in case the list is not time-dependent.
-        :param x0: The initial state. It is a dictionary with the key equal to the state variable name. If no dict
-                   is provided, or a given variable is not found in the dictionary, the initial condition is not set.
+        :param dynamics: The dynamics to add. The variables involved need to have a
+                         name corresponding to the name of a flattened variable.
+                         If the variable is nested, you can use "." as separator
+                         (e.g. "a.b" will look for variable b within a).
+                         If there is a list, you can use "[k]" with "k" the element
+                         to pick. For example "a.b[k].c" will look for variable "c"
+                         defined in the k-th element of "b" within "a".
+                         Only the top level variables can be time dependent.
+                         In this case, "a" could be time dependent and being a list,
+                         but this is automatically detected, and there is no need to
+                         specify the time-dependency. The "[k]" keyword is used only
+                         in case the list is not time-dependent.
+        :param x0: The initial state. It is a dictionary with the key equal to the state
+                   variable name. If no dict is provided, or a given variable is not
+                   found in the dictionary, the initial condition is not set.
         :param t0: The initial time
-        :param mode: Optional argument to set the mode with which the dynamics is added to the problem.
+        :param mode: Optional argument to set the mode with which the
+                     dynamics is added to the problem.
                      Default: constraint
         :param name: The name used when adding the dynamics expression.
         :param x0_name: The name used when adding the initial condition expression.
         :param kwargs: Additional arguments. There are some required arguments:
-                                            - "dt": the integration time delta. It can either be a float in case it is
-                                                    constant, or a string to indicate the (flattened) name of the
+                                            - "dt": the integration time delta.
+                                                    It can either be a float in case it
+                                                    is constant, or a string to indicate
+                                                    the (flattened) name of the
                                                     variable to use.
 
                                             Optional arguments:
-                                            - "top_level_index": this defines the index to use in case we have a
-                                                                 list of optimization objects. This is used only if
-                                                                 the top level is a list.
-                                            - "max_steps": the number of integration steps. If not specified, the entire
-                                                           horizon of the specific state variable is used
-                                            - "integrator": specify the `SingleStepIntegrator` to use. This needs to be
-                                                            a type
-                                            - optional arguments of the `Problem.add_expression` method.
+                                            - "top_level_index": this defines the index
+                                                                 to use in case we have
+                                                                 a list of optimization
+                                                                 objects. This is used
+                                                                 only if the top level
+                                                                 is a list.
+                                            - "max_steps": the number of integration
+                                                           steps. If not specified, the
+                                                           entire horizon of the
+                                                           specific state variable
+                                                           is used
+                                            - "integrator": specify the
+                                                            `SingleStepIntegrator` to
+                                                            use. This needs to be a type
+                                            - optional arguments of the
+                                              `Problem.add_expression` method.
         :return: None
         """
         if "dt" not in kwargs:
@@ -474,7 +500,8 @@ class MultipleShootingSolver(OptimalControlSolver):
         if isinstance(self.get_optimization_objects(), list):
             if "top_level_index" not in kwargs:
                 raise ValueError(
-                    "The optimization objects are in a list, but top_level_index has not been specified."
+                    "The optimization objects are in a list, but top_level_index"
+                    " has not been specified."
                 )
             top_level_index = kwargs["top_level_index"]
 
@@ -487,7 +514,8 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             if not isinstance(max_n, int) or max_n < 2:
                 raise ValueError(
-                    "max_steps is specified, but it needs to be an integer greater than 1"
+                    "max_steps is specified, but it needs to be an integer"
+                    " greater than 1"
                 )
 
         dt_size = 1
@@ -513,7 +541,8 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         if not issubclass(integrator, SingleStepIntegrator):
             raise ValueError(
-                "The integrator has been defined, but it is not a subclass of SingleStepIntegrator"
+                "The integrator has been defined, but it is not "
+                "a subclass of SingleStepIntegrator"
             )
 
         variables = {}
@@ -559,7 +588,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                     raise ValueError(
                         "The input "
                         + inp
-                        + " is time dependent, but it has a too small prediction horizon."
+                        + " is time dependent, but it has a too small "
+                        "prediction horizon."
                     )
 
                 additional_inputs[inp] = (inp_tuple[0], inp_tuple[1]())
@@ -579,7 +609,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                 if var in x0:
                     initial_conditions[var] = x0[var]
 
-            # In the following, we add the initial condition expressions through the problem interface.
+            # In the following, we add the initial condition expressions
+            # through the problem interface.
             # In this way, we can exploit the machinery handling the generators,
             # and we can switch the dynamics from constraints to costs
             self.get_problem().add_expression(
@@ -608,9 +639,10 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             name = base_name + "[" + str(i) + "]"
 
-            # In the following, we add the dynamics expressions through the problem interface, rather than the
-            # solver interface. In this way, we can exploit the machinery handling the generators,
-            # and we can switch the dynamics from constraints to costs
+            # In the following, we add the dynamics expressions through the problem
+            # interface, rather than the solver interface. In this way, we can exploit
+            # the machinery handling the generators, and we can switch the dynamics
+            # from constraints to costs
             self.get_problem().add_expression(
                 mode=mode,
                 expression=(cs.MX(x_next[name] == integrated[name]) for name in x_next),
