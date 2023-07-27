@@ -196,4 +196,5 @@ def frames_relative_position(
         [joint_positions],
         [relative_position],
         "relative_position",
+        options,
     )

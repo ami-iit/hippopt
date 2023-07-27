@@ -106,4 +106,5 @@ def dcc_complementarity_margin(
             epsilon_name,
         ],
         ["dcc_complementarity_margin"],
+        options,
     )
