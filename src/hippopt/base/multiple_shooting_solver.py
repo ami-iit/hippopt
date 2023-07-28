@@ -18,20 +18,29 @@ from .optimization_solver import OptimizationSolver, TOptimizationSolver
 from .problem import ExpressionType, Problem
 from .single_step_integrator import SingleStepIntegrator, step
 
+FlattenedVariableIterator = Callable[[], Iterator[cs.MX]]
+FlattenedVariableTuple = tuple[int, FlattenedVariableIterator]
+FlattenedVariableDict = dict[str, FlattenedVariableTuple]
+
 
 @dataclasses.dataclass
 class MultipleShootingSolver(OptimalControlSolver):
     optimization_solver: dataclasses.InitVar[OptimizationSolver] = dataclasses.field(
         default=None
     )
+
     _optimization_solver: TOptimizationSolver = dataclasses.field(default=None)
 
     default_integrator: dataclasses.InitVar[SingleStepIntegrator] = dataclasses.field(
         default=None
     )
+
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
-    _flattened_variables: list[
-        dict[str, tuple[int, Callable[[], Iterator[cs.MX]]]]
+
+    _flattened_variables: list[FlattenedVariableDict] = dataclasses.field(default=None)
+
+    _symbolic_structure: TOptimizationObject | list[
+        TOptimizationObject
     ] = dataclasses.field(default=None)
 
     def __post_init__(
@@ -176,6 +185,7 @@ class MultipleShootingSolver(OptimalControlSolver):
     ) -> TOptimizationObject | list[TOptimizationObject]:
         if isinstance(input_structure, list):
             expanded_structure = []
+            self._symbolic_structure = []
             for element in input_structure:
                 expanded_structure.append(
                     self._extend_structure_to_horizon(input_structure=element, **kwargs)
@@ -186,9 +196,11 @@ class MultipleShootingSolver(OptimalControlSolver):
             )
 
             for var in variables:
-                self._flattened_variables.append(
-                    self._generate_flattened_optimization_objects(object_in=var)
+                flattened, symbolic = self._generate_flattened_and_symbolic_objects(
+                    object_in=var
                 )
+                self._flattened_variables.append(flattened)
+                self._symbolic_structure.append(symbolic)
 
         else:
             expanded_structure = self._extend_structure_to_horizon(
@@ -197,25 +209,30 @@ class MultipleShootingSolver(OptimalControlSolver):
             variables = self._optimization_solver.generate_optimization_objects(
                 input_structure=expanded_structure, **kwargs
             )
-            self._flattened_variables.append(
-                self._generate_flattened_optimization_objects(object_in=variables)
+            flattened, symbolic = self._generate_flattened_and_symbolic_objects(
+                object_in=variables
             )
+            self._flattened_variables.append(flattened)
+            self._symbolic_structure = symbolic
 
         return variables
 
-    def _generate_flattened_optimization_objects(
+    def _generate_flattened_and_symbolic_objects(
         self,
-        object_in: TOptimizationObject | list[TOptimizationObject],
+        object_in: TOptimizationObject,
         top_level: bool = True,
         base_string: str = "",
         base_iterator: tuple[
             int, Callable[[], Iterator[TOptimizationObject | list[TOptimizationObject]]]
         ] = None,
-    ) -> dict[str, tuple[int, Callable[[], Iterator[cs.MX]]]]:
+    ) -> tuple[FlattenedVariableDict, TOptimizationObject]:
         assert (bool(top_level) != bool(base_iterator is not None)) or (
             not top_level and base_iterator is None
         )  # Cannot be top level and have base iterator
-        output = {}
+
+        output_dict = {}
+        output_symbolic = copy.deepcopy(object_in)
+
         for field in dataclasses.fields(object_in):
             field_value = object_in.__getattribute__(field.name)
 
@@ -257,7 +274,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                             field.name,
                             base_iterator[1],
                         )
-                        output[base_string + field.name] = (
+                        output_dict[base_string + field.name] = (
                             base_iterator[0],
                             new_generator,
                         )
@@ -265,10 +282,20 @@ class MultipleShootingSolver(OptimalControlSolver):
                         constant_generator = partial(
                             (lambda value: itertools.repeat(value)), field_value
                         )
-                        output[base_string + field.name] = (
+                        output_dict[base_string + field.name] = (
                             1,
                             constant_generator,
                         )
+
+                    output_symbolic.__setattr__(
+                        field.name,
+                        cs.MX.sym(
+                            base_string + field.name,
+                            field_value.rows(),
+                            field_value.columns(),
+                        ),
+                    )
+
                     continue
 
                 if expand_storage:
@@ -278,19 +305,37 @@ class MultipleShootingSolver(OptimalControlSolver):
                         field_value,
                         n,
                     )
-                    output[base_string + field.name] = (n, new_generator)
+                    output_dict[base_string + field.name] = (n, new_generator)
+                    output_symbolic.__setattr__(
+                        field.name,
+                        cs.MX.sym(
+                            base_string + field.name,
+                            field_value.rows(),
+                            1,
+                        ),
+                    )
                     continue
 
                 assert isinstance(
                     field_value, list
                 )  # time dependent and not expand_storage
                 n = len(field_value)  # list case
+                assert n > 0
                 new_generator = partial(
                     (lambda value, dim: (value[i] for i in range(dim))),
                     field_value,
                     n,
                 )
-                output[base_string + field.name] = (n, new_generator)
+                output_dict[base_string + field.name] = (n, new_generator)
+                first_element = field_value[0]  # Assume all elements have same dims
+                output_symbolic.__setattr__(
+                    field.name,
+                    cs.MX.sym(
+                        base_string + field.name,
+                        first_element.rows(),
+                        first_element.columns(),
+                    ),
+                )
                 continue
 
             if isinstance(
@@ -311,7 +356,10 @@ class MultipleShootingSolver(OptimalControlSolver):
                     else None
                 )
 
-                output = output | self._generate_flattened_optimization_objects(
+                (
+                    inner_dict,
+                    inner_symbolic,
+                ) = self._generate_flattened_and_symbolic_objects(
                     object_in=field_value,
                     top_level=False,
                     base_string=base_string + field.name + ".",
@@ -319,12 +367,19 @@ class MultipleShootingSolver(OptimalControlSolver):
                     if generator is not None
                     else None,
                 )
+
+                output_dict = output_dict | inner_dict
+                output_symbolic.__setattr__(
+                    field.name,
+                    inner_symbolic,
+                )
                 continue
 
             if isinstance(field_value, list) and all(
                 isinstance(elem, OptimizationObject) for elem in field_value
             ):  # list[aggregate]
                 if not time_dependent:
+                    symbolic_list = output_symbolic.__getattribute__(field.name)
                     for k in range(len(field_value)):
                         generator = (
                             partial(
@@ -341,7 +396,11 @@ class MultipleShootingSolver(OptimalControlSolver):
                             if base_iterator is not None
                             else None
                         )
-                        output = output | self._generate_flattened_optimization_objects(
+
+                        (
+                            inner_dict,
+                            inner_symbolic,
+                        ) = self._generate_flattened_and_symbolic_objects(
                             object_in=field_value[k],
                             top_level=False,
                             base_string=base_string
@@ -353,6 +412,10 @@ class MultipleShootingSolver(OptimalControlSolver):
                             if generator is not None
                             else None,
                         )
+
+                        output_dict = output_dict | inner_dict
+                        symbolic_list[k] = inner_symbolic
+
                     continue
 
                 if not len(field_value):
@@ -360,12 +423,9 @@ class MultipleShootingSolver(OptimalControlSolver):
 
                 iterable = iter(field_value)
                 first = next(iterable)
-                all_same = all(
+                assert all(
                     isinstance(el, type(first)) for el in iterable
                 )  # check that each element has same type
-
-                if not all_same:
-                    continue
 
                 # If we are time dependent (and hence top_level has to be true),
                 # there is no base generator
@@ -373,14 +433,22 @@ class MultipleShootingSolver(OptimalControlSolver):
                     (lambda value: (val for val in value)), field_value
                 )
 
-                output = output | self._generate_flattened_optimization_objects(
-                    object_in=first,  # since they are al equal, expand only the first and exploit base_iterator
+                (
+                    inner_dict,
+                    inner_symbolic,
+                ) = self._generate_flattened_and_symbolic_objects(
+                    # since they are al equal, expand only the first
+                    # and exploit the base_iterator
+                    object_in=first,
                     top_level=False,
                     base_string=base_string
                     + field.name
                     + ".",  # we don't flatten the list
                     base_iterator=(len(field_value), new_generator),
                 )
+
+                output_dict = output_dict | inner_dict
+                output_symbolic.__setattr__(field.name, inner_symbolic)
                 continue
 
             if (
@@ -388,6 +456,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                 and time_dependent
                 and all(isinstance(elem, list) for elem in field_value)
             ):  # list[list[aggregate]], only time dependent
+                # The inner list is the time dependency
+                symbolic_list = output_symbolic.__getattribute__(field.name)
                 for k in range(len(field_value)):
                     inner_list = field_value[k]
 
@@ -396,25 +466,29 @@ class MultipleShootingSolver(OptimalControlSolver):
 
                     iterable = iter(inner_list)
                     first = next(iterable)
-                    all_same = all(
+                    assert all(
                         isinstance(el, type(first)) for el in iterable
                     )  # check that each element has same type
-
-                    if not all_same:
-                        break
 
                     new_generator = partial(
                         (lambda value: (val for val in value)), inner_list
                     )
-                    output = output | self._generate_flattened_optimization_objects(
+
+                    (
+                        inner_dict,
+                        inner_symbolic,
+                    ) = self._generate_flattened_and_symbolic_objects(
                         object_in=first,
                         top_level=False,
                         base_string=base_string + field.name + "[" + str(k) + "].",
                         base_iterator=(len(inner_list), new_generator),
                     )
+
+                    output_dict = output_dict | inner_dict
+                    symbolic_list[k] = inner_symbolic
                 continue
 
-        return output
+        return output_dict, output_symbolic
 
     def get_optimization_objects(
         self,
