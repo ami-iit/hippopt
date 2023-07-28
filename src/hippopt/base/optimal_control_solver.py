@@ -5,6 +5,7 @@ from typing import TypeVar
 import casadi as cs
 
 from .dynamics import TDynamics
+from .optimization_object import TOptimizationObject
 from .optimization_solver import OptimizationSolver
 from .problem import ExpressionType
 
@@ -24,4 +25,8 @@ class OptimalControlSolver(OptimizationSolver):
         x0_name: str = None,
         **kwargs
     ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_symbolic_structure(self) -> TOptimizationObject | list[TOptimizationObject]:
         pass

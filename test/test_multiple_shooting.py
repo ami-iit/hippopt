@@ -109,7 +109,7 @@ def test_composite_variables_custom_horizon():
 def test_flattened_variables_simple():
     horizon_len = 10
 
-    problem, var = OptimalControlProblem.create(
+    problem, var, _ = OptimalControlProblem.create(
         input_structure=MyTestVarMS(), horizon=horizon_len
     )
 
@@ -136,7 +136,7 @@ def test_flattened_variables_composite():
     for _ in range(3):
         structure.append(MyCompositeTestVar())
 
-    problem, var = OptimalControlProblem.create(
+    problem, var, _ = OptimalControlProblem.create(
         input_structure=structure, horizon=horizon_len
     )
 
@@ -257,7 +257,7 @@ def test_multiple_shooting():
     initial_position = 1.0
     initial_velocity = 0
 
-    problem, var = OptimalControlProblem.create(
+    problem, var, _ = OptimalControlProblem.create(
         input_structure=MassFallingTestVariables(),
         horizon=horizon,
     )

@@ -503,8 +503,11 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     def get_flattened_optimization_objects(
         self,
-    ) -> list[dict[str, tuple[int, Callable[[], Iterator[cs.MX]]]]]:
+    ) -> FlattenedVariableDict:
         return self._flattened_variables
+
+    def get_symbolic_structure(self) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._symbolic_structure
 
     def add_dynamics(
         self,

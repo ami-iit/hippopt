@@ -9,6 +9,30 @@ TOptimizationProblem = TypeVar("TOptimizationProblem", bound="OptimizationProble
 
 
 @dataclasses.dataclass
+class OptimizationProblemInstance:
+    problem: TOptimizationProblem = dataclasses.field(default=None)
+    variables: TInputObjects = dataclasses.field(default=None)
+
+    _problem: dataclasses.InitVar[TOptimizationProblem] = dataclasses.field(
+        default=None
+    )
+    _variables: dataclasses.InitVar[TInputObjects] = dataclasses.field(default=None)
+
+    def __post_init__(
+        self,
+        _problem: TOptimizationProblem,
+        _variables: TInputObjects,
+    ):
+        self.problem = _problem
+        self.variables = _variables
+
+    def __iter__(self):
+        return iter([self.problem, self.variables])
+        # Cannot use astuple here since it would perform a deepcopy
+        # and would include InitVars too
+
+
+@dataclasses.dataclass
 class OptimizationProblem(Problem[TOptimizationSolver, TInputObjects]):
     optimization_solver: dataclasses.InitVar[OptimizationSolver] = dataclasses.field(
         default=None
@@ -31,9 +55,12 @@ class OptimizationProblem(Problem[TOptimizationSolver, TInputObjects]):
         input_structure: TInputObjects,
         optimization_solver: TOptimizationSolver = None,
         **kwargs
-    ) -> tuple[TOptimizationProblem, TInputObjects]:
+    ) -> OptimizationProblemInstance:
         new_problem = cls(optimization_solver=optimization_solver)
         new_problem._solver.generate_optimization_objects(
             input_structure=input_structure, **kwargs
         )
-        return new_problem, new_problem._solver.get_optimization_objects()
+        return OptimizationProblemInstance(
+            _problem=new_problem,
+            _variables=new_problem._solver.get_optimization_objects(),
+        )
