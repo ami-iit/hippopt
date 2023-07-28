@@ -21,14 +21,17 @@ class DynamicsRHS:
     ):
         """
         Create the DynamicsRHS object
-        :param f: The CasADi function describing the dynamics. The output order should match the list provided
-         in the dot function. As an alternative, if the dynamics is trivial (e.g dot(x) = y),
-         it is possible to pass directly the name of the variable in the right-hand-side, or the list of variables
-         in case the left-hand-side is a list.
-        :param names_map_in: A dict describing how to switch from the input names to those used in the function.
-         The key is the name provided by the user, while the value is the input name expected by the function.
-         It is also possible to specify labels for nested variables using ".", e.g. "a.b" corresponds
-         to the variable "b" within "a".
+        :param f: The CasADi function describing the dynamics. The output order should
+         match the list provided in the dot function. As an alternative, if the
+         dynamics is trivial (e.g dot(x) = y), it is possible to pass directly the name
+         of the variable in the right-hand-side, or the list of variables in case the
+         left-hand-side is a list.
+        :param names_map_in: A dict describing how to switch from the input names to
+         those used in the function.
+         The key is the name provided by the user, while the value is the input name
+         expected by the function.
+         Refer to the specific optimal control problem for a specification of the
+         label convention.
          This is valid only for the keys.
          If time is an input, its label needs to be provided using the "dot" function.
         :return: Nothing
@@ -91,8 +94,9 @@ class DynamicsLHS:
         """
         Constructs the DynamicsLHS object
         :param x: List of variable names on the left hand side of dot{x} = f(y).
-          The list can contain empty strings if some output of f needs to be discarded. If one output
-          needs to be mapped to a nested item, use "." as separator, e.g. "a.b"
+          The list can contain empty strings if some output of f needs to be discarded.
+          Refer to the specific optimal control problem for a specification of the
+          label convention.
         :param t_label: The label of the time variable. Default "t"
         :return: Nothing
         """
@@ -105,7 +109,8 @@ class DynamicsLHS:
         rhs = DynamicsRHS(f=f, names_map_in=names_map)
         if len(rhs.outputs()) != len(self._x):
             raise ValueError(
-                "The number of outputs of the dynamics function does not match the specified number of state variables."
+                "The number of outputs of the dynamics function does not match"
+                " the specified number of state variables."
             )
         return TypedDynamics(lhs=self, rhs=rhs)
 
