@@ -115,15 +115,15 @@ def test_flattened_variables_simple():
 
     var_flat = problem.solver().get_flattened_optimization_objects()
     assert "string" not in var_flat
-    assert var_flat[0]["variable"][0] == horizon_len
-    assert var_flat[0]["parameter"][0] == 1
-    assert next(var_flat[0]["parameter"][1]()) is var.parameter
+    assert var_flat["variable"][0] == horizon_len
+    assert var_flat["parameter"][0] == 1
+    assert next(var_flat["parameter"][1]()) is var.parameter
     assert (
-        next(var_flat[0]["parameter"][1]()) is var.parameter
+        next(var_flat["parameter"][1]()) is var.parameter
     )  # check that we can use the generator twice
-    variable_gen = var_flat[0]["variable"][1]()
+    variable_gen = var_flat["variable"][1]()
     assert all(next(variable_gen) is v for v in var.variable)
-    variable_gen = var_flat[0]["variable"][1]()
+    variable_gen = var_flat["variable"][1]()
     assert all(
         next(variable_gen) is v for v in var.variable
     )  # check that we can use the generator twice
@@ -142,46 +142,69 @@ def test_flattened_variables_composite():
 
     var_flat = problem.solver().get_flattened_optimization_objects()
 
-    assert len(var_flat) == 3
     assert len(var) == 3
 
     for j in range(3):
-        assert var_flat[j]["composite.variable"][0] == horizon_len
-        assert var_flat[j]["composite.parameter"][0] == horizon_len
-        par_gen = var_flat[j]["composite.parameter"][1]()
+        assert var_flat["[" + str(j) + "].composite.variable"][0] == horizon_len
+        assert var_flat["[" + str(j) + "].composite.parameter"][0] == horizon_len
+        par_gen = var_flat["[" + str(j) + "].composite.parameter"][1]()
         assert all(next(par_gen) is c.parameter for c in var[j].composite)
-        variable_gen = var_flat[j]["composite.variable"][1]()
+        variable_gen = var_flat["[" + str(j) + "].composite.variable"][1]()
         assert all(next(variable_gen) is c.variable for c in var[j].composite)
-        assert next(var_flat[j]["fixed.variable"][1]()) is var[j].fixed.variable
-        assert next(var_flat[j]["fixed.parameter"][1]()) is var[j].fixed.parameter
+        assert (
+            next(var_flat["[" + str(j) + "].fixed.variable"][1]())
+            is var[j].fixed.variable
+        )
+        assert (
+            next(var_flat["[" + str(j) + "].fixed.parameter"][1]())
+            is var[j].fixed.parameter
+        )
         for i in range(3):
             assert all(isinstance(c.variable, cs.MX) for c in var[j].composite_list[i])
-            variable_gen = var_flat[j]["composite_list[" + str(i) + "].variable"][1]()
+            variable_gen = var_flat[
+                "[" + str(j) + "].composite_list[" + str(i) + "].variable"
+            ][1]()
             assert (
-                var_flat[j]["composite_list[" + str(i) + "].variable"][0] == horizon_len
+                var_flat["[" + str(j) + "].composite_list[" + str(i) + "].variable"][0]
+                == horizon_len
             )
             assert all(
                 next(variable_gen) is c.variable for c in var[j].composite_list[i]
             )
             assert all(isinstance(c.parameter, cs.MX) for c in var[j].composite_list[i])
-            parameter_gen = var_flat[j]["composite_list[" + str(i) + "].parameter"][1]()
+            parameter_gen = var_flat[
+                "[" + str(j) + "].composite_list[" + str(i) + "].parameter"
+            ][1]()
             assert all(
                 next(parameter_gen) is c.parameter for c in var[j].composite_list[i]
             )
             assert (
-                var_flat[j]["composite_list[" + str(i) + "].parameter"][0]
+                var_flat["[" + str(j) + "].composite_list[" + str(i) + "].parameter"][0]
                 == horizon_len
             )
             assert (
-                next(var_flat[j]["fixed_list[" + str(i) + "].variable"][1]())
+                next(
+                    var_flat["[" + str(j) + "].fixed_list[" + str(i) + "].variable"][
+                        1
+                    ]()
+                )
                 is var[j].fixed_list[i].variable
             )
-            assert var_flat[j]["fixed_list[" + str(i) + "].variable"][0] == 1
             assert (
-                next(var_flat[j]["fixed_list[" + str(i) + "].parameter"][1]())
+                var_flat["[" + str(j) + "].fixed_list[" + str(i) + "].variable"][0] == 1
+            )
+            assert (
+                next(
+                    var_flat["[" + str(j) + "].fixed_list[" + str(i) + "].parameter"][
+                        1
+                    ]()
+                )
                 is var[j].fixed_list[i].parameter
             )
-            assert var_flat[j]["fixed_list[" + str(i) + "].parameter"][0] == 1
+            assert (
+                var_flat["[" + str(j) + "].fixed_list[" + str(i) + "].parameter"][0]
+                == 1
+            )
 
 
 @dataclasses.dataclass

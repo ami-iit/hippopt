@@ -37,7 +37,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     _default_integrator: SingleStepIntegrator = dataclasses.field(default=None)
 
-    _flattened_variables: list[FlattenedVariableDict] = dataclasses.field(default=None)
+    _flattened_variables: FlattenedVariableDict = dataclasses.field(default=None)
 
     _symbolic_structure: TOptimizationObject | list[
         TOptimizationObject
@@ -59,7 +59,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             if isinstance(default_integrator, SingleStepIntegrator)
             else ImplicitTrapezoid()
         )
-        self._flattened_variables = []
+        self._flattened_variables = {}
 
     def _extend_structure_to_horizon(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
@@ -195,11 +195,11 @@ class MultipleShootingSolver(OptimalControlSolver):
                 input_structure=expanded_structure, **kwargs
             )
 
-            for var in variables:
+            for k in range(len(variables)):
                 flattened, symbolic = self._generate_flattened_and_symbolic_objects(
-                    object_in=var
+                    object_in=variables[k], base_string="[" + str(k) + "]."
                 )
-                self._flattened_variables.append(flattened)
+                self._flattened_variables = self._flattened_variables | flattened
                 self._symbolic_structure.append(symbolic)
 
         else:
@@ -212,7 +212,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             flattened, symbolic = self._generate_flattened_and_symbolic_objects(
                 object_in=variables
             )
-            self._flattened_variables.append(flattened)
+            self._flattened_variables = flattened
             self._symbolic_structure = symbolic
 
         return variables
@@ -530,6 +530,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                          but this is automatically detected, and there is no need to
                          specify the time-dependency. The "[k]" keyword is used only
                          in case the list is not time-dependent.
+                         In case we have a list of optimization objects, prepend "[k]."
+                         to name of the variable, with k the top level index.
         :param x0: The initial state. It is a dictionary with the key equal to the state
                    variable name. If no dict is provided, or a given variable is not
                    found in the dictionary, the initial condition is not set.
@@ -547,12 +549,6 @@ class MultipleShootingSolver(OptimalControlSolver):
                                                     variable to use.
 
                                             Optional arguments:
-                                            - "top_level_index": this defines the index
-                                                                 to use in case we have
-                                                                 a list of optimization
-                                                                 objects. This is used
-                                                                 only if the top level
-                                                                 is a list.
                                             - "max_steps": the number of integration
                                                            steps. If not specified, the
                                                            entire horizon of the
@@ -569,15 +565,6 @@ class MultipleShootingSolver(OptimalControlSolver):
             raise ValueError(
                 "MultipleShootingSolver needs dt to be specified when adding a dynamics"
             )
-
-        top_level_index = 0
-        if isinstance(self.get_optimization_objects(), list):
-            if "top_level_index" not in kwargs:
-                raise ValueError(
-                    "The optimization objects are in a list, but top_level_index"
-                    " has not been specified."
-                )
-            top_level_index = kwargs["top_level_index"]
 
         dt_in = kwargs["dt"]
 
@@ -597,11 +584,11 @@ class MultipleShootingSolver(OptimalControlSolver):
         if isinstance(dt_in, float):
             dt_generator = itertools.repeat(cs.MX(dt_in))
         elif isinstance(dt_in, str):
-            if dt_in not in self._flattened_variables[top_level_index]:
+            if dt_in not in self._flattened_variables:
                 raise ValueError(
                     "The specified dt name is not found in the optimization variables"
                 )
-            dt_var_tuple = self._flattened_variables[top_level_index][dt_in]
+            dt_var_tuple = self._flattened_variables[dt_in]
             dt_size = dt_var_tuple[0]
             dt_generator = dt_var_tuple[1]
         else:
@@ -622,11 +609,11 @@ class MultipleShootingSolver(OptimalControlSolver):
         variables = {}
         n = max_n
         for var in dynamics.state_variables():
-            if var not in self._flattened_variables[top_level_index]:
+            if var not in self._flattened_variables:
                 raise ValueError(
                     "Variable " + var + " not found in the optimization variables."
                 )
-            var_tuple = self._flattened_variables[top_level_index][var]
+            var_tuple = self._flattened_variables[var]
             var_n = var_tuple[0]
             if n == 0:
                 if var_n < 2:
@@ -648,13 +635,13 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         additional_inputs = {}
         for inp in dynamics.input_names():
-            if inp not in self._flattened_variables[top_level_index]:
+            if inp not in self._flattened_variables:
                 raise ValueError(
                     "Variable " + inp + " not found in the optimization variables."
                 )
 
             if inp not in variables:
-                inp_tuple = self._flattened_variables[top_level_index][inp]
+                inp_tuple = self._flattened_variables[inp]
 
                 inp_n = inp_tuple[0]
 
