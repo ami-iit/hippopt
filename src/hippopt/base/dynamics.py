@@ -13,11 +13,11 @@ class DynamicsRHS:
     _f: cs.Function | list[str] = dataclasses.field(default=None)
     _names_map: dict[str, str] = dataclasses.field(default=None)
     _names_map_inv: dict[str, str] = dataclasses.field(default=None)
-    f: dataclasses.InitVar[cs.Function | str | list[str]] = None
+    f: dataclasses.InitVar[cs.Function | str | list[str] | cs.MX] = None
     names_map_in: dataclasses.InitVar[dict[str, str]] = None
 
     def __post_init__(
-        self, f: cs.Function | str | list[str], names_map_in: dict[str, str]
+        self, f: cs.Function | str | list[str] | cs.MX, names_map_in: dict[str, str]
     ):
         """
         Create the DynamicsRHS object
@@ -36,7 +36,19 @@ class DynamicsRHS:
          If time is an input, its label needs to be provided using the "dot" function.
         :return: Nothing
         """
-        self._f = [f] if isinstance(f, str) else f
+        if isinstance(f, str):
+            self._f = [f]
+        elif isinstance(f, list) or isinstance(f, cs.Function):
+            self._f = f
+        elif isinstance(f, cs.MX):
+            inputs = cs.symvar(f)
+            input_names = [el.name() for el in inputs]
+            self._f = cs.Function(
+                "dynamics_rhs", inputs, [f], input_names, ["dynamics_rhs_output"]
+            )
+        else:
+            raise ValueError("Unsupported input f")
+
         self._names_map = names_map_in if names_map_in else {}
         self._names_map_inv = {v: k for k, v in self._names_map.items()}  # inverse dict
 
@@ -87,21 +99,52 @@ class DynamicsRHS:
 class DynamicsLHS:
     _x: list[str] = dataclasses.field(default=None)
     x: dataclasses.InitVar[list[str] | str] = None
-    _t_label: str = "t"
-    t_label: dataclasses.InitVar[str] = None
+    _t_label: str | cs.MX = "t"
+    t_label: dataclasses.InitVar[str | cs.MX] = None
 
-    def __post_init__(self, x: list[str] | str, t_label: str):
+    def __post_init__(
+        self, x: str | list[str] | cs.MX | list[cs.MX], t_label: str | cs.MX = None
+    ):
         """
         Constructs the DynamicsLHS object
         :param x: List of variable names on the left hand side of dot{x} = f(y).
           The list can contain empty strings if some output of f needs to be discarded.
           Refer to the specific optimal control problem for a specification of the
           label convention.
-        :param t_label: The label of the time variable. Default "t"
+          The input can also be of type cs.MX. This allows using the symbolic
+          structure provided by the optimal control solver. The input cannot be an
+          expression. Also in the case, the input can be a list too, and can contain
+          None if some outputs of f have to be discarded.
+        :param t_label: The label of the time variable. Default "t". It can also be a
+          cs.MX. In this case, its name will be used
         :return: Nothing
         """
-        self._x = x if isinstance(x, list) else [x]
-        self._t_label = t_label if isinstance(t_label, str) else "t"
+
+        def input_to_string(
+            input_value: str | cs.MX, default_string: str = None
+        ) -> str:
+            if isinstance(input_value, str):
+                return input_value
+
+            if input_value is None:
+                return ""
+
+            if not isinstance(input_value, cs.MX):
+                if default_string is not None:
+                    return default_string
+
+                raise ValueError("The input can be only a string, a cs.MX, or None.")
+
+            if not input_value.is_symbolic():
+                raise ValueError("The input MX has to be symbolic.")
+            return input_value.name()
+
+        if isinstance(x, list):
+            self._x = [input_to_string(el) for el in x]
+        else:
+            self._x = [input_to_string(x)]
+
+        self._t_label = input_to_string(input_value=t_label, default_string="t")
 
     def equal(
         self, f: cs.Function | str | list[str], names_map: dict[str, str] = None
@@ -119,9 +162,11 @@ class DynamicsLHS:
         other: cs.Function
         | str
         | list[str]
+        | cs.MX
         | tuple[cs.Function, dict[str, str]]
         | tuple[str, dict[str, str]]
-        | tuple[list[str], dict[str, str]],
+        | tuple[list[str], dict[str, str]]
+        | tuple[cs.MX, dict[str, str]],
     ) -> TDynamics:
         if isinstance(other, tuple):
             return self.equal(f=other[0], names_map=other[1])
@@ -130,6 +175,7 @@ class DynamicsLHS:
             isinstance(other, cs.Function)
             or isinstance(other, str)
             or isinstance(other, list)
+            or isinstance(other, cs.MX)
         )
         return self.equal(f=other)
 
@@ -140,7 +186,7 @@ class DynamicsLHS:
         return self._t_label
 
 
-def dot(x: str | list[str], t: str = "t") -> TDynamicsLHS:
+def dot(x: str | list[str] | cs.MX | list[cs.MX], t: str | cs.MX = "t") -> TDynamicsLHS:
     return DynamicsLHS(x=x, t_label=t)
 
 
