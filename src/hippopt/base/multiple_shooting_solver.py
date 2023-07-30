@@ -546,10 +546,12 @@ class MultipleShootingSolver(OptimalControlSolver):
         :param x0_name: The name used when adding the initial condition expression.
         :param kwargs: Additional arguments. There are some required arguments:
                                             - "dt": the integration time delta.
-                                                    It can either be a float in case it
+                                                    It can be a float in case it
                                                     is constant, or a string to indicate
                                                     the (flattened) name of the
-                                                    variable to use.
+                                                    variable to use, or a cs.MX when
+                                                    using the corresponding variable in
+                                                    the symbolic structure
 
                                             Optional arguments:
                                             - "max_steps": the number of integration
@@ -586,7 +588,8 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         if isinstance(dt_in, float):
             dt_generator = itertools.repeat(cs.MX(dt_in))
-        elif isinstance(dt_in, str):
+        elif isinstance(dt_in, str) or isinstance(dt_in, cs.MX):
+            dt_in = dt_in.name() if isinstance(dt_in, cs.MX) else dt_in
             if dt_in not in self._flattened_variables:
                 raise ValueError(
                     "The specified dt name is not found in the optimization variables"
@@ -595,7 +598,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             dt_size = dt_var_tuple[0]
             dt_generator = dt_var_tuple[1]
         else:
-            raise ValueError("Unsupported dt type")  # TODO: allow setting dt from MX
+            raise ValueError("Unsupported dt type")
 
         dt_tuple = (dt_size, dt_generator)
 
