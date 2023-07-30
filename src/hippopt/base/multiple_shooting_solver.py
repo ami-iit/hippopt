@@ -595,7 +595,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             dt_size = dt_var_tuple[0]
             dt_generator = dt_var_tuple[1]
         else:
-            raise ValueError("Unsupported dt type")
+            raise ValueError("Unsupported dt type")  # TODO: allow setting dt from MX
 
         dt_tuple = (dt_size, dt_generator)
 
@@ -716,6 +716,90 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             x_k = x_next
             u_k = u_next
+
+    def add_expression_to_horizon(  # TODO: add tests
+        self,
+        expression: cs.MX,
+        mode: ExpressionType = ExpressionType.subject_to,
+        apply_to_first_elements: bool = False,
+        name: str = None,
+        **kwargs
+    ) -> None:
+        """
+        Add an expression to the whole horizon of the optimal control problem
+        :param expression: The expression to add. Use the symbolic_structure to setup
+                           expression
+        :param mode: Optional argument to set the mode with which the
+                     dynamics is added to the problem.
+                     Default: constraint
+        :param apply_to_first_elements: Flag to define if the constraint need to be
+                                        applied also to the first elements. If True
+                                        the expression will be applied also to the first
+                                        elements. Default: False
+        :param name: The name used when adding the expression.
+        :param kwargs: Optional arguments:
+                             - "max_steps": the number of integration
+                                            steps. If not specified, the
+                                            number of steps is determined from the
+                                            variables involved.
+                             - optional arguments of the
+                               `Problem.add_expression` method.
+        :return: None
+        """
+
+        input_variables = cs.symvar(expression)
+        input_variables_names = [var.name() for var in input_variables]
+        base_name = name if name is not None else str(expression)
+
+        input_function = cs.Function(
+            base_name, input_variables, [expression], input_variables_names, ["output"]
+        )
+
+        max_n = 0
+
+        if "max_steps" in kwargs:
+            max_n = kwargs["max_steps"]
+
+            if not isinstance(max_n, int) or max_n < 1:
+                raise ValueError(
+                    "max_steps is specified, but it needs to be an integer"
+                    " greater than 0"
+                )
+
+        variables = {}
+        n = max_n
+        all_constant = True
+        for var in input_variables_names:
+            if var not in self._flattened_variables:
+                raise ValueError(
+                    "Variable " + var + " not found in the optimization variables."
+                )
+            var_tuple = self._flattened_variables[var]
+            var_n = var_tuple[0]
+            all_constant = all_constant and var_n == 1
+            n = var_n if 1 < var_n < n else n
+
+            # With var_tuple[1]() we get a new generator for the specific variable
+            variables[var] = (var_tuple[0], var_tuple[1]())
+
+        if all_constant:
+            n = 1
+
+        for i in range(n):
+            x_k = {name: next(variables[name][1]) for name in variables}
+
+            name = base_name + "[" + str(i) + "]"
+
+            if i == 0 and not apply_to_first_elements and not all_constant:
+                continue
+
+            # In the following, we add the expressions through the problem
+            # interface, rather than the solver interface. In this way, we can exploit
+            # the machinery handling the generators, and we can switch the expression
+            # from constraints to costs
+            self.get_problem().add_expression(
+                mode=mode, expression=input_function(x_k)["output"], name=name, **kwargs
+            )
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]

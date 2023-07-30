@@ -30,3 +30,14 @@ class OptimalControlSolver(OptimizationSolver):
     @abc.abstractmethod
     def get_symbolic_structure(self) -> TOptimizationObject | list[TOptimizationObject]:
         pass
+
+    @abc.abstractmethod
+    def add_expression_to_horizon(
+        self,
+        expression: cs.MX,
+        mode: ExpressionType = ExpressionType.subject_to,
+        apply_to_first_elements: bool = False,
+        name: str = None,
+        **kwargs
+    ) -> None:
+        pass

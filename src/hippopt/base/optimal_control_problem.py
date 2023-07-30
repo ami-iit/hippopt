@@ -101,3 +101,19 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
             x0_name=x0_name,
             **kwargs
         )
+
+    def add_expression_to_horizon(
+        self,
+        expression: cs.MX,
+        mode: ExpressionType = ExpressionType.subject_to,
+        apply_to_first_elements: bool = False,
+        name: str = None,
+        **kwargs
+    ) -> None:
+        self.solver().add_expression_to_horizon(
+            expression=expression,
+            mode=mode,
+            apply_to_first_elements=apply_to_first_elements,
+            name=name,
+            **kwargs
+        )
