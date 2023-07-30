@@ -240,24 +240,27 @@ class MassFallingTestVariables(OptimizationObject):
         metadata=time_varying_metadata(), default=None
     )
     g: StorageType = default_storage_field(Parameter)
+    foo: StorageType = default_storage_field(Variable)
 
     def __post_init__(self):
         self.g = -9.81 * np.ones(1)
         self.masses = []
         for _ in range(3):
             self.masses.append(MassFallingState())
+        self.foo = np.zeros((3, 1))
 
 
 def test_multiple_shooting():
     guess = MassFallingTestVariables()
     guess.masses = None
+    guess.foo = None
 
     horizon = 100
     dt = 0.01
     initial_position = 1.0
     initial_velocity = 0
 
-    problem, var, _ = OptimalControlProblem.create(
+    problem, var, symbolic = OptimalControlProblem.create(
         input_structure=MassFallingTestVariables(),
         horizon=horizon,
     )
@@ -292,6 +295,16 @@ def test_multiple_shooting():
         x0_name="initial_condition_simple",
     )
 
+    problem.add_expression_to_horizon(
+        expression=(symbolic.foo >= 5), apply_to_first_elements=True
+    )
+
+    problem.add_expression_to_horizon(
+        expression=cs.sumsqr(symbolic.foo),
+        apply_to_first_elements=True,
+        mode=ExpressionType.minimize,
+    )
+
     problem.set_initial_guess(guess)
 
     sol = problem.solve()
@@ -317,5 +330,6 @@ def test_multiple_shooting():
         assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
         assert float(sol.values.masses[2][i].x) == pytest.approx(expected_position)
         assert float(sol.values.masses[2][i].v) == pytest.approx(expected_velocity)
+        assert sol.values.foo[i] == pytest.approx(5)
         expected_position += dt * expected_velocity
         expected_velocity += dt * guess.g

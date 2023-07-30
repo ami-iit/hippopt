@@ -754,11 +754,7 @@ class MultipleShootingSolver(OptimalControlSolver):
         input_variables_names = [var.name() for var in input_variables]
         base_name = name if name is not None else str(expression)
 
-        input_function = cs.Function(
-            base_name, input_variables, [expression], input_variables_names, ["output"]
-        )
-
-        max_n = 0
+        max_n = 1
 
         if "max_steps" in kwargs:
             max_n = kwargs["max_steps"]
@@ -769,9 +765,8 @@ class MultipleShootingSolver(OptimalControlSolver):
                     " greater than 0"
                 )
 
-        variables = {}
+        variables_generators = []
         n = max_n
-        all_constant = True
         for var in input_variables_names:
             if var not in self._flattened_variables:
                 raise ValueError(
@@ -779,21 +774,17 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
             var_tuple = self._flattened_variables[var]
             var_n = var_tuple[0]
-            all_constant = all_constant and var_n == 1
-            n = var_n if 1 < var_n < n else n
+            n = var_n if n == 1 or 1 < var_n < n else n
 
             # With var_tuple[1]() we get a new generator for the specific variable
-            variables[var] = (var_tuple[0], var_tuple[1]())
-
-        if all_constant:
-            n = 1
+            variables_generators.append(var_tuple[1]())
 
         for i in range(n):
-            x_k = {name: next(variables[name][1]) for name in variables}
+            x_k = [next(var) for var in variables_generators]
 
             name = base_name + "[" + str(i) + "]"
 
-            if i == 0 and not apply_to_first_elements and not all_constant:
+            if i == 0 and not apply_to_first_elements and not n == 1:
                 continue
 
             # In the following, we add the expressions through the problem
@@ -801,7 +792,10 @@ class MultipleShootingSolver(OptimalControlSolver):
             # the machinery handling the generators, and we can switch the expression
             # from constraints to costs
             self.get_problem().add_expression(
-                mode=mode, expression=input_function(x_k)["output"], name=name, **kwargs
+                mode=mode,
+                expression=cs.substitute([expression], input_variables, x_k)[0],
+                name=name,
+                **kwargs
             )
 
     def set_initial_guess(

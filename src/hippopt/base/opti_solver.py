@@ -285,7 +285,10 @@ class OptiSolver(OptimizationSolver):
                             "The guess for the field "
                             + base_name
                             + field.name
-                            + " is supposed to be a list."
+                            + " is supposed to be a list. "
+                            + "Received "
+                            + str(type(guess))
+                            + " instead."
                         )
 
                     if len(corresponding_value) == len(guess):
