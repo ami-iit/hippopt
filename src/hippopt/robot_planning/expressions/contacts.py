@@ -73,3 +73,36 @@ def friction_cone_square_margin(
         ["margin"],
         options,
     )
+
+
+def contact_points_centroid(
+    number_of_points: int, point_position_name: str = "p_#", options: dict = None, **_
+) -> cs.Function:
+    options = {} if options is None else options
+
+    input_vars = []
+    p = []
+    for i in range(number_of_points):
+        p.append(cs.MX.sym(point_position_name.replace("#", str(i)), 3))
+        input_vars.append(p[i])
+
+    input_names = []
+    for var in input_vars:
+        input_names.append(var.name())
+
+    centroid = cs.DM.zeros(3, 1)
+
+    for point in p:
+        centroid = centroid + point
+
+    if number_of_points > 0:
+        centroid = centroid / number_of_points
+
+    return cs.Function(
+        "contact_points_centroid",
+        input_vars,
+        [centroid],
+        input_names,
+        ["centroid"],
+        options,
+    )
