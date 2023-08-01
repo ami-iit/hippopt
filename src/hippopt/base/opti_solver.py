@@ -326,7 +326,8 @@ class OptiSolver(OptimizationSolver):
                                 + field.name
                                 + "["
                                 + str(i)
-                                + "] does not match with the corresponding optimization variable"
+                                + "] does not match with the corresponding"
+                                + " optimization variable"
                             )
 
                         self._set_opti_guess(
@@ -355,7 +356,8 @@ class OptiSolver(OptimizationSolver):
                         "The guess has the field "
                         + base_name
                         + field.name
-                        + " but its dimension does not match with the corresponding optimization variable"
+                        + " but its dimension does not match with the corresponding"
+                        + " optimization variable"
                     )
 
                 self._set_opti_guess(
