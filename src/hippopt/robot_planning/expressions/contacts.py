@@ -106,3 +106,62 @@ def contact_points_centroid(
         ["centroid"],
         options,
     )
+
+
+def contact_points_yaw_alignment(
+    first_point_name: str = "p_0",
+    second_point_name: str = "p_1",
+    desired_yaw_name: str = "desired_yaw",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+
+    p0 = cs.MX.sym(first_point_name, 3)
+    p1 = cs.MX.sym(second_point_name, 3)
+    yaw = cs.MX.sym(desired_yaw_name, 1)
+
+    yaw_alignment = cs.horzcat([-cs.sin(yaw), cs.cos(yaw)]) @ (p1 - p0)[:2]
+
+    return cs.Function(
+        "contact_points_yaw_alignment",
+        [p0, p1, yaw],
+        [yaw_alignment],
+        [first_point_name, second_point_name, desired_yaw_name],
+        ["yaw_alignment"],
+        options,
+    )
+
+
+def swing_height_heuristic(
+    terrain: TerrainDescriptor,
+    point_name: str = "p",
+    point_velocity_name: str = "p_dot",
+    desired_height_name: str = "h_desired",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+
+    point = cs.MX.sym(point_name, 3)
+    point_velocity = cs.MX.sym(point_velocity_name, 3)
+    desired_height = cs.MX.sym(desired_height_name, 1)
+
+    height_fun = terrain.height_function()
+    terrain_height = height_fun(point)
+    terrain_orientation_fun = terrain.orientation_function()
+    terrain_orientation = terrain_orientation_fun(point)
+
+    height_difference = terrain_height - desired_height
+    planar_velocity = (terrain_orientation.T() @ point_velocity)[:2]
+
+    heuristic = 0.5 * (cs.constpow(height_difference, 2) + cs.sumsqr(planar_velocity))
+
+    return cs.Function(
+        "swing_height_heuristic",
+        [point, point_velocity, desired_height],
+        [heuristic],
+        [point_name, point_velocity_name, desired_height_name],
+        ["heuristic"],
+        options,
+    )
