@@ -720,7 +720,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             x_k = x_next
             u_k = u_next
 
-    def add_expression_to_horizon(  # TODO: add tests
+    def add_expression_to_horizon(
         self,
         expression: cs.MX,
         mode: ExpressionType = ExpressionType.subject_to,
@@ -755,10 +755,11 @@ class MultipleShootingSolver(OptimalControlSolver):
         base_name = name if name is not None else str(expression)
 
         max_n = 1
+        max_iterations_set = False
 
         if "max_steps" in kwargs:
             max_n = kwargs["max_steps"]
-
+            max_iterations_set = True
             if not isinstance(max_n, int) or max_n < 1:
                 raise ValueError(
                     "max_steps is specified, but it needs to be an integer"
@@ -766,7 +767,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
 
         variables_generators = []
-        n = max_n
+        n = 1
         for var in input_variables_names:
             if var not in self._flattened_variables:
                 raise ValueError(
@@ -778,6 +779,9 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             # With var_tuple[1]() we get a new generator for the specific variable
             variables_generators.append(var_tuple[1]())
+
+        if max_iterations_set:
+            n = min(max_n, n)
 
         for i in range(n):
             x_k = [next(var) for var in variables_generators]
