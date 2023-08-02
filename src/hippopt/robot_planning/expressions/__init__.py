@@ -1,1 +1,1 @@
-from . import kinematics
+from . import complementarity, contacts, kinematics
