@@ -23,7 +23,7 @@ def test_planar_terrain():
     normal_direction[2] = 1.0
     output = normal_function(dummy_point).full()
 
-    assert (normal_direction == output).all()
+    assert (normal_direction == output).all()  # noqa
 
     orientation_fun = planar_terrain.orientation_function()
     expected_orientation = np.eye(3)

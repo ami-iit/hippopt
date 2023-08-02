@@ -198,3 +198,54 @@ def frames_relative_position(
         "relative_position",
         options,
     )
+
+
+def quaternion_error(
+    kindyn_object: KinDynComputations,
+    target_frame: str,
+    base_position_name: str = "base_position",
+    base_quaternion_xyzw_name: str = "base_quaternion",
+    joint_positions_name: str = "joint_positions",
+    desired_quaternion_xyzw_name: str = "desired_quaternion",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+    base_position = cs.MX.sym(base_position_name, 3)
+    base_quaternion = cs.MX.sym(base_quaternion_xyzw_name, 4)
+    joint_positions = cs.MX.sym(joint_positions_name, kindyn_object.NDoF)
+    desired_quaternion = cs.MX.sym(desired_quaternion_xyzw_name, 4)
+
+    base_pose = liecasadi.SE3.from_position_quaternion(
+        base_position, base_quaternion
+    ).as_matrix()  # The quaternion is supposed normalized
+
+    target_fk_function = kindyn_object.forward_kinematics_fun(frame=target_frame)
+    target_pose = target_fk_function(base_pose, joint_positions)
+
+    target_rotation = liecasadi.SO3.from_matrix(target_pose[:3, :3])
+    desired_rotation = liecasadi.SO3.from_quat(desired_quaternion)
+
+    rotation_error = desired_rotation.inverse() * target_rotation
+    identity = liecasadi.SO3.Identity()
+
+    error = rotation_error.as_quat() - identity.as_quat()
+
+    return cs.Function(
+        "quaternion_error",
+        [
+            base_position,
+            base_quaternion,
+            joint_positions,
+            desired_quaternion,
+        ],
+        [error],
+        [
+            base_position_name,
+            base_quaternion_xyzw_name,
+            joint_positions_name,
+            desired_quaternion_xyzw_name,
+        ],
+        ["quaternion_error"],
+        options,
+    )
