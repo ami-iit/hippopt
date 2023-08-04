@@ -17,10 +17,12 @@ from hippopt import (
 class CustomVariable(OptimizationObject):
     variable: StorageType = default_storage_field(cls=Variable)
     parameter: StorageType = default_storage_field(cls=Parameter)
+    scalar: StorageType = default_storage_field(cls=Variable)
 
     def __post_init__(self):
         self.variable = np.ones(shape=3)
         self.parameter = np.ones(shape=3)
+        self.scalar = 1.0
 
 
 @dataclasses.dataclass
@@ -44,6 +46,8 @@ def test_generate_objects():
     assert opti_var.aggregated.variable.shape == (3, 1)
     assert isinstance(opti_var.other_parameter, cs.MX)
     assert opti_var.other_parameter.shape == (3, 1)
+    assert isinstance(opti_var.aggregated.scalar, cs.MX)
+    assert opti_var.aggregated.scalar.shape == (1, 1)
     assert opti_var.other == "untouched"
     assert solver.get_optimization_objects() is opti_var
 
@@ -60,6 +64,8 @@ def test_generate_objects_list():
         assert opti_var.aggregated.parameter.shape == (3, 1)
         assert isinstance(opti_var.aggregated.variable, cs.MX)
         assert opti_var.aggregated.variable.shape == (3, 1)
+        assert isinstance(opti_var.aggregated.scalar, cs.MX)
+        assert opti_var.aggregated.scalar.shape == (1, 1)
         assert isinstance(opti_var.other_parameter, cs.MX)
         assert opti_var.other_parameter.shape == (3, 1)
         assert opti_var.other == "untouched"

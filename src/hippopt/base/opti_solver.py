@@ -89,6 +89,9 @@ class OptiSolver(OptimizationSolver):
             if value.ndim < 2:
                 value = np.expand_dims(value, axis=1)
 
+        if isinstance(value, float):
+            value = value * np.ones((1, 1))
+
         if storage_type is Variable.StorageTypeValue:
             return self._solver.variable(*value.shape)
 
@@ -280,64 +283,13 @@ class OptiSolver(OptimizationSolver):
                 )
 
                 if isinstance(corresponding_value, list):
-                    if not isinstance(guess, list):
-                        raise ValueError(
-                            "The guess for the field "
-                            + base_name
-                            + field.name
-                            + " is supposed to be a list. "
-                            + "Received "
-                            + str(type(guess))
-                            + " instead."
-                        )
-
-                    if len(corresponding_value) == len(guess):
-                        raise ValueError(
-                            "The guess for the field "
-                            + base_name
-                            + field.name
-                            + " is a list of the wrong size. Expected: "
-                            + str(len(corresponding_value))
-                            + ". Guess: "
-                            + str(len(guess))
-                        )
-
-                    for i in range(len(corresponding_value)):
-                        if not isinstance(guess[i], np.ndarray):
-                            raise ValueError(
-                                "The guess for the field "
-                                + base_name
-                                + field.name
-                                + "["
-                                + str(i)
-                                + "] is not an numpy array."
-                            )
-
-                        input_shape = (
-                            guess[i].shape
-                            if len(guess[i].shape) > 1
-                            else (guess[i].shape[0], 1)
-                        )
-
-                        if corresponding_value[i].shape != input_shape:
-                            raise ValueError(
-                                "The dimension of the guess for the field "
-                                + base_name
-                                + field.name
-                                + "["
-                                + str(i)
-                                + "] does not match with the corresponding"
-                                + " optimization variable"
-                            )
-
-                        self._set_opti_guess(
-                            storage_type=field.metadata[
-                                OptimizationObject.StorageTypeField
-                            ],
-                            variable=corresponding_value[i],
-                            value=guess[i],
-                        )
+                    self._set_list_object_guess_internal(
+                        base_name, corresponding_value, field, guess
+                    )
                     continue
+
+                if isinstance(guess, float):
+                    guess = guess * np.ones((1, 1))
 
                 if not isinstance(guess, np.ndarray):
                     raise ValueError(
@@ -386,6 +338,67 @@ class OptiSolver(OptimizationSolver):
                 base_name=base_name + field.name + ".",
             )
             continue
+
+    def _set_list_object_guess_internal(
+        self,
+        base_name: str,
+        corresponding_value: list,
+        field: dataclasses.Field,
+        guess: list,
+    ) -> None:
+        if not isinstance(guess, list):
+            raise ValueError(
+                "The guess for the field "
+                + base_name
+                + field.name
+                + " is supposed to be a list. "
+                + "Received "
+                + str(type(guess))
+                + " instead."
+            )
+        if len(corresponding_value) == len(guess):
+            raise ValueError(
+                "The guess for the field "
+                + base_name
+                + field.name
+                + " is a list of the wrong size. Expected: "
+                + str(len(corresponding_value))
+                + ". Guess: "
+                + str(len(guess))
+            )
+        for i in range(len(corresponding_value)):
+            value = guess[i]
+            if isinstance(value, float):
+                value = value * np.ones((1, 1))
+
+            if not isinstance(value, np.ndarray):
+                raise ValueError(
+                    "The guess for the field "
+                    + base_name
+                    + field.name
+                    + "["
+                    + str(i)
+                    + "] is supposed to be an array (or even a float if scalar)."
+                )
+
+            input_shape = value.shape if len(value.shape) > 1 else (value.shape[0], 1)
+
+            if corresponding_value[i].shape != input_shape:
+                raise ValueError(
+                    "The dimension of the guess for the field "
+                    + base_name
+                    + field.name
+                    + "["
+                    + str(i)
+                    + "] does not match with the corresponding"
+                    + " optimization variable"
+                )
+
+            self._set_opti_guess(
+                storage_type=field.metadata[OptimizationObject.StorageTypeField],
+                variable=corresponding_value[i],
+                value=value,
+            )
 
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs

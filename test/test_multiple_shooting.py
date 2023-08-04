@@ -243,7 +243,7 @@ class MassFallingTestVariables(OptimizationObject):
     foo: StorageType = default_storage_field(Variable)
 
     def __post_init__(self):
-        self.g = -9.81 * np.ones(1)
+        self.g = -9.81
         self.masses = []
         for _ in range(3):
             self.masses.append(MassFallingState())
