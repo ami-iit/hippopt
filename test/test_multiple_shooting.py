@@ -289,11 +289,19 @@ def test_multiple_shooting():
     )
 
     problem.add_dynamics(
-        dot(["masses[2].x", "masses[2].v"]) == ["masses[2].v", "g"],
+        dot(symbolic.masses[2].x) == symbolic.masses[2].v,
         dt=dt,
-        x0={"masses[2].x": initial_position, "masses[2].v": initial_velocity},
+        x0=initial_position,
         integrator=integrators.ForwardEuler,
-        x0_name="initial_condition_simple",
+        x0_name="initial_condition_simple_x",
+    )
+
+    problem.add_dynamics(
+        dot(symbolic.masses[2].v) == ["g"],
+        dt=dt,
+        x0={symbolic.masses[2].v: initial_velocity},
+        integrator=integrators.ForwardEuler,
+        x0_name="initial_condition_simple_v",
     )
 
     problem.add_expression_to_horizon(
@@ -318,8 +326,8 @@ def test_multiple_shooting():
     assert "initial_condition{0}" in problem.get_cost_expressions()
     assert "initial_condition{1}" in problem.get_cost_expressions()
     assert "initial_position" in sol.constraint_multipliers
-    assert "initial_condition_simple{0}" in sol.constraint_multipliers
-    assert "initial_condition_simple{1}" in sol.constraint_multipliers
+    assert "initial_condition_simple_x{0}" in sol.constraint_multipliers
+    assert "initial_condition_simple_v{0}" in sol.constraint_multipliers
 
     expected_position = initial_position
     expected_velocity = initial_velocity

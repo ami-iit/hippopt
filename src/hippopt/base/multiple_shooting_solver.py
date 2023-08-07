@@ -217,7 +217,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         return variables
 
-    def _generate_flattened_and_symbolic_objects(
+    def _generate_flattened_and_symbolic_objects(  # TODO: remove some indentation
         self,
         object_in: TOptimizationObject,
         top_level: bool = True,
@@ -340,7 +340,7 @@ class MultipleShootingSolver(OptimalControlSolver):
 
             if isinstance(
                 field_value, OptimizationObject
-            ):  # aggregate (cannot be time dependent)
+            ):  # aggregate (cannot be time-dependent)
                 generator = (
                     partial(
                         (
@@ -427,7 +427,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                     isinstance(el, type(first)) for el in iterable
                 )  # check that each element has same type
 
-                # If we are time dependent (and hence top_level has to be true),
+                # If we are time-dependent (and hence top_level has to be true),
                 # there is no base generator
                 new_generator = partial(
                     (lambda value: (val for val in value)), field_value
@@ -512,7 +512,7 @@ class MultipleShootingSolver(OptimalControlSolver):
     def add_dynamics(
         self,
         dynamics: TDynamics,
-        x0: dict[str, cs.MX] = None,
+        x0: dict[str, cs.MX] | dict[cs.MX, cs.MX] | cs.MX = None,
         t0: cs.MX = cs.MX(0.0),
         mode: ExpressionType = ExpressionType.subject_to,
         name: str = None,
@@ -528,15 +528,17 @@ class MultipleShootingSolver(OptimalControlSolver):
                          If there is a list, you can use "[k]" with "k" the element
                          to pick. For example "a.b[k].c" will look for variable "c"
                          defined in the k-th element of "b" within "a".
-                         Only the top level variables can be time dependent.
-                         In this case, "a" could be time dependent and being a list,
+                         Only the top level variables can be time-dependent.
+                         In this case, "a" could be time-dependent and being a list,
                          but this is automatically detected, and there is no need to
                          specify the time-dependency. The "[k]" keyword is used only
                          in case the list is not time-dependent.
                          In case we have a list of optimization objects, prepend "[k]."
                          to name of the variable, with k the top level index.
         :param x0: The initial state. It is a dictionary with the key equal to the state
-                   variable name. If no dict is provided, or a given variable is not
+                   variable name, or its corresponding symbolic variable.
+                   It can also be a single MX in case there is only one state variable.
+                   If no dict is provided, or a given variable is not
                    found in the dictionary, the initial condition is not set.
         :param t0: The initial time
         :param mode: Optional argument to set the mode with which the
@@ -672,9 +674,17 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         initial_conditions = {}
         if x0 is not None:
-            for var in x_k:
-                if var in x0:
-                    initial_conditions[var] = x0[var]
+            if not isinstance(x0, dict):
+                if len(x_k) > 1:
+                    raise ValueError(
+                        "The initial condition is a single MX, but the dynamics "
+                        "has more than one state variable."
+                    )
+                x0 = {list(x_k.keys())[0]: x0}
+            for var in x0:
+                var_name = var if isinstance(var, str) else var.name()  # noqa
+                if var_name in x_k:
+                    initial_conditions[var_name] = x0[var]
 
             # In the following, we add the initial condition expressions
             # through the problem interface.
@@ -683,7 +693,8 @@ class MultipleShootingSolver(OptimalControlSolver):
             self.get_problem().add_expression(
                 mode=mode,
                 expression=(
-                    cs.MX(x_k[name] == x0[name]) for name in initial_conditions
+                    cs.MX(x_k[name] == initial_conditions[name])
+                    for name in initial_conditions
                 ),
                 name=x0_name,
                 **kwargs
