@@ -39,6 +39,7 @@ class ContactPoint(OptimizationObject):
     # Initial conditions
     p0: StorageType = default_storage_field(Parameter)
     v0: StorageType = default_storage_field(Parameter)
+    f0: StorageType = default_storage_field(Parameter)
 
     descriptor: ContactPointDescriptor = default_composite_field(time_varying=False)
 
@@ -54,5 +55,6 @@ class ContactPoint(OptimizationObject):
 
         self.p0 = np.zeros(3)
         self.v0 = np.zeros(3)
+        self.f0 = np.zeros(3)
 
         self.descriptor = input_descriptor
