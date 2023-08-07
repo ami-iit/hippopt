@@ -6,12 +6,26 @@ def centroidal_dynamics_with_point_forces(
     mass_name: str = "m",
     gravity_name: str = "g",
     com_name: str = "com",
-    point_position_name: str = "p_#",
-    point_force_name: str = "f_#",
+    point_position_names: list[str] = None,
+    point_force_names: list[str] = None,
     options: dict = None,
     **_,
 ) -> cs.Function:
     options = {} if options is None else options
+
+    if point_position_names is None:
+        point_position_names = []
+        for i in range(number_of_points):
+            point_position_names.append(f"p{i}")
+
+    assert len(point_position_names) == number_of_points
+
+    if point_force_names is None:
+        point_force_names = []
+        for i in range(number_of_points):
+            point_force_names.append(f"f{i}")
+
+    assert len(point_force_names) == number_of_points
 
     input_vars = []
 
@@ -27,9 +41,9 @@ def centroidal_dynamics_with_point_forces(
     p = []
     f = []
     for i in range(number_of_points):
-        p.append(cs.MX.sym(point_position_name.replace("#", str(i)), 3))
+        p.append(cs.MX.sym(point_position_names[i], 3))
         input_vars.append(p[i])
-        f.append(cs.MX.sym(point_force_name.replace("#", str(i)), 3))
+        f.append(cs.MX.sym(point_force_names[i], 3))
         input_vars.append(f[i])
 
     input_names = []
