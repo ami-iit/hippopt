@@ -71,6 +71,7 @@ class Variables(hp.OptimizationObject):
     kinematics: hp_rp.FloatingBaseSystem = hp.default_composite_field()
 
     com_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    centroidal_momentum_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -101,6 +102,9 @@ class Variables(hp.OptimizationObject):
         self.gravity = kin_dyn_object.g[:, 3]
         self.mass = kin_dyn_object.get_total_mass()
 
+        self.com_initial = np.zeros(3)
+        self.centroidal_momentum_initial = np.zeros(6)
+
 
 class HumanoidWalkingFlatGround:
     def __init__(self, settings: Settings) -> None:
@@ -128,15 +132,27 @@ class HumanoidWalkingFlatGround:
 
         default_integrator = self.settings.integrator
 
+        function_inputs = {
+            "mass_name": sym.mass.name(),
+            "momentum_name": sym.centroidal_momentum.name(),
+            "com_name": sym.com.name(),
+            "gravity_name": sym.gravity.name(),
+            "point_position_names": [],
+            "point_force_names": [],
+            "options": self.settings.casadi_function_options,
+        }
+
         for point in sym.contact_points.left + sym.contact_points.right:
             problem.add_dynamics(
-                hp.dot(point.force) == point.f_dot,
+                hp.dot(point.f) == point.f_dot,
                 x0=point.f0,
                 integrator=default_integrator,
             )
             problem.add_dynamics(
                 hp.dot(point.p) == point.v, x0=point.p0, integrator=default_integrator
             )
+            function_inputs["point_position_names"].append(point.p.name())
+            function_inputs["point_force_names"].append(point.f.name())
 
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
@@ -157,9 +173,20 @@ class HumanoidWalkingFlatGround:
             integrator=default_integrator,
         )
 
+        com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
+        centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
+            **function_inputs
+        )
+
         problem.add_dynamics(
-            hp.dot(sym.com) == sym.centroidal_momentum[:3] / sym.mass,
+            hp.dot(sym.com) == com_dynamics,
             x0=sym.com_initial,
+            integrator=default_integrator,
+        )
+
+        problem.add_dynamics(
+            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
+            x0=sym.centroidal_momentum_initial,
             integrator=default_integrator,
         )
 
