@@ -33,7 +33,7 @@ def dcc_planar_complementarity(
 
     return cs.Function(
         "planar_complementarity_dcc",
-        [point_position, height_multiplier],
+        [point_position, height_multiplier, point_control],
         [planar_complementarity],
         [point_position_name, height_multiplier_name, point_position_control_name],
         ["planar_complementarity"],
