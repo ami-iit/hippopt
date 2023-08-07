@@ -27,3 +27,8 @@ from .utilities.quaternion import (
 )
 from .utilities.terrain_descriptor import PlanarTerrain, TerrainDescriptor
 from .variables.contacts import ContactPoint, ContactPointDescriptor
+from .variables.floating_base import (
+    FloatingBaseSystem,
+    FreeFloatingObject,
+    KinematicTree,
+)
