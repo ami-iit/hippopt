@@ -2,6 +2,7 @@ import dataclasses
 import typing
 
 import adam.casadi
+import casadi as cs
 import numpy as np
 
 import hippopt as hp
@@ -39,6 +40,8 @@ class Settings:
     gravity: np.array = dataclasses.field(default=None)
     horizon_length: int = dataclasses.field(default=None)
     integrator: typing.Type[hp.SingleStepIntegrator] = dataclasses.field(default=None)
+    terrain: hp_rp.TerrainDescriptor = dataclasses.field(default=None)
+    planar_dcc_height_multiplier: float = dataclasses.field(default=None)
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -50,6 +53,8 @@ class Settings:
         self.root_link = "root_link"
         self.gravity = np.array([0.0, 0.0, -9.80665, 0.0, 0.0, 0.0])
         self.integrator = hp_int.ImplicitTrapezoid
+        self.terrain = hp_rp.PlanarTerrain()
+        self.planar_dcc_height_multiplier = 10.0
 
     def is_valid(self) -> bool:
         return (
@@ -75,6 +80,9 @@ class Variables(hp.OptimizationObject):
 
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    planar_dcc_height_multiplier: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -104,6 +112,8 @@ class Variables(hp.OptimizationObject):
 
         self.com_initial = np.zeros(3)
         self.centroidal_momentum_initial = np.zeros(6)
+
+        self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
 
 
 class HumanoidWalkingFlatGround:
@@ -142,6 +152,12 @@ class HumanoidWalkingFlatGround:
             "options": self.settings.casadi_function_options,
         }
 
+        dcc_planar_fun = hp_rp.dcc_planar_complementarity(
+            terrain=self.settings.terrain,
+            point_position_name="p",
+            **function_inputs,
+        )
+
         for point in sym.contact_points.left + sym.contact_points.right:
             problem.add_dynamics(
                 hp.dot(point.f) == point.f_dot,
@@ -151,6 +167,15 @@ class HumanoidWalkingFlatGround:
             problem.add_dynamics(
                 hp.dot(point.p) == point.v, x0=point.p0, integrator=default_integrator
             )
+
+            dcc_planar = dcc_planar_fun(
+                p=point.p, kt=sym.planar_dcc_height_multiplier, u_p=point.u_v
+            )["planar_complementarity"]
+
+            problem.add_expression_to_horizon(
+                expression=cs.MX(point.v == dcc_planar), apply_to_first_elements=True
+            )
+
             function_inputs["point_position_names"].append(point.p.name())
             function_inputs["point_force_names"].append(point.f.name())
 
