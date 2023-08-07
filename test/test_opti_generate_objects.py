@@ -9,6 +9,7 @@ from hippopt import (
     Parameter,
     StorageType,
     Variable,
+    default_composite_field,
     default_storage_field,
 )
 
@@ -27,7 +28,7 @@ class CustomVariable(OptimizationObject):
 
 @dataclasses.dataclass
 class AggregateClass(OptimizationObject):
-    aggregated: CustomVariable = dataclasses.field(default_factory=CustomVariable)
+    aggregated: CustomVariable = default_composite_field(factory=CustomVariable)
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 

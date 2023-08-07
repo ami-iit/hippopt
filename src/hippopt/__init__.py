@@ -11,6 +11,7 @@ from .base.optimization_object import (
     StorageType,
     TimeExpansion,
     TOptimizationObject,
+    default_composite_field,
     default_storage_field,
     default_storage_metadata,
     time_varying_metadata,

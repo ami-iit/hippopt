@@ -13,6 +13,7 @@ from hippopt import (
     StorageType,
     TimeExpansion,
     Variable,
+    default_composite_field,
     default_storage_field,
     dot,
     integrators,
@@ -33,19 +34,19 @@ class MyTestVarMS(OptimizationObject):
 
 @dataclasses.dataclass
 class MyCompositeTestVar(OptimizationObject):
-    composite: MyTestVarMS | list[MyTestVarMS] = dataclasses.field(
-        default_factory=MyTestVarMS, metadata=time_varying_metadata()
+    composite: MyTestVarMS | list[MyTestVarMS] = default_composite_field(
+        factory=MyTestVarMS
     )
-    fixed: MyTestVarMS | list[MyTestVarMS] = dataclasses.field(
-        default_factory=MyTestVarMS
+    fixed: MyTestVarMS | list[MyTestVarMS] = default_composite_field(
+        factory=MyTestVarMS, time_varying=False
     )
     extended: StorageType = default_storage_field(
         cls=Variable, time_expansion=TimeExpansion.Matrix
     )
 
-    composite_list: list[MyTestVarMS] | list[list[MyTestVarMS]] = dataclasses.field(
-        default=None, metadata=time_varying_metadata()
-    )
+    composite_list: list[MyTestVarMS] | list[
+        list[MyTestVarMS]
+    ] = default_composite_field(factory=list[MyTestVarMS])
 
     fixed_list: list[MyTestVarMS] = dataclasses.field(default=None)
 

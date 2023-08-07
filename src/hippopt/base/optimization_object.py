@@ -8,6 +8,7 @@ import numpy as np
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
 StorageType = cs.MX | np.ndarray | float | list[cs.MX] | list[np.ndarray] | list[float]
+TGenericCompositeObject = TypeVar("TGenericCompositeObject")
 
 
 class TimeExpansion(Enum):
@@ -42,3 +43,10 @@ def default_storage_field(cls: Type[OptimizationObject], **kwargs):
 
 def time_varying_metadata(time_varying: bool = True):
     return {OptimizationObject.TimeDependentField: time_varying}
+
+
+def default_composite_field(factory=None, time_varying: bool = True):
+    return dataclasses.field(
+        default_factory=factory,
+        metadata=time_varying_metadata(time_varying),
+    )
