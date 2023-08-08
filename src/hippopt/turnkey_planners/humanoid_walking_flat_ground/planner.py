@@ -46,6 +46,8 @@ class Settings:
     dcc_gain: float = dataclasses.field(default=None)
     dcc_epsilon: float = dataclasses.field(default=None)
     static_friction: float = dataclasses.field(default=None)
+    maximum_velocity_control: np.ndarray = dataclasses.field(default=None)
+    maximum_force_derivative: np.ndarray = dataclasses.field(default=None)
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -62,6 +64,8 @@ class Settings:
         self.dcc_gain = 20.0
         self.dcc_epsilon = 0.05
         self.static_friction = 0.3
+        self.maximum_velocity_control = np.ndarray([2.0, 2.0, 5.0])
+        self.maximum_force_derivative = np.ndarray([100.0, 100.0, 100.0])
 
     def is_valid(self) -> bool:
         return (
@@ -93,6 +97,8 @@ class Variables(hp.OptimizationObject):
     dcc_gain: hp.StorageType = hp.default_storage_field(hp.Parameter)
     dcc_epsilon: hp.StorageType = hp.default_storage_field(hp.Parameter)
     static_friction: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    maximum_velocity_control: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    maximum_force_derivative: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -127,6 +133,8 @@ class Variables(hp.OptimizationObject):
         self.dcc_gain = settings.dcc_gain
         self.dcc_epsilon = settings.dcc_epsilon
         self.static_friction = settings.static_friction
+        self.maximum_velocity_control = settings.maximum_velocity_control
+        self.maximum_force_derivative = settings.maximum_force_derivative
 
 
 class HumanoidWalkingFlatGround:
@@ -241,6 +249,24 @@ class HumanoidWalkingFlatGround:
             )["friction_cone_square_margin"]
             problem.add_expression_to_horizon(
                 expression=cs.MX(friction_margin >= 0), apply_to_first_elements=False
+            )
+
+            problem.add_expression_to_horizon(
+                expression=cs.Opti_bounded(
+                    -sym.maximum_velocity_control,
+                    point.u_v,
+                    sym.maximum_velocity_control,
+                ),
+                apply_to_first_elements=True,
+            )
+
+            problem.add_expression_to_horizon(
+                expression=cs.Opti_bounded(
+                    -sym.maximum_force_control,
+                    point.u_f,
+                    sym.maximum_force_control,
+                ),
+                apply_to_first_elements=True,
             )
 
             function_inputs["point_position_names"].append(point.p.name())
