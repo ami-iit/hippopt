@@ -686,6 +686,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                 if var_name in x_k:
                     initial_conditions[var_name] = x0[var]
 
+            if x0_name is None and name is not None:
+                x0_name = name + "[0]"
+
             # In the following, we add the initial condition expressions
             # through the problem interface.
             # In this way, we can exploit the machinery handling the generators,
@@ -715,7 +718,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 t0=t0 + cs.MX(i) * dt,
             )
 
-            name = base_name + "[" + str(i) + "]"
+            name = base_name + "[" + str(i + 1) + "]"
 
             # In the following, we add the dynamics expressions through the problem
             # interface, rather than the solver interface. In this way, we can exploit
