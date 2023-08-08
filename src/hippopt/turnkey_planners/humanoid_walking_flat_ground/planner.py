@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import typing
 
@@ -42,6 +43,9 @@ class Settings:
     integrator: typing.Type[hp.SingleStepIntegrator] = dataclasses.field(default=None)
     terrain: hp_rp.TerrainDescriptor = dataclasses.field(default=None)
     planar_dcc_height_multiplier: float = dataclasses.field(default=None)
+    dcc_gain: float = dataclasses.field(default=None)
+    dcc_epsilon: float = dataclasses.field(default=None)
+    static_friction: float = dataclasses.field(default=None)
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -55,6 +59,9 @@ class Settings:
         self.integrator = hp_int.ImplicitTrapezoid
         self.terrain = hp_rp.PlanarTerrain()
         self.planar_dcc_height_multiplier = 10.0
+        self.dcc_gain = 20.0
+        self.dcc_epsilon = 0.05
+        self.static_friction = 0.3
 
     def is_valid(self) -> bool:
         return (
@@ -83,6 +90,9 @@ class Variables(hp.OptimizationObject):
     planar_dcc_height_multiplier: hp.StorageType = hp.default_storage_field(
         hp.Parameter
     )
+    dcc_gain: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    dcc_epsilon: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    static_friction: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -114,13 +124,16 @@ class Variables(hp.OptimizationObject):
         self.centroidal_momentum_initial = np.zeros(6)
 
         self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
+        self.dcc_gain = settings.dcc_gain
+        self.dcc_epsilon = settings.dcc_epsilon
+        self.static_friction = settings.static_friction
 
 
 class HumanoidWalkingFlatGround:
     def __init__(self, settings: Settings) -> None:
         if not settings.is_valid():
             raise ValueError("Settings are not valid")
-        self.settings = settings
+        self.settings = copy.deepcopy(settings)
         self.kin_dyn_object = adam.casadi.KinDynComputations(
             urdfstring=self.settings.robot_urdf,
             joints_name_list=self.settings.joints_name_list,
@@ -157,8 +170,11 @@ class HumanoidWalkingFlatGround:
             "height_multiplier_name": "kt",
             "dcc_gain_name": "k_bs",
             "dcc_epsilon_name": "eps",
+            "static_friction_name": "mu_s",
             "options": self.settings.casadi_function_options,
         }
+
+        self.settings.terrain.change_options(**function_inputs)
 
         dcc_planar_fun = hp_rp.dcc_planar_complementarity(
             terrain=self.settings.terrain,
@@ -168,6 +184,15 @@ class HumanoidWalkingFlatGround:
         dcc_margin_fun = hp_rp.dcc_complementarity_margin(
             terrain=self.settings.terrain,
             **function_inputs,
+        )
+
+        friction_margin_fun = hp_rp.friction_cone_square_margin(
+            terrain=self.settings.terrain, **function_inputs
+        )
+
+        height_fun = self.settings.terrain.height_function()
+        normal_force_fun = hp_rp.normal_force_component(
+            terrain=self.settings.terrain, **function_inputs
         )
 
         for point in sym.contact_points.left + sym.contact_points.right:
@@ -183,7 +208,6 @@ class HumanoidWalkingFlatGround:
             dcc_planar = dcc_planar_fun(
                 p=point.p, kt=sym.planar_dcc_height_multiplier, u_p=point.u_v
             )["planar_complementarity"]
-
             problem.add_expression_to_horizon(
                 expression=cs.MX(point.v == dcc_planar), apply_to_first_elements=True
             )
@@ -193,12 +217,30 @@ class HumanoidWalkingFlatGround:
                 f=point.f,
                 v=point.v,
                 f_dot=point.f_dot,
-                k_bs=sym.settings.dcc_gain,
-                eps=sym.settings.dcc_epsilon,
+                k_bs=sym.dcc_gain,
+                eps=sym.dcc_epsilon,
             )["dcc_complementarity_margin"]
-
             problem.add_expression_to_horizon(
                 expression=cs.MX(dcc_margin >= 0), apply_to_first_elements=True
+            )
+
+            point_height = height_fun(p=point.p)["point_height"]
+            problem.add_expression_to_horizon(
+                expression=cs.MX(point_height >= 0), apply_to_first_elements=False
+            )
+
+            normal_force = normal_force_fun(p=point.p, f=point.f)["normal_force"]
+            problem.add_expression_to_horizon(
+                expression=cs.MX(normal_force >= 0), apply_to_first_elements=False
+            )
+
+            friction_margin = friction_margin_fun(
+                p=point.p,
+                f=point.f,
+                mu_s=sym.static_friction,
+            )["friction_cone_square_margin"]
+            problem.add_expression_to_horizon(
+                expression=cs.MX(friction_margin >= 0), apply_to_first_elements=False
             )
 
             function_inputs["point_position_names"].append(point.p.name())
