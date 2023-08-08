@@ -48,6 +48,7 @@ class Settings:
     static_friction: float = dataclasses.field(default=None)
     maximum_velocity_control: np.ndarray = dataclasses.field(default=None)
     maximum_force_derivative: np.ndarray = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -226,11 +227,15 @@ class HumanoidWalkingFlatGround:
                 hp.dot(point.f) == point.f_dot,
                 x0=point.f0,
                 integrator=default_integrator,
+                name=point.f.name() + "_dynamics",
             )
 
             # dot(p) = v
             problem.add_dynamics(
-                hp.dot(point.p) == point.v, x0=point.p0, integrator=default_integrator
+                hp.dot(point.p) == point.v,
+                x0=point.p0,
+                integrator=default_integrator,
+                name=point.p.name() + "_dynamics",
             )
 
             # Planar complementarity
@@ -238,7 +243,9 @@ class HumanoidWalkingFlatGround:
                 p=point.p, kt=sym.planar_dcc_height_multiplier, u_p=point.u_v
             )["planar_complementarity"]
             problem.add_expression_to_horizon(
-                expression=cs.MX(point.v == dcc_planar), apply_to_first_elements=True
+                expression=cs.MX(point.v == dcc_planar),
+                apply_to_first_elements=True,
+                name=point.p.name() + "_planar_complementarity",
             )
 
             # Normal complementarity
@@ -251,19 +258,25 @@ class HumanoidWalkingFlatGround:
                 eps=sym.dcc_epsilon,
             )["dcc_complementarity_margin"]
             problem.add_expression_to_horizon(
-                expression=cs.MX(dcc_margin >= 0), apply_to_first_elements=True
+                expression=cs.MX(dcc_margin >= 0),
+                apply_to_first_elements=True,
+                name=point.p.name() + "_dcc",
             )
 
             # Point height greater than zero
             point_height = height_fun(p=point.p)["point_height"]
             problem.add_expression_to_horizon(
-                expression=cs.MX(point_height >= 0), apply_to_first_elements=False
+                expression=cs.MX(point_height >= 0),
+                apply_to_first_elements=False,
+                name=point.p.name() + "_height",
             )
 
             # Normal force greater than zero
             normal_force = normal_force_fun(p=point.p, f=point.f)["normal_force"]
             problem.add_expression_to_horizon(
-                expression=cs.MX(normal_force >= 0), apply_to_first_elements=False
+                expression=cs.MX(normal_force >= 0),
+                apply_to_first_elements=False,
+                name=point.f.name() + "_normal",
             )
 
             # Friction
@@ -273,7 +286,9 @@ class HumanoidWalkingFlatGround:
                 mu_s=sym.static_friction,
             )["friction_cone_square_margin"]
             problem.add_expression_to_horizon(
-                expression=cs.MX(friction_margin >= 0), apply_to_first_elements=False
+                expression=cs.MX(friction_margin >= 0),
+                apply_to_first_elements=False,
+                name=point.f.name() + "_friction",
             )
 
             # Bounds on contact velocity control inputs
@@ -284,6 +299,7 @@ class HumanoidWalkingFlatGround:
                     sym.maximum_velocity_control,
                 ),
                 apply_to_first_elements=True,
+                name=point.u_v.name() + "_bounds",
             )
 
             # Bounds on contact force control inputs
@@ -294,6 +310,7 @@ class HumanoidWalkingFlatGround:
                     sym.maximum_force_control,
                 ),
                 apply_to_first_elements=True,
+                name=point.u_f.name() + "_bounds",
             )
 
             # Creation of contact kinematics consistency functions
@@ -318,6 +335,7 @@ class HumanoidWalkingFlatGround:
             problem.add_expression_to_horizon(
                 expression=cs.MX(point.p == point_kinematics),
                 apply_to_first_elements=False,
+                name=point.p.name() + "_kinematics_consistency",
             )
 
             function_inputs["point_position_names"].append(point.p.name())
@@ -328,6 +346,7 @@ class HumanoidWalkingFlatGround:
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
             x0=sym.kinematics.base.initial_position,
             integrator=default_integrator,
+            name="base_position_dynamics",
         )
 
         # dot(q) = q_dot (base quaternion dynamics)
@@ -336,6 +355,7 @@ class HumanoidWalkingFlatGround:
             == sym.kinematics.base.quaternion_velocity_xyzw,
             x0=sym.kinematics.base.initial_quaternion_xyzw,
             integrator=default_integrator,
+            name="base_quaternion_dynamics",
         )
 
         # dot(s) = s_dot (joint position dynamics)
@@ -343,6 +363,7 @@ class HumanoidWalkingFlatGround:
             hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
             x0=sym.kinematics.joints.initial_positions,
             integrator=default_integrator,
+            name="joint_position_dynamics",
         )
 
         # dot(com) = h_g[:3]/m (center of mass dynamics)
@@ -351,6 +372,7 @@ class HumanoidWalkingFlatGround:
             hp.dot(sym.com) == com_dynamics,
             x0=sym.com_initial,
             integrator=default_integrator,
+            name="com_dynamics",
         )
 
         # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
@@ -361,12 +383,14 @@ class HumanoidWalkingFlatGround:
             hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
             x0=sym.centroidal_momentum_initial,
             integrator=default_integrator,
+            name="centroidal_momentum_dynamics",
         )
 
         # Unitary quaternion
         problem.add_expression_to_horizon(
             expression=cs.MX(cs.sumsqr(sym.kinematics.base.quaternion_xyzw) == 1),
             apply_to_first_elements=False,
+            name="unitary_quaternion",
         )
 
         # Consistency of com position with kinematics
@@ -379,7 +403,9 @@ class HumanoidWalkingFlatGround:
             s=sym.kinematics.joints.positions,
         )["com_position"]
         problem.add_expression_to_horizon(
-            expression=cs.MX(sym.com == com_kinematics), apply_to_first_elements=False
+            expression=cs.MX(sym.com == com_kinematics),
+            apply_to_first_elements=False,
+            name="com_kinematics_consistency",
         )
 
         # Consistency of centroidal momentum (angular part only) with kinematics
@@ -397,6 +423,7 @@ class HumanoidWalkingFlatGround:
         problem.add_expression_to_horizon(
             expression=cs.MX(sym.centroidal_momentum[3:] == centroidal_kinematics[3:]),
             apply_to_first_elements=True,
+            name="centroidal_momentum_kinematics_consistency",
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
