@@ -149,12 +149,24 @@ class HumanoidWalkingFlatGround:
             "gravity_name": sym.gravity.name(),
             "point_position_names": [],
             "point_force_names": [],
+            "point_position_name": "p",
+            "point_force_name": "f",
+            "point_velocity_name": "v",
+            "point_force_derivative_name": "f_dot",
+            "point_position_control_name": "u_p",
+            "height_multiplier_name": "kt",
+            "dcc_gain_name": "k_bs",
+            "dcc_epsilon_name": "eps",
             "options": self.settings.casadi_function_options,
         }
 
         dcc_planar_fun = hp_rp.dcc_planar_complementarity(
             terrain=self.settings.terrain,
-            point_position_name="p",
+            **function_inputs,
+        )
+
+        dcc_margin_fun = hp_rp.dcc_complementarity_margin(
+            terrain=self.settings.terrain,
             **function_inputs,
         )
 
@@ -174,6 +186,19 @@ class HumanoidWalkingFlatGround:
 
             problem.add_expression_to_horizon(
                 expression=cs.MX(point.v == dcc_planar), apply_to_first_elements=True
+            )
+
+            dcc_margin = dcc_margin_fun(
+                p=point.p,
+                f=point.f,
+                v=point.v,
+                f_dot=point.f_dot,
+                k_bs=sym.settings.dcc_gain,
+                eps=sym.settings.dcc_epsilon,
+            )["dcc_complementarity_margin"]
+
+            problem.add_expression_to_horizon(
+                expression=cs.MX(dcc_margin >= 0), apply_to_first_elements=True
             )
 
             function_inputs["point_position_names"].append(point.p.name())
