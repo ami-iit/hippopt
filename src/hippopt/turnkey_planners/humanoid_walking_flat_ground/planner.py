@@ -48,6 +48,9 @@ class Settings:
     static_friction: float = dataclasses.field(default=None)
     maximum_velocity_control: np.ndarray = dataclasses.field(default=None)
     maximum_force_derivative: np.ndarray = dataclasses.field(default=None)
+    maximum_angular_momentum: float = dataclasses.field(default=None)
+    minimum_com_height: float = dataclasses.field(default=None)
+    minimum_feet_lateral_distance: float = dataclasses.field(default=None)
 
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
@@ -67,6 +70,9 @@ class Settings:
         self.static_friction = 0.3
         self.maximum_velocity_control = np.ndarray([2.0, 2.0, 5.0])
         self.maximum_force_derivative = np.ndarray([100.0, 100.0, 100.0])
+        self.maximum_angular_momentum = 10.0
+        self.minimum_com_height = 0.1
+        self.minimum_feet_lateral_distance = 0.1
 
     def is_valid(self) -> bool:
         return (
@@ -100,6 +106,11 @@ class Variables(hp.OptimizationObject):
     static_friction: hp.StorageType = hp.default_storage_field(hp.Parameter)
     maximum_velocity_control: hp.StorageType = hp.default_storage_field(hp.Parameter)
     maximum_force_derivative: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    maximum_angular_momentum: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    minimum_com_height: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    minimum_feet_lateral_distance: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -136,6 +147,9 @@ class Variables(hp.OptimizationObject):
         self.static_friction = settings.static_friction
         self.maximum_velocity_control = settings.maximum_velocity_control
         self.maximum_force_derivative = settings.maximum_force_derivative
+        self.maximum_angular_momentum = settings.maximum_angular_momentum
+        self.minimum_com_height = settings.minimum_com_height
+        self.minimum_feet_lateral_distance = settings.minimum_feet_lateral_distance
 
 
 class HumanoidWalkingFlatGround:
@@ -377,7 +391,8 @@ class HumanoidWalkingFlatGround:
 
         # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
         centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
-            **function_inputs
+            number_of_points=len(function_inputs["point_position_names"]),
+            **function_inputs,
         )
         problem.add_dynamics(
             hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
@@ -424,6 +439,45 @@ class HumanoidWalkingFlatGround:
             expression=cs.MX(sym.centroidal_momentum[3:] == centroidal_kinematics[3:]),
             apply_to_first_elements=True,
             name="centroidal_momentum_kinematics_consistency",
+        )
+
+        # Bounds on angular momentum
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                -sym.maximum_angular_momentum,
+                sym.centroidal_momentum[3:],
+                sym.maximum_angular_momentum,
+            ),
+            apply_to_first_elements=True,
+            name="angular_momentum_bounds",
+        )
+
+        # Minimum com height
+        com_height = height_fun(p=sym.com)["point_height"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(com_height >= sym.minimum_com_height),
+            apply_to_first_elements=False,
+            name="minimum_com_height",
+        )
+
+        # Minimum feet lateral distance
+        left_frame = sym.contact_points.left[0].descriptor.foot_frame
+        right_frame = sym.contact_points.right[0].descriptor.foot_frame
+        relative_position_fun = hp_rp.frames_relative_position(
+            kindyn_object=self.kin_dyn_object,
+            reference_frame=right_frame,
+            target_frame=left_frame,
+            **function_inputs,
+        )
+        relative_position = relative_position_fun(s=sym.kinematics.joints.positions)[
+            "relative_position"
+        ]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(
+                relative_position[:2] >= sym.minimum_feet_lateral_distance
+            ),
+            apply_to_first_elements=False,
+            name="minimum_feet_distance",
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
