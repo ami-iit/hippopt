@@ -51,6 +51,7 @@ class Settings:
     maximum_angular_momentum: float = dataclasses.field(default=None)
     minimum_com_height: float = dataclasses.field(default=None)
     minimum_feet_lateral_distance: float = dataclasses.field(default=None)
+    maximum_feet_relative_height: float = dataclasses.field(default=None)
 
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
@@ -73,6 +74,7 @@ class Settings:
         self.maximum_angular_momentum = 10.0
         self.minimum_com_height = 0.1
         self.minimum_feet_lateral_distance = 0.1
+        self.maximum_feet_relative_height = 0.05
 
     def is_valid(self) -> bool:
         return (
@@ -109,6 +111,9 @@ class Variables(hp.OptimizationObject):
     maximum_angular_momentum: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_com_height: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_feet_lateral_distance: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+    maximum_feet_relative_height: hp.StorageType = hp.default_storage_field(
         hp.Parameter
     )
 
@@ -150,6 +155,7 @@ class Variables(hp.OptimizationObject):
         self.maximum_angular_momentum = settings.maximum_angular_momentum
         self.minimum_com_height = settings.minimum_com_height
         self.minimum_feet_lateral_distance = settings.minimum_feet_lateral_distance
+        self.maximum_feet_relative_height = settings.maximum_feet_relative_height
 
 
 class HumanoidWalkingFlatGround:
@@ -478,6 +484,36 @@ class HumanoidWalkingFlatGround:
             ),
             apply_to_first_elements=False,
             name="minimum_feet_distance",
+        )
+
+        # Maximum feet relative height
+        def get_centroid(
+            points: list[ExtendedContactPoint], function_inputs_dict: dict
+        ) -> cs.MX:
+            function_inputs_dict["point_position_names"] = [
+                pt.p.name() for pt in points
+            ]
+            point_position_dict = {pt.p.name(): pt.p for pt in points}
+            centroid_fun = hp_rp.contact_points_centroid(
+                number_of_points=len(function_inputs_dict["point_position_names"]),
+                **function_inputs_dict,
+            )
+            return centroid_fun(**point_position_dict)["centroid"]
+
+        left_centroid = get_centroid(
+            points=sym.contact_points.left, function_inputs_dict=function_inputs
+        )
+        right_centroid = get_centroid(
+            points=sym.contact_points.right, function_inputs_dict=function_inputs
+        )
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                -sym.maximum_feet_relative_height,
+                (left_centroid[2] - right_centroid[2]),
+                sym.maximum_feet_relative_height,
+            ),
+            apply_to_first_elements=False,
+            name="maximum_feet_relative_height",
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
