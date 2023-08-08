@@ -46,9 +46,9 @@ def dcc_complementarity_margin(
     point_position_name: str = None,
     point_force_name: str = "point_force",
     point_velocity_name: str = "point_velocity",
-    point_force_derivative_name: str = "point_force",
+    point_force_derivative_name: str = "point_force_derivative",
     dcc_gain_name: str = "k_bs",
-    epsilon_name: str = "eps",
+    dcc_epsilon_name: str = "eps",
     options: dict = None,
     **_
 ) -> cs.Function:
@@ -63,7 +63,7 @@ def dcc_complementarity_margin(
     point_velocity = cs.MX.sym(point_velocity_name, 3)
     point_force_derivative = cs.MX.sym(point_force_derivative_name, 3)
     dcc_gain = cs.MX.sym(dcc_gain_name, 1)
-    eps = cs.MX.sym(epsilon_name, 1)
+    eps = cs.MX.sym(dcc_epsilon_name, 1)
 
     normal_direction_fun = terrain.normal_direction_function()
     height_function = terrain.height_function()
@@ -103,7 +103,7 @@ def dcc_complementarity_margin(
             point_velocity_name,
             point_force_derivative_name,
             dcc_gain_name,
-            epsilon_name,
+            dcc_epsilon_name,
         ],
         ["dcc_complementarity_margin"],
         options,
