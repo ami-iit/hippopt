@@ -70,7 +70,7 @@ def friction_cone_square_margin(
         [point_position, point_force, static_friction],
         [margin],
         [point_position_name, point_force_name, static_friction_name],
-        ["margin"],
+        ["friction_cone_square_margin"],
         options,
     )
 
