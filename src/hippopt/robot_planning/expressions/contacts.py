@@ -8,7 +8,7 @@ def normal_force_component(
     point_position_name: str = None,
     point_force_name: str = "point_force",
     options: dict = None,
-    **_
+    **_,
 ) -> cs.Function:
     options = {} if options is None else options
     point_position_name = (
@@ -39,7 +39,7 @@ def friction_cone_square_margin(
     point_force_name: str = "point_force",
     static_friction_name: str = "mu_s",
     options: dict = None,
-    **_
+    **_,
 ) -> cs.Function:
     options = {} if options is None else options
     point_position_name = (
@@ -76,14 +76,24 @@ def friction_cone_square_margin(
 
 
 def contact_points_centroid(
-    number_of_points: int, point_position_name: str = "p_#", options: dict = None, **_
+    number_of_points: int,
+    point_position_names: list[str] = None,
+    options: dict = None,
+    **_,
 ) -> cs.Function:
     options = {} if options is None else options
+
+    if point_position_names is None:
+        point_position_names = []
+        for i in range(number_of_points):
+            point_position_names.append(f"p{i}")
+
+    assert len(point_position_names) == number_of_points
 
     input_vars = []
     p = []
     for i in range(number_of_points):
-        p.append(cs.MX.sym(point_position_name.replace("#", str(i)), 3))
+        p.append(cs.MX.sym(point_position_names[i], 3))
         input_vars.append(p[i])
 
     input_names = []
@@ -113,7 +123,7 @@ def contact_points_yaw_alignment(
     second_point_name: str = "p_1",
     desired_yaw_name: str = "desired_yaw",
     options: dict = None,
-    **_
+    **_,
 ) -> cs.Function:
     options = {} if options is None else options
 
@@ -139,7 +149,7 @@ def swing_height_heuristic(
     point_velocity_name: str = "p_dot",
     desired_height_name: str = "h_desired",
     options: dict = None,
-    **_
+    **_,
 ) -> cs.Function:
     options = {} if options is None else options
 
