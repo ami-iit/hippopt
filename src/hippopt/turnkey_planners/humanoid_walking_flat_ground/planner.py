@@ -279,8 +279,9 @@ class HumanoidWalkingFlatGround:
         )
 
         point_kinematics_functions = {}
+        all_contact_points = sym.contact_points.left + sym.contact_points.right
 
-        for point in sym.contact_points.left + sym.contact_points.right:
+        for point in all_contact_points:
             # dot(f) = f_dot
             problem.add_dynamics(
                 hp.dot(point.f) == point.f_dot,
@@ -397,9 +398,6 @@ class HumanoidWalkingFlatGround:
                 name=point.p.name() + "_kinematics_consistency",
             )
 
-            function_inputs["point_position_names"].append(point.p.name())
-            function_inputs["point_force_names"].append(point.f.name())
-
         # dot(pb) = pb_dot (base position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
@@ -435,6 +433,12 @@ class HumanoidWalkingFlatGround:
         )
 
         # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
+        function_inputs["point_position_names"] = [
+            point.p.name() for point in all_contact_points
+        ]
+        function_inputs["point_force_names"] = [
+            point.f.name() for point in all_contact_points
+        ]
         centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
             number_of_points=len(function_inputs["point_position_names"]),
             **function_inputs,
