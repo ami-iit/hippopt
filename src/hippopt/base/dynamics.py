@@ -23,7 +23,7 @@ class DynamicsRHS:
         Create the DynamicsRHS object
         :param f: The CasADi function describing the dynamics. The output order should
          match the list provided in the dot function. As an alternative, if the
-         dynamics is trivial (e.g dot(x) = y), it is possible to pass directly the name
+         dynamics is trivial (e.g. dot(x) = y), it is possible to pass directly the name
          of the variable in the right-hand-side, or the list of variables in case the
          left-hand-side is a list.
         :param names_map_in: A dict describing how to switch from the input names to
@@ -147,7 +147,7 @@ class DynamicsLHS:
         self._t_label = input_to_string(input_value=t_label, default_string="t")
 
     def equal(
-        self, f: cs.Function | str | list[str], names_map: dict[str, str] = None
+        self, f: cs.Function | str | list[str] | cs.MX, names_map: dict[str, str] = None
     ) -> TDynamics:
         rhs = DynamicsRHS(f=f, names_map_in=names_map)
         if len(rhs.outputs()) != len(self._x):
