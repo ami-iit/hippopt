@@ -304,8 +304,10 @@ def test_multiple_shooting():
     )
 
     problem.add_expression_to_horizon(
-        expression=(symbolic.foo >= 5), apply_to_first_elements=True
+        expression=(symbolic.foo >= 5), apply_to_first_elements=False
     )
+
+    problem.add_constraint(expression=problem.initial(symbolic.foo) == 0)
 
     problem.add_expression_to_horizon(
         expression=cs.sumsqr(symbolic.foo),
@@ -338,6 +340,9 @@ def test_multiple_shooting():
         assert float(sol.values.masses[1][i].v) == pytest.approx(expected_velocity)
         assert float(sol.values.masses[2][i].x) == pytest.approx(expected_position)
         assert float(sol.values.masses[2][i].v) == pytest.approx(expected_velocity)
-        assert sol.values.foo[i] == pytest.approx(5)
+        if i == 0:
+            assert sol.values.foo[i] == pytest.approx(0)
+        else:
+            assert sol.values.foo[i] == pytest.approx(5)
         expected_position += dt * expected_velocity
         expected_velocity += dt * guess.g

@@ -41,3 +41,7 @@ class OptimalControlSolver(OptimizationSolver):
         **kwargs
     ) -> None:
         pass
+
+    @abc.abstractmethod
+    def initial(self, variable: str | cs.MX) -> cs.MX:
+        pass

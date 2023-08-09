@@ -239,7 +239,7 @@ class MultipleShootingSolver(OptimalControlSolver):
             time_dependent = (
                 OptimizationObject.TimeDependentField in field.metadata
                 and field.metadata[OptimizationObject.TimeDependentField]
-                and top_level  # only top level variables can be time dependent
+                and top_level  # only top level variables can be time-dependent
             )
 
             expand_storage = (
@@ -744,7 +744,7 @@ class MultipleShootingSolver(OptimalControlSolver):
     ) -> None:
         """
         Add an expression to the whole horizon of the optimal control problem
-        :param expression: The expression to add. Use the symbolic_structure to setup
+        :param expression: The expression to add. Use the symbolic_structure to set up
                            expression
         :param mode: Optional argument to set the mode with which the
                      dynamics is added to the problem.
@@ -815,6 +815,29 @@ class MultipleShootingSolver(OptimalControlSolver):
                 name=name,
                 **kwargs
             )
+
+    def initial(self, variable: str | cs.MX) -> cs.MX:
+        """
+        Get the initial value of a variable
+        :param variable: The name of the flattened variable.
+                         If the variable is nested, you can use "." as separator
+                         (e.g. "a.b" will look for variable b within a).
+                         If there is a list, you can use "[k]" with "k" the element
+                         to pick. For example "a.b[k].c" will look for variable "c"
+                         defined in the k-th element of "b" within "a".
+                         As an alternative it is possible to use the corresponding
+                         variable from the symbolic structure.
+        :return: The first value of the variable
+        """
+        if isinstance(variable, cs.MX):
+            variable = variable.name()
+
+        if variable not in self._flattened_variables:
+            raise ValueError(
+                "Variable " + variable + " not found in the optimization variables."
+            )
+
+        return next(self._flattened_variables[variable][1]())
 
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]

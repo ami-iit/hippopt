@@ -42,7 +42,7 @@ class OptimalControlProblemInstance:
 
     def __iter__(self):
         return iter([self.problem, self.all_variables, self.symbolic_structure])
-        # Cannot use astuple here since it would perform a deepcopy
+        # Cannot use convert to tuple here since it would perform a deepcopy
         # and would include InitVars too
 
 
@@ -117,3 +117,6 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
             name=name,
             **kwargs
         )
+
+    def initial(self, variable: str | cs.MX) -> cs.MX:
+        return self.solver().initial(variable=variable)

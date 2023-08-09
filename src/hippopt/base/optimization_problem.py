@@ -28,7 +28,7 @@ class OptimizationProblemInstance:
 
     def __iter__(self):
         return iter([self.problem, self.variables])
-        # Cannot use astuple here since it would perform a deepcopy
+        # Cannot convert to tuple here since it would perform a deepcopy
         # and would include InitVars too
 
 
