@@ -120,3 +120,6 @@ class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
 
     def initial(self, variable: str | cs.MX) -> cs.MX:
         return self.solver().initial(variable=variable)
+
+    def final(self, variable: str | cs.MX) -> cs.MX:
+        return self.solver().final(variable=variable)

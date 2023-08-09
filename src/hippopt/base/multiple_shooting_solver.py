@@ -839,6 +839,38 @@ class MultipleShootingSolver(OptimalControlSolver):
 
         return next(self._flattened_variables[variable][1]())
 
+    def final(self, variable: str | cs.MX) -> cs.MX:
+        """
+        Get the final value of a variable
+        :param variable: The name of the flattened variable.
+                         If the variable is nested, you can use "." as separator
+                         (e.g. "a.b" will look for variable b within a).
+                         If there is a list, you can use "[k]" with "k" the element
+                         to pick. For example "a.b[k].c" will look for variable "c"
+                         defined in the k-th element of "b" within "a".
+                         As an alternative it is possible to use the corresponding
+                         variable from the symbolic structure.
+        :return: The last value of the variable
+        """
+        if isinstance(variable, cs.MX):
+            variable = variable.name()
+
+        if variable not in self._flattened_variables:
+            raise ValueError(
+                "Variable " + variable + " not found in the optimization variables."
+            )
+
+        flattened = self._flattened_variables[variable]
+
+        if flattened[0] == 1:
+            return next(flattened[1]())
+        else:
+            generator = flattened[1]()
+            final_value = None
+            for value in generator:
+                final_value = value
+            return final_value
+
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ):

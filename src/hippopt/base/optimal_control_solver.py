@@ -45,3 +45,7 @@ class OptimalControlSolver(OptimizationSolver):
     @abc.abstractmethod
     def initial(self, variable: str | cs.MX) -> cs.MX:
         pass
+
+    @abc.abstractmethod
+    def final(self, variable: str | cs.MX) -> cs.MX:
+        pass

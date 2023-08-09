@@ -265,6 +265,8 @@ def test_multiple_shooting():
         horizon=horizon,
     )
 
+    assert problem.initial(symbolic.g) is problem.final(symbolic.g)
+
     problem.add_dynamics(
         dot(["masses[0].x", "masses[0].v"])
         == (MassFallingState.get_dynamics(), {"masses[0].x": "x", "masses[0].v": "v"}),
@@ -308,6 +310,7 @@ def test_multiple_shooting():
     )
 
     problem.add_constraint(expression=problem.initial(symbolic.foo) == 0)
+    problem.add_constraint(expression=problem.final(symbolic.foo) == 6.0)
 
     problem.add_expression_to_horizon(
         expression=cs.sumsqr(symbolic.foo),
@@ -342,6 +345,8 @@ def test_multiple_shooting():
         assert float(sol.values.masses[2][i].v) == pytest.approx(expected_velocity)
         if i == 0:
             assert sol.values.foo[i] == pytest.approx(0)
+        elif i == horizon - 1:
+            assert sol.values.foo[i] == pytest.approx(6)
         else:
             assert sol.values.foo[i] == pytest.approx(5)
         expected_position += dt * expected_velocity
