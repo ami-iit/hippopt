@@ -75,6 +75,15 @@ class Settings:
     base_quaternion_xyzw_reference: np.ndarray = dataclasses.field(default=None)
     base_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
+    base_quaternion_xyzw_velocity_reference: np.ndarray = dataclasses.field(
+        default=None
+    )
+    base_quaternion_velocity_cost_multiplier: float = dataclasses.field(default=None)
+
+    joint_regularization_cost_reference: np.ndarray = dataclasses.field(default=None)
+    joint_regularization_cost_weights: np.ndarray = dataclasses.field(default=None)
+    joint_regularization_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -130,6 +139,14 @@ class Settings:
             and self.base_quaternion_xyzw_reference is not None
             and len(self.base_quaternion_xyzw_reference) == 4
             and self.base_quaternion_cost_multiplier is not None
+            and self.base_quaternion_xyzw_velocity_reference is not None
+            and len(self.base_quaternion_xyzw_velocity_reference) == 4
+            and self.base_quaternion_velocity_cost_multiplier is not None
+            and self.joint_regularization_cost_reference is not None
+            and len(self.joint_regularization_cost_reference) == number_of_joints
+            and self.joint_regularization_cost_weights is not None
+            and len(self.joint_regularization_cost_weights) == number_of_joints
+            and self.joint_regularization_cost_multiplier is not None
         )
 
 
@@ -188,6 +205,14 @@ class Variables(hp.OptimizationObject):
         hp.Parameter, time_dependent=True
     )
 
+    base_quaternion_xyzw_velocity_reference: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+
+    joint_regularization_cost_reference: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
         adam.casadi.KinDynComputations
@@ -238,6 +263,12 @@ class Variables(hp.OptimizationObject):
             settings.desired_frame_quaternion_xyzw_reference
         )
         self.base_quaternion_xyzw_reference = settings.base_quaternion_xyzw_reference
+        self.base_quaternion_xyzw_velocity_reference = (
+            settings.base_quaternion_xyzw_velocity_reference
+        )
+        self.joint_regularization_cost_reference = (
+            settings.joint_regularization_cost_reference
+        )
 
 
 class HumanoidWalkingFlatGround:
@@ -559,6 +590,35 @@ class HumanoidWalkingFlatGround:
             name="base_quaternion_error",
             mode=hp.ExpressionType.minimize,
             scaling=self.settings.base_quaternion_cost_multiplier,
+        )
+
+        # Desired base angular velocity
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(
+                sym.kinematics.base.quaternion_velocity_xyzw
+                - sym.base_quaternion_xyzw_velocity_reference
+            ),
+            apply_to_first_elements=True,
+            name="base_quaternion_velocity_error",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.base_quaternion_velocity_cost_multiplier,
+        )
+
+        # Desired joint positions
+        joint_positions_error = (
+            sym.kinematics.joints.positions - sym.joint_regularization_cost_reference
+        )
+        joint_velocity_error = (
+            sym.kinematics.joints.velocities
+            + cs.diag(cs.DM(self.settings.joint_regularization_cost_weights))
+            * joint_positions_error
+        )
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(joint_velocity_error),
+            apply_to_first_elements=False,
+            name="joint_positions_error",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.joint_regularization_cost_multiplier,
         )
 
     def add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
