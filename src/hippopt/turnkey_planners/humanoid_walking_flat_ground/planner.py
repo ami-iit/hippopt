@@ -4,6 +4,7 @@ import typing
 
 import adam.casadi
 import casadi as cs
+import liecasadi
 import numpy as np
 
 import hippopt as hp
@@ -65,6 +66,15 @@ class Settings:
     com_linear_velocity_cost_weights: np.ndarray = dataclasses.field(default=None)
     com_linear_velocity_cost_multiplier: float = dataclasses.field(default=None)
 
+    desired_frame_quaternion_cost_frame_name: str = dataclasses.field(default=None)
+    desired_frame_quaternion_xyzw_reference: np.ndarray = dataclasses.field(
+        default=None
+    )
+    desired_frame_quaternion_cost_multiplier: float = dataclasses.field(default=None)
+
+    base_quaternion_xyzw_reference: np.ndarray = dataclasses.field(default=None)
+    base_quaternion_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -109,10 +119,17 @@ class Settings:
             and len(self.contacts_centroid_cost_weights) == self.horizon_length
             and self.contacts_centroid_cost_multiplier is not None
             and self.com_linear_velocity_reference is not None
-            and self.com_linear_velocity_reference.shape == (3, self.horizon_length)
+            and len(self.com_linear_velocity_reference) == 3
             and self.com_linear_velocity_cost_weights is not None
             and len(self.com_linear_velocity_cost_weights) == 3
             and self.com_linear_velocity_cost_multiplier is not None
+            and self.desired_frame_quaternion_cost_frame_name is not None
+            and self.desired_frame_quaternion_xyzw_reference is not None
+            and len(self.desired_frame_quaternion_xyzw_reference) == 4
+            and self.desired_frame_quaternion_cost_multiplier is not None
+            and self.base_quaternion_xyzw_reference is not None
+            and len(self.base_quaternion_xyzw_reference) == 4
+            and self.base_quaternion_cost_multiplier is not None
         )
 
 
@@ -163,6 +180,14 @@ class Variables(hp.OptimizationObject):
         hp.Parameter, time_dependent=True
     )
 
+    desired_frame_quaternion_xyzw_reference: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+
+    base_quaternion_xyzw_reference: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
         adam.casadi.KinDynComputations
@@ -208,6 +233,11 @@ class Variables(hp.OptimizationObject):
         self.minimum_joint_velocities = settings.minimum_joint_velocities
         self.contacts_centroid_references = settings.contacts_centroid_references
         self.contacts_centroid_cost_weights = settings.contacts_centroid_cost_weights
+        self.com_linear_velocity_reference = settings.com_linear_velocity_reference
+        self.desired_frame_quaternion_xyzw_reference = (
+            settings.desired_frame_quaternion_xyzw_reference
+        )
+        self.base_quaternion_xyzw_reference = settings.base_quaternion_xyzw_reference
 
 
 class HumanoidWalkingFlatGround:
@@ -257,6 +287,7 @@ class HumanoidWalkingFlatGround:
             "dcc_gain_name": "k_bs",
             "dcc_epsilon_name": "eps",
             "static_friction_name": "mu_s",
+            "desired_quaternion_xyzw_name": "qd",
             "options": self.settings.casadi_function_options,
         }
 
@@ -312,9 +343,10 @@ class HumanoidWalkingFlatGround:
 
         self.add_robot_dynamics(all_contact_points, function_inputs)
 
-        self.add_kinematics_expressions(
+        self.add_kinematics_constraints(
             function_inputs, height_fun, normalized_quaternion
         )
+        self.add_kinematics_regularization(function_inputs=function_inputs)
 
         self.add_contact_centroids_expressions(function_inputs)
 
@@ -369,7 +401,7 @@ class HumanoidWalkingFlatGround:
             scaling=self.settings.contacts_centroid_cost_multiplier,
         )
 
-    def add_kinematics_expressions(
+    def add_kinematics_constraints(
         self,
         function_inputs: dict,
         height_fun: cs.Function,
@@ -479,6 +511,9 @@ class HumanoidWalkingFlatGround:
             name="joint_velocity_bounds",
         )
 
+    def add_kinematics_regularization(self, function_inputs: dict):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
         # Desired com velocity
         com_velocity_error = (
             sym.centroidal_momentum[:3] - sym.desired_com_velocity * sym.mass
@@ -494,6 +529,36 @@ class HumanoidWalkingFlatGround:
             name="com_velocity_error",
             mode=hp.ExpressionType.minimize,
             scaling=self.settings.com_linear_velocity_cost_multiplier,
+        )
+
+        # Desired frame orientation
+        quaternion_error_fun = hp_rp.quaternion_error(
+            kindyn_object=self.kin_dyn_object,
+            target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
+            **function_inputs,
+        )
+        quaternion_error = quaternion_error_fun(
+            pb=sym.kinematics.base.position,
+            qb=sym.kinematics.base.quaternion_xyzw,
+            s=sym.kinematics.joints.positions,
+            qd=sym.desired_frame_quaternion_xyzw_reference,
+        )["quaternion_error"]
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(quaternion_error),
+            apply_to_first_elements=False,
+            name="frame_quaternion_error",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.desired_frame_quaternion_cost_multiplier,
+        )
+
+        # Desired base orientation
+        identity = liecasadi.SO3.Identity()
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(sym.kinematics.base.quaternion_xyzw - identity),
+            apply_to_first_elements=False,
+            name="base_quaternion_error",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.base_quaternion_cost_multiplier,
         )
 
     def add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
