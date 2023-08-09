@@ -135,13 +135,13 @@ class Settings:
 
 @dataclasses.dataclass
 class Variables(hp.OptimizationObject):
-    contact_points: FeetContactPoints | list[
-        FeetContactPoints
-    ] = hp.default_composite_field()
+    contact_points: hp.CompositeType[FeetContactPoints] = hp.default_composite_field()
     com: hp.StorageType = hp.default_storage_field(hp.Variable)
     centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
-    kinematics: hp_rp.FloatingBaseSystem = hp.default_composite_field()
+    kinematics: hp.CompositeType[
+        hp_rp.FloatingBaseSystem
+    ] = hp.default_composite_field()
 
     com_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
     centroidal_momentum_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -569,7 +569,7 @@ class HumanoidWalkingFlatGround:
         # dot(pb) = pb_dot (base position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
-            x0=sym.kinematics.base.initial_position,
+            x0=problem.initial(sym.kinematics.base.initial_position),
             integrator=default_integrator,
             name="base_position_dynamics",
         )
@@ -578,7 +578,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.quaternion_xyzw)
             == sym.kinematics.base.quaternion_velocity_xyzw,
-            x0=sym.kinematics.base.initial_quaternion_xyzw,
+            x0=problem.initial(sym.kinematics.base.initial_quaternion_xyzw),
             integrator=default_integrator,
             name="base_quaternion_dynamics",
         )
@@ -586,7 +586,7 @@ class HumanoidWalkingFlatGround:
         # dot(s) = s_dot (joint position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
-            x0=sym.kinematics.joints.initial_positions,
+            x0=problem.initial(sym.kinematics.joints.initial_positions),
             integrator=default_integrator,
             name="joint_position_dynamics",
         )
@@ -595,7 +595,7 @@ class HumanoidWalkingFlatGround:
         com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
         problem.add_dynamics(
             hp.dot(sym.com) == com_dynamics,
-            x0=sym.com_initial,
+            x0=problem.initial(sym.com_initial),
             integrator=default_integrator,
             name="com_dynamics",
         )
@@ -613,7 +613,7 @@ class HumanoidWalkingFlatGround:
         )
         problem.add_dynamics(
             hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
-            x0=sym.centroidal_momentum_initial,
+            x0=problem.initial(sym.centroidal_momentum_initial),
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
         )
@@ -746,7 +746,7 @@ class HumanoidWalkingFlatGround:
         # dot(f) = f_dot
         problem.add_dynamics(
             hp.dot(point.f) == point.f_dot,
-            x0=point.f0,
+            x0=problem.initial(point.f0),
             integrator=default_integrator,
             name=point.f.name() + "_dynamics",
         )
@@ -754,7 +754,7 @@ class HumanoidWalkingFlatGround:
         # dot(p) = v
         problem.add_dynamics(
             hp.dot(point.p) == point.v,
-            x0=point.p0,
+            x0=problem.initial(point.p0),
             integrator=default_integrator,
             name=point.p.name() + "_dynamics",
         )
