@@ -52,6 +52,10 @@ class Settings:
     minimum_com_height: float = dataclasses.field(default=None)
     minimum_feet_lateral_distance: float = dataclasses.field(default=None)
     maximum_feet_relative_height: float = dataclasses.field(default=None)
+    maximum_joint_positions: np.ndarray = dataclasses.field(default=None)
+    minimum_joint_positions: np.ndarray = dataclasses.field(default=None)
+    maximum_joint_velocities: np.ndarray = dataclasses.field(default=None)
+    minimum_joint_velocities: np.ndarray = dataclasses.field(default=None)
 
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
@@ -72,16 +76,25 @@ class Settings:
         self.maximum_velocity_control = np.ndarray([2.0, 2.0, 5.0])
         self.maximum_force_derivative = np.ndarray([100.0, 100.0, 100.0])
         self.maximum_angular_momentum = 10.0
-        self.minimum_com_height = 0.1
-        self.minimum_feet_lateral_distance = 0.1
-        self.maximum_feet_relative_height = 0.05
 
     def is_valid(self) -> bool:
+        number_of_joints = len(self.joints_name_list)
         return (
             self.robot_urdf is not None
             and self.joints_name_list is not None
             and self.contact_points is not None
             and self.horizon_length is not None
+            and self.minimum_com_height is not None
+            and self.minimum_feet_lateral_distance is not None
+            and self.maximum_feet_relative_height is not None
+            and self.maximum_joint_positions is not None
+            and self.minimum_joint_positions is not None
+            and self.maximum_joint_velocities is not None
+            and self.minimum_joint_velocities is not None
+            and len(self.maximum_joint_positions) == number_of_joints
+            and len(self.minimum_joint_positions) == number_of_joints
+            and len(self.maximum_joint_velocities) == number_of_joints
+            and len(self.minimum_joint_velocities) == number_of_joints
         )
 
 
@@ -116,6 +129,10 @@ class Variables(hp.OptimizationObject):
     maximum_feet_relative_height: hp.StorageType = hp.default_storage_field(
         hp.Parameter
     )
+    maximum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    minimum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    maximum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    minimum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -156,6 +173,10 @@ class Variables(hp.OptimizationObject):
         self.minimum_com_height = settings.minimum_com_height
         self.minimum_feet_lateral_distance = settings.minimum_feet_lateral_distance
         self.maximum_feet_relative_height = settings.maximum_feet_relative_height
+        self.maximum_joint_positions = settings.maximum_joint_positions
+        self.minimum_joint_positions = settings.minimum_joint_positions
+        self.maximum_joint_velocities = settings.maximum_joint_velocities
+        self.minimum_joint_velocities = settings.minimum_joint_velocities
 
 
 class HumanoidWalkingFlatGround:
@@ -514,6 +535,28 @@ class HumanoidWalkingFlatGround:
             ),
             apply_to_first_elements=False,
             name="maximum_feet_relative_height",
+        )
+
+        # Joint position bounds
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                sym.minimum_joint_positions,
+                sym.kinematics.joints.positions,
+                sym.maximum_joint_positions,
+            ),
+            apply_to_first_elements=False,
+            name="joint_position_bounds",
+        )
+
+        # Joint velocity bounds
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                sym.minimum_joint_velocities,
+                sym.kinematics.joints.velocities,
+                sym.maximum_joint_velocities,
+            ),
+            apply_to_first_elements=True,
+            name="joint_velocity_bounds",
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
