@@ -57,6 +57,10 @@ class Settings:
     maximum_joint_velocities: np.ndarray = dataclasses.field(default=None)
     minimum_joint_velocities: np.ndarray = dataclasses.field(default=None)
 
+    contacts_centroid_references: np.ndarray = dataclasses.field(default=None)
+    contacts_centroid_cost_weights: np.ndarray = dataclasses.field(default=None)
+    contacts_centroid_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -95,6 +99,11 @@ class Settings:
             and len(self.minimum_joint_positions) == number_of_joints
             and len(self.maximum_joint_velocities) == number_of_joints
             and len(self.minimum_joint_velocities) == number_of_joints
+            and self.contacts_centroid_references is not None
+            and len(self.contacts_centroid_references) == self.horizon_length
+            and self.contacts_centroid_cost_weights is not None
+            and len(self.contacts_centroid_cost_weights) == self.horizon_length
+            and self.contacts_centroid_cost_multiplier is not None
         )
 
 
@@ -133,6 +142,13 @@ class Variables(hp.OptimizationObject):
     minimum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
     maximum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    contacts_centroid_references: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+    contacts_centroid_cost_weights: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -177,6 +193,8 @@ class Variables(hp.OptimizationObject):
         self.minimum_joint_positions = settings.minimum_joint_positions
         self.maximum_joint_velocities = settings.maximum_joint_velocities
         self.minimum_joint_velocities = settings.minimum_joint_velocities
+        self.contacts_centroid_references = settings.contacts_centroid_references
+        self.contacts_centroid_cost_weights = settings.contacts_centroid_cost_weights
 
 
 class HumanoidWalkingFlatGround:
@@ -535,6 +553,23 @@ class HumanoidWalkingFlatGround:
             ),
             apply_to_first_elements=False,
             name="maximum_feet_relative_height",
+        )
+
+        # Contact centroid position cost
+        centroid_error = sym.contacts_centroid_references - 0.5 * (
+            left_centroid + right_centroid
+        )
+        weighted_centroid_squared_error = (
+            centroid_error.T()
+            @ cs.diag(sym.contacts_centroid_cost_weights)
+            @ centroid_error
+        )
+        problem.add_expression_to_horizon(
+            expression=weighted_centroid_squared_error,
+            apply_to_first_elements=False,
+            name="contacts_centroid_cost",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.contacts_centroid_cost_multiplier,
         )
 
         # Joint position bounds
