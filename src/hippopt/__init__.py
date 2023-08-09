@@ -7,6 +7,7 @@ from .base.optimal_control_problem import (
     OptimalControlProblemInstance,
 )
 from .base.optimization_object import (
+    CompositeType,
     OptimizationObject,
     StorageType,
     TimeExpansion,

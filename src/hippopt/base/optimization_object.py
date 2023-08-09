@@ -7,8 +7,9 @@ import casadi as cs
 import numpy as np
 
 TOptimizationObject = TypeVar("TOptimizationObject", bound="OptimizationObject")
-StorageType = cs.MX | np.ndarray | float | list[cs.MX] | list[np.ndarray] | list[float]
 TGenericCompositeObject = TypeVar("TGenericCompositeObject")
+CompositeType = TGenericCompositeObject | list[TGenericCompositeObject]
+StorageType = CompositeType[cs.MX] | CompositeType[np.ndarray] | CompositeType[float]
 
 
 class TimeExpansion(Enum):

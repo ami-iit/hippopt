@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from hippopt import (
+    CompositeType,
     ExpressionType,
     MultipleShootingSolver,
     OptimalControlProblem,
@@ -34,19 +35,17 @@ class MyTestVarMS(OptimizationObject):
 
 @dataclasses.dataclass
 class MyCompositeTestVar(OptimizationObject):
-    composite: MyTestVarMS | list[MyTestVarMS] = default_composite_field(
-        factory=MyTestVarMS
-    )
-    fixed: MyTestVarMS | list[MyTestVarMS] = default_composite_field(
+    composite: CompositeType[MyTestVarMS] = default_composite_field(factory=MyTestVarMS)
+    fixed: CompositeType[MyTestVarMS] = default_composite_field(
         factory=MyTestVarMS, time_varying=False
     )
     extended: StorageType = default_storage_field(
         cls=Variable, time_expansion=TimeExpansion.Matrix
     )
 
-    composite_list: list[MyTestVarMS] | list[
-        list[MyTestVarMS]
-    ] = default_composite_field(factory=list[MyTestVarMS])
+    composite_list: CompositeType[list[MyTestVarMS]] = default_composite_field(
+        factory=list[MyTestVarMS]
+    )
 
     fixed_list: list[MyTestVarMS] = dataclasses.field(default=None)
 
@@ -237,7 +236,7 @@ class MassFallingState(OptimizationObject):
 
 @dataclasses.dataclass
 class MassFallingTestVariables(OptimizationObject):
-    masses: list[MassFallingState] = dataclasses.field(
+    masses: CompositeType[list[MassFallingState]] = dataclasses.field(
         metadata=time_varying_metadata(), default=None
     )
     g: StorageType = default_storage_field(Parameter)
