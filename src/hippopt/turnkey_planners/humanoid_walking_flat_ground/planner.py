@@ -61,6 +61,10 @@ class Settings:
     contacts_centroid_cost_weights: np.ndarray = dataclasses.field(default=None)
     contacts_centroid_cost_multiplier: float = dataclasses.field(default=None)
 
+    com_linear_velocity_reference: np.ndarray = dataclasses.field(default=None)
+    com_linear_velocity_cost_weights: np.ndarray = dataclasses.field(default=None)
+    com_linear_velocity_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -104,6 +108,11 @@ class Settings:
             and self.contacts_centroid_cost_weights is not None
             and len(self.contacts_centroid_cost_weights) == self.horizon_length
             and self.contacts_centroid_cost_multiplier is not None
+            and self.com_linear_velocity_reference is not None
+            and self.com_linear_velocity_reference.shape == (3, self.horizon_length)
+            and self.com_linear_velocity_cost_weights is not None
+            and len(self.com_linear_velocity_cost_weights) == 3
+            and self.com_linear_velocity_cost_multiplier is not None
         )
 
 
@@ -147,6 +156,10 @@ class Variables(hp.OptimizationObject):
         hp.Parameter, time_dependent=True
     )
     contacts_centroid_cost_weights: hp.StorageType = hp.default_storage_field(
+        hp.Parameter, time_dependent=True
+    )
+
+    com_linear_velocity_reference: hp.StorageType = hp.default_storage_field(
         hp.Parameter, time_dependent=True
     )
 
@@ -218,10 +231,7 @@ class HumanoidWalkingFlatGround:
             self.variables, horizon_length=self.settings.horizon_length
         )
 
-        problem = self.ocp.problem
         sym = self.ocp.symbolic_structure
-
-        default_integrator = self.settings.integrator
 
         function_inputs = {
             "mass_name": sym.mass.name(),
@@ -282,173 +292,91 @@ class HumanoidWalkingFlatGround:
         all_contact_points = sym.contact_points.left + sym.contact_points.right
 
         for point in all_contact_points:
-            # dot(f) = f_dot
-            problem.add_dynamics(
-                hp.dot(point.f) == point.f_dot,
-                x0=point.f0,
-                integrator=default_integrator,
-                name=point.f.name() + "_dynamics",
+            self.add_point_dynamics(point)
+
+            self.add_contact_point_feasibility(
+                dcc_margin_fun,
+                dcc_planar_fun,
+                friction_margin_fun,
+                height_fun,
+                normal_force_fun,
+                point,
             )
 
-            # dot(p) = v
-            problem.add_dynamics(
-                hp.dot(point.p) == point.v,
-                x0=point.p0,
-                integrator=default_integrator,
-                name=point.p.name() + "_dynamics",
+            self.add_contact_kinematic_consistency(
+                function_inputs,
+                normalized_quaternion,
+                point,
+                point_kinematics_functions,
             )
 
-            # Planar complementarity
-            dcc_planar = dcc_planar_fun(
-                p=point.p, kt=sym.planar_dcc_height_multiplier, u_p=point.u_v
-            )["planar_complementarity"]
-            problem.add_expression_to_horizon(
-                expression=cs.MX(point.v == dcc_planar),
-                apply_to_first_elements=True,
-                name=point.p.name() + "_planar_complementarity",
-            )
+        self.add_robot_dynamics(all_contact_points, function_inputs)
 
-            # Normal complementarity
-            dcc_margin = dcc_margin_fun(
-                p=point.p,
-                f=point.f,
-                v=point.v,
-                f_dot=point.f_dot,
-                k_bs=sym.dcc_gain,
-                eps=sym.dcc_epsilon,
-            )["dcc_complementarity_margin"]
-            problem.add_expression_to_horizon(
-                expression=cs.MX(dcc_margin >= 0),
-                apply_to_first_elements=True,
-                name=point.p.name() + "_dcc",
-            )
-
-            # Point height greater than zero
-            point_height = height_fun(p=point.p)["point_height"]
-            problem.add_expression_to_horizon(
-                expression=cs.MX(point_height >= 0),
-                apply_to_first_elements=False,
-                name=point.p.name() + "_height",
-            )
-
-            # Normal force greater than zero
-            normal_force = normal_force_fun(p=point.p, f=point.f)["normal_force"]
-            problem.add_expression_to_horizon(
-                expression=cs.MX(normal_force >= 0),
-                apply_to_first_elements=False,
-                name=point.f.name() + "_normal",
-            )
-
-            # Friction
-            friction_margin = friction_margin_fun(
-                p=point.p,
-                f=point.f,
-                mu_s=sym.static_friction,
-            )["friction_cone_square_margin"]
-            problem.add_expression_to_horizon(
-                expression=cs.MX(friction_margin >= 0),
-                apply_to_first_elements=False,
-                name=point.f.name() + "_friction",
-            )
-
-            # Bounds on contact velocity control inputs
-            problem.add_expression_to_horizon(
-                expression=cs.Opti_bounded(
-                    -sym.maximum_velocity_control,
-                    point.u_v,
-                    sym.maximum_velocity_control,
-                ),
-                apply_to_first_elements=True,
-                name=point.u_v.name() + "_bounds",
-            )
-
-            # Bounds on contact force control inputs
-            problem.add_expression_to_horizon(
-                expression=cs.Opti_bounded(
-                    -sym.maximum_force_control,
-                    point.u_f,
-                    sym.maximum_force_control,
-                ),
-                apply_to_first_elements=True,
-                name=point.u_f.name() + "_bounds",
-            )
-
-            # Creation of contact kinematics consistency functions
-            descriptor = point.descriptor
-            if descriptor.foot_frame not in point_kinematics_functions:
-                point_kinematics_functions[
-                    descriptor.foot_frame
-                ] = hp_rp.point_position_from_kinematics(
-                    kindyn_object=self.kin_dyn_object,
-                    frame_name=descriptor.foot_frame,
-                    **function_inputs,
-                )
-
-            # Consistency between the contact position and the kinematics
-            point_kinematics = point_kinematics_functions[descriptor.foot_frame](
-                pb=sym.kinematics.base.position,
-                qb=normalized_quaternion,
-                s=sym.kinematics.joints.positions,
-                p_parent=descriptor.position_in_foot_frame,
-            )["point_position"]
-
-            problem.add_expression_to_horizon(
-                expression=cs.MX(point.p == point_kinematics),
-                apply_to_first_elements=False,
-                name=point.p.name() + "_kinematics_consistency",
-            )
-
-        # dot(pb) = pb_dot (base position dynamics)
-        problem.add_dynamics(
-            hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
-            x0=sym.kinematics.base.initial_position,
-            integrator=default_integrator,
-            name="base_position_dynamics",
+        self.add_kinematics_expressions(
+            function_inputs, height_fun, normalized_quaternion
         )
 
-        # dot(q) = q_dot (base quaternion dynamics)
-        problem.add_dynamics(
-            hp.dot(sym.kinematics.base.quaternion_xyzw)
-            == sym.kinematics.base.quaternion_velocity_xyzw,
-            x0=sym.kinematics.base.initial_quaternion_xyzw,
-            integrator=default_integrator,
-            name="base_quaternion_dynamics",
+        self.add_contact_centroids_expressions(function_inputs)
+
+    def add_contact_centroids_expressions(self, function_inputs):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
+
+        # Maximum feet relative height
+        def get_centroid(
+            points: list[ExtendedContactPoint], function_inputs_dict: dict
+        ) -> cs.MX:
+            function_inputs_dict["point_position_names"] = [
+                pt.p.name() for pt in points
+            ]
+            point_position_dict = {pt.p.name(): pt.p for pt in points}
+            centroid_fun = hp_rp.contact_points_centroid(
+                number_of_points=len(function_inputs_dict["point_position_names"]),
+                **function_inputs_dict,
+            )
+            return centroid_fun(**point_position_dict)["centroid"]
+
+        left_centroid = get_centroid(
+            points=sym.contact_points.left, function_inputs_dict=function_inputs
+        )
+        right_centroid = get_centroid(
+            points=sym.contact_points.right, function_inputs_dict=function_inputs
+        )
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                -sym.maximum_feet_relative_height,
+                (left_centroid[2] - right_centroid[2]),
+                sym.maximum_feet_relative_height,
+            ),
+            apply_to_first_elements=False,
+            name="maximum_feet_relative_height",
         )
 
-        # dot(s) = s_dot (joint position dynamics)
-        problem.add_dynamics(
-            hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
-            x0=sym.kinematics.joints.initial_positions,
-            integrator=default_integrator,
-            name="joint_position_dynamics",
+        # Contact centroid position cost
+        centroid_error = sym.contacts_centroid_references - 0.5 * (
+            left_centroid + right_centroid
+        )
+        weighted_centroid_squared_error = (
+            centroid_error.T()
+            @ cs.diag(sym.contacts_centroid_cost_weights)
+            @ centroid_error
+        )
+        problem.add_expression_to_horizon(
+            expression=weighted_centroid_squared_error,
+            apply_to_first_elements=False,
+            name="contacts_centroid_cost",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.contacts_centroid_cost_multiplier,
         )
 
-        # dot(com) = h_g[:3]/m (center of mass dynamics)
-        com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
-        problem.add_dynamics(
-            hp.dot(sym.com) == com_dynamics,
-            x0=sym.com_initial,
-            integrator=default_integrator,
-            name="com_dynamics",
-        )
-
-        # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
-        function_inputs["point_position_names"] = [
-            point.p.name() for point in all_contact_points
-        ]
-        function_inputs["point_force_names"] = [
-            point.f.name() for point in all_contact_points
-        ]
-        centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
-            number_of_points=len(function_inputs["point_position_names"]),
-            **function_inputs,
-        )
-        problem.add_dynamics(
-            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
-            x0=sym.centroidal_momentum_initial,
-            integrator=default_integrator,
-            name="centroidal_momentum_dynamics",
-        )
+    def add_kinematics_expressions(
+        self,
+        function_inputs: dict,
+        height_fun: cs.Function,
+        normalized_quaternion: cs.MX,
+    ):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
 
         # Unitary quaternion
         problem.add_expression_to_horizon(
@@ -529,53 +457,6 @@ class HumanoidWalkingFlatGround:
             name="minimum_feet_distance",
         )
 
-        # Maximum feet relative height
-        def get_centroid(
-            points: list[ExtendedContactPoint], function_inputs_dict: dict
-        ) -> cs.MX:
-            function_inputs_dict["point_position_names"] = [
-                pt.p.name() for pt in points
-            ]
-            point_position_dict = {pt.p.name(): pt.p for pt in points}
-            centroid_fun = hp_rp.contact_points_centroid(
-                number_of_points=len(function_inputs_dict["point_position_names"]),
-                **function_inputs_dict,
-            )
-            return centroid_fun(**point_position_dict)["centroid"]
-
-        left_centroid = get_centroid(
-            points=sym.contact_points.left, function_inputs_dict=function_inputs
-        )
-        right_centroid = get_centroid(
-            points=sym.contact_points.right, function_inputs_dict=function_inputs
-        )
-        problem.add_expression_to_horizon(
-            expression=cs.Opti_bounded(
-                -sym.maximum_feet_relative_height,
-                (left_centroid[2] - right_centroid[2]),
-                sym.maximum_feet_relative_height,
-            ),
-            apply_to_first_elements=False,
-            name="maximum_feet_relative_height",
-        )
-
-        # Contact centroid position cost
-        centroid_error = sym.contacts_centroid_references - 0.5 * (
-            left_centroid + right_centroid
-        )
-        weighted_centroid_squared_error = (
-            centroid_error.T()
-            @ cs.diag(sym.contacts_centroid_cost_weights)
-            @ centroid_error
-        )
-        problem.add_expression_to_horizon(
-            expression=weighted_centroid_squared_error,
-            apply_to_first_elements=False,
-            name="contacts_centroid_cost",
-            mode=hp.ExpressionType.minimize,
-            scaling=self.settings.contacts_centroid_cost_multiplier,
-        )
-
         # Joint position bounds
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
@@ -596,6 +477,221 @@ class HumanoidWalkingFlatGround:
             ),
             apply_to_first_elements=True,
             name="joint_velocity_bounds",
+        )
+
+        # Desired com velocity
+        com_velocity_error = (
+            sym.centroidal_momentum[:3] - sym.desired_com_velocity * sym.mass
+        )
+        com_velocity_weighted_error = (
+            com_velocity_error.T()
+            * cs.diag(cs.DM(self.settings.com_linear_velocity_cost_weights))
+            * com_velocity_error
+        )
+        problem.add_expression_to_horizon(
+            expression=com_velocity_weighted_error,
+            apply_to_first_elements=True,
+            name="com_velocity_error",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.com_linear_velocity_cost_multiplier,
+        )
+
+    def add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
+        default_integrator = self.settings.integrator
+
+        # dot(pb) = pb_dot (base position dynamics)
+        problem.add_dynamics(
+            hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
+            x0=sym.kinematics.base.initial_position,
+            integrator=default_integrator,
+            name="base_position_dynamics",
+        )
+
+        # dot(q) = q_dot (base quaternion dynamics)
+        problem.add_dynamics(
+            hp.dot(sym.kinematics.base.quaternion_xyzw)
+            == sym.kinematics.base.quaternion_velocity_xyzw,
+            x0=sym.kinematics.base.initial_quaternion_xyzw,
+            integrator=default_integrator,
+            name="base_quaternion_dynamics",
+        )
+
+        # dot(s) = s_dot (joint position dynamics)
+        problem.add_dynamics(
+            hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
+            x0=sym.kinematics.joints.initial_positions,
+            integrator=default_integrator,
+            name="joint_position_dynamics",
+        )
+
+        # dot(com) = h_g[:3]/m (center of mass dynamics)
+        com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
+        problem.add_dynamics(
+            hp.dot(sym.com) == com_dynamics,
+            x0=sym.com_initial,
+            integrator=default_integrator,
+            name="com_dynamics",
+        )
+
+        # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
+        function_inputs["point_position_names"] = [
+            point.p.name() for point in all_contact_points
+        ]
+        function_inputs["point_force_names"] = [
+            point.f.name() for point in all_contact_points
+        ]
+        centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
+            number_of_points=len(function_inputs["point_position_names"]),
+            **function_inputs,
+        )
+        problem.add_dynamics(
+            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
+            x0=sym.centroidal_momentum_initial,
+            integrator=default_integrator,
+            name="centroidal_momentum_dynamics",
+        )
+
+    def add_contact_kinematic_consistency(
+        self,
+        function_inputs: dict,
+        normalized_quaternion: cs.MX,
+        point: ExtendedContactPoint,
+        point_kinematics_functions: dict,
+    ):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
+
+        # Creation of contact kinematics consistency functions
+        descriptor = point.descriptor
+        if descriptor.foot_frame not in point_kinematics_functions:
+            point_kinematics_functions[
+                descriptor.foot_frame
+            ] = hp_rp.point_position_from_kinematics(
+                kindyn_object=self.kin_dyn_object,
+                frame_name=descriptor.foot_frame,
+                **function_inputs,
+            )
+
+        # Consistency between the contact position and the kinematics
+        point_kinematics = point_kinematics_functions[descriptor.foot_frame](
+            pb=sym.kinematics.base.position,
+            qb=normalized_quaternion,
+            s=sym.kinematics.joints.positions,
+            p_parent=descriptor.position_in_foot_frame,
+        )["point_position"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(point.p == point_kinematics),
+            apply_to_first_elements=False,
+            name=point.p.name() + "_kinematics_consistency",
+        )
+
+    def add_contact_point_feasibility(
+        self,
+        dcc_margin_fun: cs.Function,
+        dcc_planar_fun: cs.Function,
+        friction_margin_fun: cs.Function,
+        height_fun: cs.Function,
+        normal_force_fun: cs.Function,
+        point: ExtendedContactPoint,
+    ):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure
+
+        # Planar complementarity
+        dcc_planar = dcc_planar_fun(
+            p=point.p, kt=sym.planar_dcc_height_multiplier, u_p=point.u_v
+        )["planar_complementarity"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(point.v == dcc_planar),
+            apply_to_first_elements=True,
+            name=point.p.name() + "_planar_complementarity",
+        )
+
+        # Normal complementarity
+        dcc_margin = dcc_margin_fun(
+            p=point.p,
+            f=point.f,
+            v=point.v,
+            f_dot=point.f_dot,
+            k_bs=sym.dcc_gain,
+            eps=sym.dcc_epsilon,
+        )["dcc_complementarity_margin"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(dcc_margin >= 0),
+            apply_to_first_elements=True,
+            name=point.p.name() + "_dcc",
+        )
+
+        # Point height greater than zero
+        point_height = height_fun(p=point.p)["point_height"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(point_height >= 0),
+            apply_to_first_elements=False,
+            name=point.p.name() + "_height",
+        )
+
+        # Normal force greater than zero
+        normal_force = normal_force_fun(p=point.p, f=point.f)["normal_force"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(normal_force >= 0),
+            apply_to_first_elements=False,
+            name=point.f.name() + "_normal",
+        )
+
+        # Friction
+        friction_margin = friction_margin_fun(
+            p=point.p,
+            f=point.f,
+            mu_s=sym.static_friction,
+        )["friction_cone_square_margin"]
+        problem.add_expression_to_horizon(
+            expression=cs.MX(friction_margin >= 0),
+            apply_to_first_elements=False,
+            name=point.f.name() + "_friction",
+        )
+
+        # Bounds on contact velocity control inputs
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                -sym.maximum_velocity_control,
+                point.u_v,
+                sym.maximum_velocity_control,
+            ),
+            apply_to_first_elements=True,
+            name=point.u_v.name() + "_bounds",  # noqa
+        )
+
+        # Bounds on contact force control inputs
+        problem.add_expression_to_horizon(
+            expression=cs.Opti_bounded(
+                -sym.maximum_force_control,
+                point.u_f,  # noqa
+                sym.maximum_force_control,
+            ),
+            apply_to_first_elements=True,
+            name=point.u_f.name() + "_bounds",  # noqa
+        )
+
+    def add_point_dynamics(self, point: ExtendedContactPoint) -> None:
+        default_integrator = self.settings.integrator
+        problem = self.ocp.problem
+
+        # dot(f) = f_dot
+        problem.add_dynamics(
+            hp.dot(point.f) == point.f_dot,
+            x0=point.f0,
+            integrator=default_integrator,
+            name=point.f.name() + "_dynamics",
+        )
+
+        # dot(p) = v
+        problem.add_dynamics(
+            hp.dot(point.p) == point.v,
+            x0=point.p0,
+            integrator=default_integrator,
+            name=point.p.name() + "_dynamics",
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
