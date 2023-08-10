@@ -65,29 +65,19 @@ class Settings:
     maximum_joint_velocities: np.ndarray = dataclasses.field(default=None)
     minimum_joint_velocities: np.ndarray = dataclasses.field(default=None)
 
-    contacts_centroid_references: np.ndarray = dataclasses.field(default=None)
-    contacts_centroid_cost_weights: np.ndarray = dataclasses.field(default=None)
     contacts_centroid_cost_multiplier: float = dataclasses.field(default=None)
 
-    com_linear_velocity_reference: np.ndarray = dataclasses.field(default=None)
     com_linear_velocity_cost_weights: np.ndarray = dataclasses.field(default=None)
     com_linear_velocity_cost_multiplier: float = dataclasses.field(default=None)
 
     desired_frame_quaternion_cost_frame_name: str = dataclasses.field(default=None)
-    desired_frame_quaternion_xyzw_reference: np.ndarray = dataclasses.field(
-        default=None
-    )
+
     desired_frame_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
-    base_quaternion_xyzw_reference: np.ndarray = dataclasses.field(default=None)
     base_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
-    base_quaternion_xyzw_velocity_reference: np.ndarray = dataclasses.field(
-        default=None
-    )
     base_quaternion_velocity_cost_multiplier: float = dataclasses.field(default=None)
 
-    joint_regularization_cost_reference: np.ndarray = dataclasses.field(default=None)
     joint_regularization_cost_weights: np.ndarray = dataclasses.field(default=None)
     joint_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
@@ -131,33 +121,54 @@ class Settings:
             and len(self.minimum_joint_positions) == number_of_joints
             and len(self.maximum_joint_velocities) == number_of_joints
             and len(self.minimum_joint_velocities) == number_of_joints
-            and self.contacts_centroid_references is not None
-            and len(self.contacts_centroid_references) == self.horizon_length
-            and self.contacts_centroid_cost_weights is not None
-            and len(self.contacts_centroid_cost_weights) == self.horizon_length
             and self.contacts_centroid_cost_multiplier is not None
-            and self.com_linear_velocity_reference is not None
-            and len(self.com_linear_velocity_reference) == 3
             and self.com_linear_velocity_cost_weights is not None
             and len(self.com_linear_velocity_cost_weights) == 3
             and self.com_linear_velocity_cost_multiplier is not None
             and self.desired_frame_quaternion_cost_frame_name is not None
-            and self.desired_frame_quaternion_xyzw_reference is not None
-            and len(self.desired_frame_quaternion_xyzw_reference) == 4
             and self.desired_frame_quaternion_cost_multiplier is not None
-            and self.base_quaternion_xyzw_reference is not None
-            and len(self.base_quaternion_xyzw_reference) == 4
             and self.base_quaternion_cost_multiplier is not None
-            and self.base_quaternion_xyzw_velocity_reference is not None
-            and len(self.base_quaternion_xyzw_velocity_reference) == 4
             and self.base_quaternion_velocity_cost_multiplier is not None
-            and self.joint_regularization_cost_reference is not None
-            and len(self.joint_regularization_cost_reference) == number_of_joints
             and self.joint_regularization_cost_weights is not None
             and len(self.joint_regularization_cost_weights) == number_of_joints
             and self.joint_regularization_cost_multiplier is not None
             and self.force_regularization_cost_multiplier is not None
         )
+
+
+@dataclasses.dataclass
+class References(hp.OptimizationObject):
+    contacts_centroid_cost_weights: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+    contacts_centroid: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    com_linear_velocity: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    desired_frame_quaternion_xyzw: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+
+    base_quaternion_xyzw: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    base_quaternion_xyzw_velocity: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+
+    joint_regularization_cost: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(self, number_of_joints: int) -> None:
+        self.contacts_centroid_cost_weights = np.zeros((3, 1))
+        self.contacts_centroid = np.zeros((3, 1))
+        self.com_linear_velocity = np.zeros((3, 1))
+        self.desired_frame_quaternion_xyzw = np.zeros((4, 1))
+        self.desired_frame_quaternion_xyzw[3] = 1
+        self.base_quaternion_xyzw = np.zeros((4, 1))
+        self.base_quaternion_xyzw[3] = 1
+        self.base_quaternion_xyzw_velocity = np.zeros((4, 1))
+        self.joint_regularization_cost = np.zeros((number_of_joints, 1))
 
 
 @dataclasses.dataclass
@@ -196,32 +207,7 @@ class Variables(hp.OptimizationObject):
     maximum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
-    contacts_centroid_references: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-    contacts_centroid_cost_weights: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-
-    com_linear_velocity_reference: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-
-    desired_frame_quaternion_xyzw_reference: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-
-    base_quaternion_xyzw_reference: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-
-    base_quaternion_xyzw_velocity_reference: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
-
-    joint_regularization_cost_reference: hp.StorageType = hp.default_storage_field(
-        hp.Parameter, time_dependent=True
-    )
+    references: hp.CompositeType[References] = hp.default_composite_field()
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -270,19 +256,7 @@ class Variables(hp.OptimizationObject):
         self.minimum_joint_positions = settings.minimum_joint_positions
         self.maximum_joint_velocities = settings.maximum_joint_velocities
         self.minimum_joint_velocities = settings.minimum_joint_velocities
-        self.contacts_centroid_references = settings.contacts_centroid_references
-        self.contacts_centroid_cost_weights = settings.contacts_centroid_cost_weights
-        self.com_linear_velocity_reference = settings.com_linear_velocity_reference
-        self.desired_frame_quaternion_xyzw_reference = (
-            settings.desired_frame_quaternion_xyzw_reference
-        )
-        self.base_quaternion_xyzw_reference = settings.base_quaternion_xyzw_reference
-        self.base_quaternion_xyzw_velocity_reference = (
-            settings.base_quaternion_xyzw_velocity_reference
-        )
-        self.joint_regularization_cost_reference = (
-            settings.joint_regularization_cost_reference
-        )
+        self.references = References(number_of_joints=kin_dyn_object.NDoF)
 
 
 class HumanoidWalkingFlatGround:
@@ -564,7 +538,7 @@ class HumanoidWalkingFlatGround:
         sym = self.ocp.symbolic_structure
         # Desired com velocity
         com_velocity_error = (
-            sym.centroidal_momentum[:3] - sym.desired_com_velocity * sym.mass
+            sym.centroidal_momentum[:3] - sym.references.com_linear_velocity * sym.mass
         )
         com_velocity_weighted_error = (
             com_velocity_error.T()
@@ -589,7 +563,7 @@ class HumanoidWalkingFlatGround:
             pb=sym.kinematics.base.position,
             qb=sym.kinematics.base.quaternion_xyzw,
             s=sym.kinematics.joints.positions,
-            qd=sym.desired_frame_quaternion_xyzw_reference,
+            qd=sym.references.desired_frame_quaternion_xyzw,
         )["quaternion_error"]
         problem.add_expression_to_horizon(
             expression=cs.sumsqr(quaternion_error),
@@ -600,6 +574,7 @@ class HumanoidWalkingFlatGround:
         )
 
         # Desired base orientation
+        # TODO: use the actual reference
         identity = liecasadi.SO3.Identity()
         problem.add_expression_to_horizon(
             expression=cs.sumsqr(sym.kinematics.base.quaternion_xyzw - identity),
@@ -613,7 +588,7 @@ class HumanoidWalkingFlatGround:
         problem.add_expression_to_horizon(
             expression=cs.sumsqr(
                 sym.kinematics.base.quaternion_velocity_xyzw
-                - sym.base_quaternion_xyzw_velocity_reference
+                - sym.references.base_quaternion_xyzw_velocity
             ),
             apply_to_first_elements=True,
             name="base_quaternion_velocity_error",
@@ -623,7 +598,7 @@ class HumanoidWalkingFlatGround:
 
         # Desired joint positions
         joint_positions_error = (
-            sym.kinematics.joints.positions - sym.joint_regularization_cost_reference
+            sym.kinematics.joints.positions - sym.references.joint_regularization
         )
         joint_velocity_error = (
             sym.kinematics.joints.velocities
@@ -863,4 +838,7 @@ class HumanoidWalkingFlatGround:
             )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
+        pass
+
+    def set_references(self, references: References) -> None:  # TODO: fill
         pass
