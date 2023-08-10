@@ -4,7 +4,6 @@ import typing
 
 import adam.casadi
 import casadi as cs
-import liecasadi
 import numpy as np
 
 import hippopt as hp
@@ -16,16 +15,9 @@ import hippopt.robot_planning as hp_rp
 class ExtendedContactPoint(hp_rp.ContactPoint):
     u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
 
-    desired_ratio: hp.StorageType = hp.default_storage_field(hp.Parameter)
-
-    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
-
-    def __post_init__(
-        self, input_descriptor: hp_rp.ContactPointDescriptor, number_of_points: int
-    ) -> None:
+    def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
         super().__post_init__(input_descriptor)
         self.u_v = np.zeros(3)
-        self.desired_ratio = 1.0 / number_of_points
 
 
 @dataclasses.dataclass
@@ -83,6 +75,8 @@ class Settings:
 
     force_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
+    foot_yaw_regularization_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -133,11 +127,60 @@ class Settings:
             and len(self.joint_regularization_cost_weights) == number_of_joints
             and self.joint_regularization_cost_multiplier is not None
             and self.force_regularization_cost_multiplier is not None
+            and self.foot_yaw_regularization_cost_multiplier is not None
         )
 
 
 @dataclasses.dataclass
+class ContactReferences(hp.OptimizationObject):
+    desired_force_ratio: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(self, number_of_points: int) -> None:
+        self.desired_force_ratio = 1.0 / number_of_points
+
+
+@dataclasses.dataclass
+class FootReferences(hp.OptimizationObject):
+    points: hp.CompositeType[list[ContactReferences]] = hp.default_composite_field(
+        time_varying=False
+    )
+    yaw: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(self, number_of_points: int) -> None:
+        self.points = [
+            ContactReferences(number_of_points=number_of_points)
+            for _ in range(number_of_points)
+        ]
+
+        self.yaw = 0.0
+
+
+@dataclasses.dataclass
+class FeetReferences(hp.OptimizationObject):
+    left: hp.CompositeType[FootReferences] = hp.default_composite_field(
+        time_varying=False
+    )
+    right: hp.CompositeType[FootReferences] = hp.default_composite_field(
+        time_varying=False
+    )
+
+    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(self, number_of_points: int) -> None:
+        self.left = FeetReferences(number_of_points=number_of_points)
+        self.right = FeetReferences(number_of_points=number_of_points)
+
+
+@dataclasses.dataclass
 class References(hp.OptimizationObject):
+    feet_references: hp.CompositeType[FeetReferences] = hp.default_composite_field(
+        time_varying=False
+    )
+
     contacts_centroid_cost_weights: hp.StorageType = hp.default_storage_field(
         hp.Parameter
     )
@@ -158,8 +201,10 @@ class References(hp.OptimizationObject):
     joint_regularization_cost: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
+    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
-    def __post_init__(self, number_of_joints: int) -> None:
+    def __post_init__(self, number_of_joints: int, number_of_points: int) -> None:
+        self.feet_references = FeetReferences(number_of_points=number_of_points)
         self.contacts_centroid_cost_weights = np.zeros((3, 1))
         self.contacts_centroid = np.zeros((3, 1))
         self.com_linear_velocity = np.zeros((3, 1))
@@ -220,15 +265,11 @@ class Variables(hp.OptimizationObject):
         kin_dyn_object: adam.casadi.KinDynComputations,
     ) -> None:
         self.contact_points.left = [
-            ExtendedContactPoint(
-                descriptor=point, number_of_points=len(settings.contact_points.left)
-            )
+            ExtendedContactPoint(descriptor=point)
             for point in settings.contact_points.left
         ]
         self.contact_points.right = [
-            ExtendedContactPoint(
-                descriptor=point, number_of_points=len(settings.contact_points.right)
-            )
+            ExtendedContactPoint(descriptor=point)
             for point in settings.contact_points.right
         ]
 
@@ -307,6 +348,9 @@ class HumanoidWalkingFlatGround:
             "dcc_epsilon_name": "eps",
             "static_friction_name": "mu_s",
             "desired_quaternion_xyzw_name": "qd",
+            "first_point_name": "p_0",
+            "second_point_name": "p_1",
+            "desired_yaw_name": "yd",
             "options": self.settings.casadi_function_options,
         }
 
@@ -369,8 +413,20 @@ class HumanoidWalkingFlatGround:
 
         self.add_contact_centroids_expressions(function_inputs)
 
-        self.add_foot_regularization(sym.contact_points.left)
-        self.add_foot_regularization(sym.contact_points.right)
+        self.add_foot_regularization(
+            points=sym.contact_points.left,
+            descriptors=self.settings.contact_points.left,
+            references=sym.references.feet_references.left,
+            function_inputs=function_inputs,
+            foot_name="left",
+        )
+        self.add_foot_regularization(
+            points=sym.contact_points.right,
+            descriptors=self.settings.contact_points.right,
+            references=sym.references.feet_references.right,
+            function_inputs=function_inputs,
+            foot_name="right",
+        )
 
     def add_contact_centroids_expressions(self, function_inputs):
         problem = self.ocp.problem
@@ -814,7 +870,14 @@ class HumanoidWalkingFlatGround:
             name=point.p.name() + "_dynamics",
         )
 
-    def add_foot_regularization(self, points: list[ExtendedContactPoint]) -> None:
+    def add_foot_regularization(
+        self,
+        points: list[ExtendedContactPoint],
+        descriptors: list[hp_rp.ContactPointDescriptor],
+        references: FootReferences,
+        function_inputs: dict,
+        foot_name: str,
+    ) -> None:
         problem = self.ocp.problem
 
         # Force ratio regularization
@@ -822,14 +885,15 @@ class HumanoidWalkingFlatGround:
             input_points: list[ExtendedContactPoint], point_index: int
         ) -> cs.MX:
             output_force = cs.MX.zeros(3, 1)
-            for i in range(len(input_points)):
-                if i != point_index:
-                    output_force += input_points[i].f
+            for f in range(len(input_points)):
+                if f != point_index:
+                    output_force += input_points[f].f
             return output_force
 
-        for point in points:
-            force_error = point.f - point.desired_ratio * sum_of_other_forces(
-                points, points.index(point)
+        for i, point in enumerate(points):
+            alpha = references.points[i].desired_force_ratio
+            force_error = point.f - alpha * sum_of_other_forces(
+                input_points=points, point_index=i
             )
 
             problem.add_expression_to_horizon(
@@ -839,6 +903,85 @@ class HumanoidWalkingFlatGround:
                 mode=hp.ExpressionType.minimize,
                 scaling=self.settings.force_regularization_cost_multiplier,
             )
+
+        # Foot yaw task
+        centroid_position = np.zeros((3, 1))
+        for descriptor in descriptors:
+            centroid_position += descriptor.position_in_foot_frame
+        centroid_position /= len(descriptors)
+
+        bottom_right_index = None
+        top_right_index = None
+        top_left_index = None
+
+        # The values below are useful to get the outermost points of the foot
+        bottom_right_value = 0
+        top_right_value = 0
+        top_left_value = 0
+
+        for i, descriptor in enumerate(descriptors):
+            relative_position = descriptor.position_in_foot_frame - centroid_position
+
+            if (
+                relative_position[1] < 0
+                and relative_position[0] < 0
+                and (
+                    bottom_right_index is None
+                    or relative_position[0] * relative_position[1] > bottom_right_value
+                )
+            ):
+                bottom_right_value = relative_position[0] * relative_position[1]
+                bottom_right_index = i
+            elif relative_position[1] < 0 < relative_position[0] and (
+                top_right_index is None
+                or relative_position[0] * relative_position[1] > top_right_value
+            ):
+                top_right_value = relative_position[0] * relative_position[1]
+                top_right_index = i
+            elif (
+                relative_position[1] > 0
+                and relative_position[0] > 0
+                and (
+                    top_left_index is None
+                    or relative_position[0] * relative_position[1] > top_left_value
+                )
+            ):
+                top_left_value = relative_position[0] * relative_position[1]
+                top_left_index = i
+
+        assert bottom_right_index is not None
+        assert top_right_index is not None
+        assert top_left_index is not None
+        assert (
+            bottom_right_index != top_right_index
+            and top_right_index != top_left_index
+            and top_left_index != bottom_right_index
+        )
+
+        yaw_alignment_fun = hp_rp.contact_points_yaw_alignment_error(**function_inputs)
+        yaw_alignment_forward = yaw_alignment_fun(
+            p_0=points[bottom_right_index].p,
+            p_1=points[top_right_index].p,
+            yd=references.yaw,
+        )["yaw_alignment_error"]
+
+        yaw_alignment_sideways = yaw_alignment_fun(
+            p_0=points[top_right_index].p,
+            p_1=points[top_left_index].p,
+            yd=references.yaw + np.pi / 2,
+        )["yaw_alignment_error"]
+
+        yaw_error = 0.5 * (
+            cs.sumsqr(yaw_alignment_forward) + cs.sumsqr(yaw_alignment_sideways)
+        )
+
+        problem.add_expression_to_horizon(
+            expression=yaw_error,
+            apply_to_first_elements=False,
+            name=foot_name + "_yaw_regularization",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.foot_yaw_regularization_cost_multiplier,
+        )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
         pass
