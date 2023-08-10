@@ -554,19 +554,19 @@ class HumanoidWalkingFlatGround:
         )
 
         # Desired frame orientation
-        quaternion_error_fun = hp_rp.quaternion_error(
+        quaternion_error_kinematics_fun = hp_rp.quaternion_error_from_kinematics(
             kindyn_object=self.kin_dyn_object,
             target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
             **function_inputs,
         )
-        quaternion_error = quaternion_error_fun(
+        quaternion_error_kinematics = quaternion_error_kinematics_fun(
             pb=sym.kinematics.base.position,
             qb=sym.kinematics.base.quaternion_xyzw,
             s=sym.kinematics.joints.positions,
             qd=sym.references.desired_frame_quaternion_xyzw,
         )["quaternion_error"]
         problem.add_expression_to_horizon(
-            expression=cs.sumsqr(quaternion_error),
+            expression=cs.sumsqr(quaternion_error_kinematics),
             apply_to_first_elements=False,
             name="frame_quaternion_error",
             mode=hp.ExpressionType.minimize,
@@ -574,10 +574,13 @@ class HumanoidWalkingFlatGround:
         )
 
         # Desired base orientation
-        # TODO: use the actual reference
-        identity = liecasadi.SO3.Identity()
+        quaternion_error_fun = hp_rp.quaternion_xyzw_error(**function_inputs)
+        quaternion_error = quaternion_error_fun(
+            q=sym.kinematics.base.quaternion_xyzw,
+            qd=sym.references.base_quaternion_xyzw,
+        )["quaternion_error"]
         problem.add_expression_to_horizon(
-            expression=cs.sumsqr(sym.kinematics.base.quaternion_xyzw - identity),
+            expression=cs.sumsqr(quaternion_error),
             apply_to_first_elements=False,
             name="base_quaternion_error",
             mode=hp.ExpressionType.minimize,
