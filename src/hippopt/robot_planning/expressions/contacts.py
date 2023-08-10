@@ -118,7 +118,7 @@ def contact_points_centroid(
     )
 
 
-def contact_points_yaw_alignment(
+def contact_points_yaw_alignment_error(
     first_point_name: str = "p_0",
     second_point_name: str = "p_1",
     desired_yaw_name: str = "desired_yaw",
@@ -134,11 +134,11 @@ def contact_points_yaw_alignment(
     yaw_alignment = cs.horzcat([-cs.sin(yaw), cs.cos(yaw)]) @ (p1 - p0)[:2]
 
     return cs.Function(
-        "contact_points_yaw_alignment",
+        "contact_points_yaw_alignment_error",
         [p0, p1, yaw],
         [yaw_alignment],
         [first_point_name, second_point_name, desired_yaw_name],
-        ["yaw_alignment"],
+        ["yaw_alignment_error"],
         options,
     )
 

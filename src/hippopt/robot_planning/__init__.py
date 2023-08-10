@@ -9,7 +9,7 @@ from .expressions.complementarity import (
 )
 from .expressions.contacts import (
     contact_points_centroid,
-    contact_points_yaw_alignment,
+    contact_points_yaw_alignment_error,
     friction_cone_square_margin,
     normal_force_component,
     swing_height_heuristic,
