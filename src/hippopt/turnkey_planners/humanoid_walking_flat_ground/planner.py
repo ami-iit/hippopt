@@ -16,9 +16,16 @@ import hippopt.robot_planning as hp_rp
 class ExtendedContactPoint(hp_rp.ContactPoint):
     u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
 
-    def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
+    desired_ratio: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(
+        self, input_descriptor: hp_rp.ContactPointDescriptor, number_of_points: int
+    ) -> None:
         super().__post_init__(input_descriptor)
         self.u_v = np.zeros(3)
+        self.desired_ratio = 1.0 / number_of_points
 
 
 @dataclasses.dataclass
@@ -84,6 +91,8 @@ class Settings:
     joint_regularization_cost_weights: np.ndarray = dataclasses.field(default=None)
     joint_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
+    force_regularization_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -147,6 +156,7 @@ class Settings:
             and self.joint_regularization_cost_weights is not None
             and len(self.joint_regularization_cost_weights) == number_of_joints
             and self.joint_regularization_cost_multiplier is not None
+            and self.force_regularization_cost_multiplier is not None
         )
 
 
@@ -224,11 +234,15 @@ class Variables(hp.OptimizationObject):
         kin_dyn_object: adam.casadi.KinDynComputations,
     ) -> None:
         self.contact_points.left = [
-            hp_rp.ContactPoint(descriptor=point)
+            ExtendedContactPoint(
+                descriptor=point, number_of_points=len(settings.contact_points.left)
+            )
             for point in settings.contact_points.left
         ]
         self.contact_points.right = [
-            hp_rp.ContactPoint(descriptor=point)
+            ExtendedContactPoint(
+                descriptor=point, number_of_points=len(settings.contact_points.right)
+            )
             for point in settings.contact_points.right
         ]
 
@@ -380,6 +394,9 @@ class HumanoidWalkingFlatGround:
         self.add_kinematics_regularization(function_inputs=function_inputs)
 
         self.add_contact_centroids_expressions(function_inputs)
+
+        self.add_foot_regularization(sym.contact_points.left)
+        self.add_foot_regularization(sym.contact_points.right)
 
     def add_contact_centroids_expressions(self, function_inputs):
         problem = self.ocp.problem
@@ -818,6 +835,32 @@ class HumanoidWalkingFlatGround:
             integrator=default_integrator,
             name=point.p.name() + "_dynamics",
         )
+
+    def add_foot_regularization(self, points: list[ExtendedContactPoint]) -> None:
+        problem = self.ocp.problem
+
+        # Force ratio regularization
+        def sum_of_other_forces(
+            input_points: list[ExtendedContactPoint], point_index: int
+        ) -> cs.MX:
+            output_force = cs.MX.zeros(3, 1)
+            for i in range(len(input_points)):
+                if i != point_index:
+                    output_force += input_points[i].f
+            return output_force
+
+        for point in points:
+            force_error = point.f - point.desired_ratio * sum_of_other_forces(
+                points, points.index(point)
+            )
+
+            problem.add_expression_to_horizon(
+                expression=cs.sumsqr(force_error),
+                apply_to_first_elements=False,
+                name=point.f.name() + "_regularization",
+                mode=hp.ExpressionType.minimize,
+                scaling=self.settings.force_regularization_cost_multiplier,
+            )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
         pass
