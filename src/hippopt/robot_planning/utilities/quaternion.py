@@ -49,3 +49,37 @@ def quaternion_xyzw_velocity_to_right_trivialized_angular_velocity(
         ["right_trivialized_angular_velocity"],
         options,
     )
+
+
+def quaternion_xyzw_error(
+    quaternion_xyzw_name: str = "quaternion",
+    desired_quaternion_xyzw_name: str = "desired_quaternion",
+    options: dict = None,
+    **_,
+):
+    options = {} if options is None else options
+    quaternion = cs.MX.sym(quaternion_xyzw_name, 4)
+    desired_quaternion = cs.MX.sym(desired_quaternion_xyzw_name, 4)
+
+    target_rotation = liecasadi.SO3.from_quat(quaternion)
+    desired_rotation = liecasadi.SO3.from_quat(desired_quaternion)
+
+    rotation_error = desired_rotation.inverse() * target_rotation
+    identity = liecasadi.SO3.Identity()
+
+    error = rotation_error.as_quat() - identity.as_quat()
+
+    return cs.Function(
+        "quaternion_error",
+        [
+            quaternion,
+            desired_quaternion,
+        ],
+        [error],
+        [
+            quaternion_xyzw_name,
+            desired_quaternion_xyzw_name,
+        ],
+        ["quaternion_error"],
+        options,
+    )

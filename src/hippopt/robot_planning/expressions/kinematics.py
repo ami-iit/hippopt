@@ -3,6 +3,7 @@ import liecasadi
 from adam.casadi import KinDynComputations
 
 from hippopt.robot_planning.utilities.quaternion import (
+    quaternion_xyzw_error,
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
 
@@ -200,7 +201,7 @@ def frames_relative_position(
     )
 
 
-def quaternion_error(
+def quaternion_error_from_kinematics(
     kindyn_object: KinDynComputations,
     target_frame: str,
     base_position_name: str = "base_position",
@@ -223,16 +224,13 @@ def quaternion_error(
     target_fk_function = kindyn_object.forward_kinematics_fun(frame=target_frame)
     target_pose = target_fk_function(base_pose, joint_positions)
 
-    target_rotation = liecasadi.SO3.from_matrix(target_pose[:3, :3])
-    desired_rotation = liecasadi.SO3.from_quat(desired_quaternion)
+    target_quaternion = liecasadi.SO3.from_matrix(target_pose[:3, :3]).as_quat()
+    quaternion_error_fun = quaternion_xyzw_error(options=options)
 
-    rotation_error = desired_rotation.inverse() * target_rotation
-    identity = liecasadi.SO3.Identity()
-
-    error = rotation_error.as_quat() - identity.as_quat()
+    error = quaternion_error_fun(target_quaternion, desired_quaternion)
 
     return cs.Function(
-        "quaternion_error",
+        "quaternion_error_from_kinematics",
         [
             base_position,
             base_quaternion,

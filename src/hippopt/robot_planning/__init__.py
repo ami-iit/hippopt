@@ -19,9 +19,10 @@ from .expressions.kinematics import (
     centroidal_momentum_from_kinematics,
     frames_relative_position,
     point_position_from_kinematics,
-    quaternion_error,
+    quaternion_error_from_kinematics,
 )
 from .utilities.quaternion import (
+    quaternion_xyzw_error,
     quaternion_xyzw_normalization,
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
