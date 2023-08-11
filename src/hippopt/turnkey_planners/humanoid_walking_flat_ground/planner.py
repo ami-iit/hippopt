@@ -335,37 +335,7 @@ class HumanoidWalkingFlatGround:
 
         sym = self.ocp.symbolic_structure
 
-        function_inputs = {
-            "mass_name": sym.mass.name(),
-            "momentum_name": sym.centroidal_momentum.name(),
-            "com_name": sym.com.name(),
-            "quaternion_xyzw_name": "q",
-            "gravity_name": sym.gravity.name(),
-            "point_position_names": [],
-            "point_force_names": [],
-            "point_position_in_frame_name": "p_parent",
-            "base_position_name": "pb",
-            "base_quaternion_xyzw_name": "qb",
-            "joint_positions_name": "s",
-            "base_position_derivative_name": "pb_dot",
-            "base_quaternion_xyzw_derivative_name": "qb_dot",
-            "joint_velocities_name": "s_dot",
-            "point_position_name": "p",
-            "point_force_name": "f",
-            "point_velocity_name": "v",
-            "point_force_derivative_name": "f_dot",
-            "point_position_control_name": "u_p",
-            "height_multiplier_name": "kt",
-            "dcc_gain_name": "k_bs",
-            "dcc_epsilon_name": "eps",
-            "static_friction_name": "mu_s",
-            "desired_quaternion_xyzw_name": "qd",
-            "first_point_name": "p_0",
-            "second_point_name": "p_1",
-            "desired_yaw_name": "yd",
-            "desired_height_name": "hd",
-            "options": self.settings.casadi_function_options,
-        }
+        function_inputs = self.get_function_inputs_dict()
 
         # Normalized quaternion computation
         normalized_quaternion_fun = hp_rp.quaternion_xyzw_normalization(
@@ -446,6 +416,41 @@ class HumanoidWalkingFlatGround:
             function_inputs=function_inputs,
             foot_name="right",
         )
+
+    def get_function_inputs_dict(self):
+        sym = self.ocp.symbolic_structure
+        function_inputs = {
+            "mass_name": sym.mass.name(),
+            "momentum_name": sym.centroidal_momentum.name(),
+            "com_name": sym.com.name(),
+            "quaternion_xyzw_name": "q",
+            "gravity_name": sym.gravity.name(),
+            "point_position_names": [],
+            "point_force_names": [],
+            "point_position_in_frame_name": "p_parent",
+            "base_position_name": "pb",
+            "base_quaternion_xyzw_name": "qb",
+            "joint_positions_name": "s",
+            "base_position_derivative_name": "pb_dot",
+            "base_quaternion_xyzw_derivative_name": "qb_dot",
+            "joint_velocities_name": "s_dot",
+            "point_position_name": "p",
+            "point_force_name": "f",
+            "point_velocity_name": "v",
+            "point_force_derivative_name": "f_dot",
+            "point_position_control_name": "u_p",
+            "height_multiplier_name": "kt",
+            "dcc_gain_name": "k_bs",
+            "dcc_epsilon_name": "eps",
+            "static_friction_name": "mu_s",
+            "desired_quaternion_xyzw_name": "qd",
+            "first_point_name": "p_0",
+            "second_point_name": "p_1",
+            "desired_yaw_name": "yd",
+            "desired_height_name": "hd",
+            "options": self.settings.casadi_function_options,
+        }
+        return function_inputs
 
     def add_contact_centroids_expressions(self, function_inputs):
         problem = self.ocp.problem
@@ -1044,8 +1049,13 @@ class HumanoidWalkingFlatGround:
             scaling=self.settings.contact_force_control_cost_multiplier,
         )
 
-    def set_initial_conditions(self) -> None:  # TODO: fill
-        pass
+    def set_initial_guess(self, initial_guess: Variables) -> None:
+        self.ocp.problem.set_initial_guess(initial_guess)
 
-    def set_references(self, references: References) -> None:  # TODO: fill
-        pass
+    def get_initial_guess(self) -> Variables:
+        return self.ocp.problem.get_initial_guess()
+
+    def set_references(self, references: References) -> None:
+        guess = self.get_initial_guess()
+        guess.references = references
+        self.set_initial_guess(guess)
