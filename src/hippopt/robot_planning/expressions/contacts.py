@@ -145,7 +145,7 @@ def contact_points_yaw_alignment_error(
 
 def swing_height_heuristic(
     terrain: TerrainDescriptor,
-    point_name: str = "p",
+    point_position_name: str = "p",
     point_velocity_name: str = "p_dot",
     desired_height_name: str = "h_desired",
     options: dict = None,
@@ -153,7 +153,7 @@ def swing_height_heuristic(
 ) -> cs.Function:
     options = {} if options is None else options
 
-    point = cs.MX.sym(point_name, 3)
+    point = cs.MX.sym(point_position_name, 3)
     point_velocity = cs.MX.sym(point_velocity_name, 3)
     desired_height = cs.MX.sym(desired_height_name, 1)
 
@@ -171,7 +171,7 @@ def swing_height_heuristic(
         "swing_height_heuristic",
         [point, point_velocity, desired_height],
         [heuristic],
-        [point_name, point_velocity_name, desired_height_name],
+        [point_position_name, point_velocity_name, desired_height_name],
         ["heuristic"],
         options,
     )
