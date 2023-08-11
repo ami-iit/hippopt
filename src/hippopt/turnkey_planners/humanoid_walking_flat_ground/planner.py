@@ -77,6 +77,12 @@ class Settings:
 
     foot_yaw_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
+    swing_foot_height_cost_multiplier: float = dataclasses.field(default=None)
+
+    contact_velocity_control_cost_multiplier: float = dataclasses.field(default=None)
+
+    contact_force_control_cost_multiplier: float = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -128,6 +134,9 @@ class Settings:
             and self.joint_regularization_cost_multiplier is not None
             and self.force_regularization_cost_multiplier is not None
             and self.foot_yaw_regularization_cost_multiplier is not None
+            and self.swing_foot_height_cost_multiplier is not None
+            and self.contact_velocity_control_cost_multiplier is not None
+            and self.contact_force_control_cost_multiplier is not None
         )
 
 
@@ -168,16 +177,19 @@ class FeetReferences(hp.OptimizationObject):
         time_varying=False
     )
 
+    desired_swing_height: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
     number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(self, number_of_points: int) -> None:
-        self.left = FeetReferences(number_of_points=number_of_points)
-        self.right = FeetReferences(number_of_points=number_of_points)
+        self.left = FootReferences(number_of_points=number_of_points)
+        self.right = FootReferences(number_of_points=number_of_points)
+        self.desired_swing_height = 0.02
 
 
 @dataclasses.dataclass
 class References(hp.OptimizationObject):
-    feet_references: hp.CompositeType[FeetReferences] = hp.default_composite_field(
+    feet: hp.CompositeType[FeetReferences] = hp.default_composite_field(
         time_varying=False
     )
 
@@ -204,7 +216,7 @@ class References(hp.OptimizationObject):
     number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(self, number_of_joints: int, number_of_points: int) -> None:
-        self.feet_references = FeetReferences(number_of_points=number_of_points)
+        self.feet = FeetReferences(number_of_points=number_of_points)
         self.contacts_centroid_cost_weights = np.zeros((3, 1))
         self.contacts_centroid = np.zeros((3, 1))
         self.com_linear_velocity = np.zeros((3, 1))
@@ -351,6 +363,7 @@ class HumanoidWalkingFlatGround:
             "first_point_name": "p_0",
             "second_point_name": "p_1",
             "desired_yaw_name": "yd",
+            "desired_height_name": "hd",
             "options": self.settings.casadi_function_options,
         }
 
@@ -404,6 +417,12 @@ class HumanoidWalkingFlatGround:
                 point_kinematics_functions,
             )
 
+            self.add_contact_point_regularization(
+                point=point,
+                desired_swing_height=sym.references.feet.desired_swing_height,
+                function_inputs=function_inputs,
+            )
+
         self.add_robot_dynamics(all_contact_points, function_inputs)
 
         self.add_kinematics_constraints(
@@ -416,14 +435,14 @@ class HumanoidWalkingFlatGround:
         self.add_foot_regularization(
             points=sym.contact_points.left,
             descriptors=self.settings.contact_points.left,
-            references=sym.references.feet_references.left,
+            references=sym.references.feet.left,
             function_inputs=function_inputs,
             foot_name="left",
         )
         self.add_foot_regularization(
             points=sym.contact_points.right,
             descriptors=self.settings.contact_points.right,
-            references=sym.references.feet_references.right,
+            references=sym.references.feet.right,
             function_inputs=function_inputs,
             foot_name="right",
         )
@@ -981,6 +1000,48 @@ class HumanoidWalkingFlatGround:
             name=foot_name + "_yaw_regularization",
             mode=hp.ExpressionType.minimize,
             scaling=self.settings.foot_yaw_regularization_cost_multiplier,
+        )
+
+    def add_contact_point_regularization(
+        self,
+        point: ExtendedContactPoint,
+        desired_swing_height: hp.StorageType,
+        function_inputs: dict,
+    ) -> None:
+        problem = self.ocp.problem
+
+        # Swing height regularization
+        swing_heuristic_fun = hp_rp.swing_height_heuristic(
+            self.settings.terrain, **function_inputs
+        )
+        heuristic = swing_heuristic_fun(p=point.p, v=point.v, hd=desired_swing_height)[
+            "heuristic"
+        ]
+
+        problem.add_expression_to_horizon(
+            expression=heuristic,
+            apply_to_first_elements=False,
+            name=point.p.name() + "_swing_height_regularization",
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.swing_foot_height_cost_multiplier,
+        )
+
+        # Contact velocity control regularization
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(point.u_v),
+            apply_to_first_elements=False,
+            name=point.u_v.name() + "_regularization",  # noqa
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.contact_velocity_control_cost_multiplier,
+        )
+
+        # Contact force control regularization
+        problem.add_expression_to_horizon(
+            expression=cs.sumsqr(point.f_dot),
+            apply_to_first_elements=False,
+            name=point.f_dot.name() + "_regularization",  # noqa
+            mode=hp.ExpressionType.minimize,
+            scaling=self.settings.contact_force_control_cost_multiplier,
         )
 
     def set_initial_conditions(self) -> None:  # TODO: fill
