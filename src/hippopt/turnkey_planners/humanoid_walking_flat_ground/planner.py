@@ -12,7 +12,10 @@ import hippopt.robot_planning as hp_rp
 
 
 @dataclasses.dataclass
-class ExtendedContactPoint(hp_rp.ContactPoint):
+class ExtendedContactPoint(
+    hp_rp.ContactPointState,
+    hp_rp.ContactPointStateDerivative,
+):
     u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
 
     def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
@@ -21,22 +24,16 @@ class ExtendedContactPoint(hp_rp.ContactPoint):
 
 
 @dataclasses.dataclass
-class FeetContactPoints(hp.OptimizationObject):
+class FeetContactPointsExtended(hp.OptimizationObject):
     left: list[ExtendedContactPoint] = hp.default_composite_field()
     right: list[ExtendedContactPoint] = hp.default_composite_field()
-
-
-@dataclasses.dataclass
-class FeetContactPointDescriptors:
-    left: list[hp_rp.ContactPointDescriptor] = dataclasses.field(default_factory=list)
-    right: list[hp_rp.ContactPointDescriptor] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
 class Settings:
     robot_urdf: str = dataclasses.field(default=None)
     joints_name_list: list[str] = dataclasses.field(default=None)
-    contact_points: FeetContactPointDescriptors = dataclasses.field(default=None)
+    contact_points: hp_rp.FeetContactPointDescriptors = dataclasses.field(default=None)
     root_link: str = dataclasses.field(default=None)
     gravity: np.array = dataclasses.field(default=None)
     horizon_length: int = dataclasses.field(default=None)
@@ -231,13 +228,21 @@ class References(hp.OptimizationObject):
 
 @dataclasses.dataclass
 class Variables(hp.OptimizationObject):
-    contact_points: hp.CompositeType[FeetContactPoints] = hp.default_composite_field()
+    contact_points: hp.CompositeType[
+        FeetContactPointsExtended
+    ] = hp.default_composite_field()
+    contact_points_initial_state: hp.CompositeType[
+        hp_rp.FeetContactPoints
+    ] = hp.default_composite_field(time_varying=False)
     com: hp.StorageType = hp.default_storage_field(hp.Variable)
     centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
     kinematics: hp.CompositeType[
         hp_rp.FloatingBaseSystem
     ] = hp.default_composite_field()
+    kinematics_initial_state: hp.CompositeType[
+        hp_rp.FloatingBaseSystemState
+    ] = hp.default_composite_field(time_varying=False)
 
     com_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
     centroidal_momentum_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -285,10 +290,21 @@ class Variables(hp.OptimizationObject):
             ExtendedContactPoint(descriptor=point)
             for point in settings.contact_points.right
         ]
+        self.contact_points_initial_state.left = [
+            hp_rp.ContactPointState(descriptor=point)
+            for point in settings.contact_points.left
+        ]
+        self.contact_points_initial_state.right = [
+            hp_rp.ContactPointState(descriptor=point)
+            for point in settings.contact_points.right
+        ]
 
         self.com = np.zeros(3)
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(kin_dyn_object.NDoF)
+        self.kinematics_initial_state = hp_rp.FloatingBaseSystemState(
+            kin_dyn_object.NDoF
+        )
         self.dt = settings.time_step
         self.gravity = kin_dyn_object.g[:, 3]
         self.mass = kin_dyn_object.get_total_mass()
@@ -342,7 +358,7 @@ class HumanoidWalkingFlatGround:
             horizon_length=self.settings.horizon_length,
         )
 
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         function_inputs = self.get_function_inputs_dict()
 
@@ -376,9 +392,13 @@ class HumanoidWalkingFlatGround:
 
         point_kinematics_functions = {}
         all_contact_points = sym.contact_points.left + sym.contact_points.right
+        all_contact_initial_state = (
+            sym.contact_points_initial_state.left
+            + sym.contact_points_initial_state.right
+        )
 
-        for point in all_contact_points:
-            self.add_point_dynamics(point)
+        for i, point in enumerate(all_contact_points):
+            self.add_point_dynamics(point, initial_state=all_contact_initial_state[i])
 
             self.add_contact_point_feasibility(
                 dcc_margin_fun,
@@ -707,13 +727,13 @@ class HumanoidWalkingFlatGround:
 
     def add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
         default_integrator = self.settings.integrator
 
         # dot(pb) = pb_dot (base position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
-            x0=problem.initial(sym.kinematics.base.initial_position),
+            x0=problem.initial(sym.kinematics_initial_state.base.position),
             integrator=default_integrator,
             name="base_position_dynamics",
         )
@@ -722,7 +742,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.quaternion_xyzw)
             == sym.kinematics.base.quaternion_velocity_xyzw,
-            x0=problem.initial(sym.kinematics.base.initial_quaternion_xyzw),
+            x0=problem.initial(sym.kinematics_initial_state.base.quaternion_xyzw),
             integrator=default_integrator,
             name="base_quaternion_dynamics",
         )
@@ -730,7 +750,7 @@ class HumanoidWalkingFlatGround:
         # dot(s) = s_dot (joint position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
-            x0=problem.initial(sym.kinematics.joints.initial_positions),
+            x0=problem.initial(sym.kinematics_initial_state.joints.positions),
             integrator=default_integrator,
             name="joint_position_dynamics",
         )
@@ -738,8 +758,8 @@ class HumanoidWalkingFlatGround:
         # dot(com) = h_g[:3]/m (center of mass dynamics)
         com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
         problem.add_dynamics(
-            hp.dot(sym.com) == com_dynamics,
-            x0=problem.initial(sym.com_initial),
+            hp.dot(sym.com) == com_dynamics,  # noqa
+            x0=problem.initial(sym.com_initial),  # noqa
             integrator=default_integrator,
             name="com_dynamics",
         )
@@ -756,8 +776,8 @@ class HumanoidWalkingFlatGround:
             **function_inputs,
         )
         problem.add_dynamics(
-            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,
-            x0=problem.initial(sym.centroidal_momentum_initial),
+            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,  # noqa
+            x0=problem.initial(sym.centroidal_momentum_initial),  # noqa
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
         )
@@ -883,14 +903,16 @@ class HumanoidWalkingFlatGround:
             name=point.u_f.name() + "_bounds",  # noqa
         )
 
-    def add_point_dynamics(self, point: ExtendedContactPoint) -> None:
+    def add_point_dynamics(
+        self, point: ExtendedContactPoint, initial_state: hp_rp.ContactPointState
+    ) -> None:
         default_integrator = self.settings.integrator
         problem = self.ocp.problem
 
         # dot(f) = f_dot
         problem.add_dynamics(
             hp.dot(point.f) == point.f_dot,
-            x0=problem.initial(point.f0),
+            x0=problem.initial(initial_state.f),
             integrator=default_integrator,
             name=point.f.name() + "_dynamics",
         )
@@ -898,7 +920,7 @@ class HumanoidWalkingFlatGround:
         # dot(p) = v
         problem.add_dynamics(
             hp.dot(point.p) == point.v,
-            x0=problem.initial(point.p0),
+            x0=problem.initial(initial_state.p),
             integrator=default_integrator,
             name=point.p.name() + "_dynamics",
         )
