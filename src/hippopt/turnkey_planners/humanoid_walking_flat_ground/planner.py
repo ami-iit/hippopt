@@ -40,6 +40,7 @@ class Settings:
     root_link: str = dataclasses.field(default=None)
     gravity: np.array = dataclasses.field(default=None)
     horizon_length: int = dataclasses.field(default=None)
+    time_step: float = dataclasses.field(default=None)
     integrator: typing.Type[hp.SingleStepIntegrator] = dataclasses.field(default=None)
     terrain: hp_rp.TerrainDescriptor = dataclasses.field(default=None)
     planar_dcc_height_multiplier: float = dataclasses.field(default=None)
@@ -98,8 +99,8 @@ class Settings:
         self.dcc_gain = 20.0
         self.dcc_epsilon = 0.05
         self.static_friction = 0.3
-        self.maximum_velocity_control = np.ndarray([2.0, 2.0, 5.0])
-        self.maximum_force_derivative = np.ndarray([100.0, 100.0, 100.0])
+        self.maximum_velocity_control = np.array([2.0, 2.0, 5.0])
+        self.maximum_force_derivative = np.array([100.0, 100.0, 100.0])
         self.maximum_angular_momentum = 10.0
 
     def is_valid(self) -> bool:
@@ -109,6 +110,7 @@ class Settings:
             and self.joints_name_list is not None
             and self.contact_points is not None
             and self.horizon_length is not None
+            and self.time_step is not None
             and self.minimum_com_height is not None
             and self.minimum_feet_lateral_distance is not None
             and self.maximum_feet_relative_height is not None
@@ -287,7 +289,7 @@ class Variables(hp.OptimizationObject):
         self.com = np.zeros(3)
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(kin_dyn_object.NDoF)
-        self.dt = 0.1
+        self.dt = settings.time_step
         self.gravity = kin_dyn_object.g[:, 3]
         self.mass = kin_dyn_object.get_total_mass()
 
