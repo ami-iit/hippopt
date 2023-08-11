@@ -20,7 +20,7 @@ from .base.optimization_object import (
 from .base.optimization_problem import OptimizationProblem, OptimizationProblemInstance
 from .base.optimization_solver import SolutionNotAvailableException
 from .base.parameter import Parameter, TParameter
-from .base.problem import ExpressionType, ProblemNotSolvedException
+from .base.problem import ExpressionType, Output, ProblemNotSolvedException
 from .base.single_step_integrator import (
     SingleStepIntegrator,
     TSingleStepIntegrator,
