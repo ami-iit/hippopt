@@ -131,10 +131,11 @@ class MultipleShootingSolver(OptimalControlSolver):
                             ' Consider using "TimeExpansion.List"'
                             " as time_expansion strategy."
                         )
-                    # This is only needed to get the structure
-                    # for the optimization variables.
+                    # Repeat the vector along the horizon
+                    if field_value.ndim < 2:
+                        field_value = np.expand_dims(field_value, axis=1)
                     output.__setattr__(
-                        field.name, np.zeros((field_value.shape[0], horizon_length))
+                        field.name, np.tile(field_value, (1, horizon_length))
                     )
                 else:
                     output_value = []
@@ -875,6 +876,9 @@ class MultipleShootingSolver(OptimalControlSolver):
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ):
         self._optimization_solver.set_initial_guess(initial_guess=initial_guess)
+
+    def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._optimization_solver.get_initial_guess()
 
     def solve(self) -> None:
         self._optimization_solver.solve()

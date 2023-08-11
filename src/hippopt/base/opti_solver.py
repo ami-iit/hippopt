@@ -25,6 +25,15 @@ class OptiFailure(Exception):
         super().__init__("Opti failed to solve the problem. Message: " + str(message))
 
 
+class InitialGuessFailure(Exception):
+    def __init__(self, message: Exception):
+        super().__init__(
+            f"Failed to set the initial guess. Message: {message}. "
+            "Use 'fill_initial_guess=False' to avoid filling the "
+            "initial guess automatically."
+        )
+
+
 @dataclasses.dataclass
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
@@ -55,6 +64,9 @@ class OptiSolver(OptimizationSolver):
         default=None
     )
     _problem: Problem = dataclasses.field(default=None)
+    _guess: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
+        default=None
+    )
 
     def __post_init__(
         self,
@@ -263,6 +275,16 @@ class OptiSolver(OptimizationSolver):
                 )
             return
 
+        # Check that the initial guess is an optimization object
+        if not isinstance(initial_guess, OptimizationObject):
+            raise ValueError(
+                "The initial guess for the variable "
+                + base_name
+                + " is not an optimization object."
+                + " It is of type "
+                + str(type(initial_guess))
+            )
+
         for field in dataclasses.fields(initial_guess):
             guess = initial_guess.__getattribute__(field.name)
 
@@ -321,14 +343,16 @@ class OptiSolver(OptimizationSolver):
 
             composite_variable_guess = initial_guess.__getattribute__(field.name)
 
-            if isinstance(composite_variable_guess, OptimizationObject):
-                if not hasattr(corresponding_variable, field.name):
-                    raise ValueError(
-                        "The guess has the field "
-                        + base_name
-                        + field.name
-                        + " but it is not present in the optimization structure"
-                    )
+            if not isinstance(composite_variable_guess, OptimizationObject):
+                continue
+
+            if not hasattr(corresponding_variable, field.name):
+                raise ValueError(
+                    "The guess has the field "
+                    + base_name
+                    + field.name
+                    + " but it is not present in the optimization structure"
+                )
 
             self._set_initial_guess_internal(
                 initial_guess=composite_variable_guess,
@@ -356,7 +380,7 @@ class OptiSolver(OptimizationSolver):
                 + str(type(guess))
                 + " instead."
             )
-        if len(corresponding_value) == len(guess):
+        if len(corresponding_value) != len(guess):
             raise ValueError(
                 "The guess for the field "
                 + base_name
@@ -404,8 +428,23 @@ class OptiSolver(OptimizationSolver):
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
         if isinstance(input_structure, OptimizationObject):
-            return self._generate_objects_from_instance(input_structure=input_structure)
-        return self._generate_objects_from_list(input_structure=input_structure)
+            output = self._generate_objects_from_instance(
+                input_structure=input_structure
+            )
+        else:
+            output = self._generate_objects_from_list(input_structure=input_structure)
+
+        fill_initial_guess = (
+            kwargs["fill_initial_guess"] if "fill_initial_guess" in kwargs else True
+        )
+
+        if fill_initial_guess:
+            try:
+                self.set_initial_guess(initial_guess=input_structure)
+            except Exception as err:
+                raise InitialGuessFailure(err)
+
+        return output
 
     def get_optimization_objects(
         self,
@@ -426,6 +465,11 @@ class OptiSolver(OptimizationSolver):
         self._set_initial_guess_internal(
             initial_guess=initial_guess, corresponding_variable=self._variables
         )
+
+        self._guess = initial_guess
+
+    def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._guess
 
     def set_opti_options(
         self,
