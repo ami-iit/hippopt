@@ -27,9 +27,21 @@ from .utilities.quaternion import (
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
 from .utilities.terrain_descriptor import PlanarTerrain, TerrainDescriptor
-from .variables.contacts import ContactPoint, ContactPointDescriptor
+from .variables.contacts import (
+    ContactPointDescriptor,
+    ContactPointState,
+    ContactPointStateDerivative,
+    FeetContactPointDescriptors,
+    FeetContactPoints,
+)
 from .variables.floating_base import (
     FloatingBaseSystem,
+    FloatingBaseSystemState,
+    FloatingBaseSystemStateDerivative,
     FreeFloatingObject,
+    FreeFloatingObjectState,
+    FreeFloatingObjectStateDerivative,
     KinematicTree,
+    KinematicTreeState,
+    KinematicTreeStateDerivative,
 )
