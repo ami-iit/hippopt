@@ -85,12 +85,11 @@ class Settings:
 
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
+    casadi_opti_options: dict = dataclasses.field(default_factory=dict)
+
+    casadi_solver_options: dict = dataclasses.field(default_factory=dict)
+
     def __post_init__(self) -> None:
-        self.casadi_function_options = (
-            self.casadi_function_options
-            if isinstance(self.casadi_function_options, dict)
-            else {}
-        )
         self.root_link = "root_link"
         self.gravity = np.array([0.0, 0.0, -9.80665, 0.0, 0.0, 0.0])
         self.integrator = hp_int.ImplicitTrapezoid
@@ -329,8 +328,16 @@ class HumanoidWalkingFlatGround:
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
+        optimization_solver = hp.OptiSolver(
+            options_solver=self.settings.casadi_solver_options,
+            options_plugin=self.settings.casadi_opti_options,
+        )
+        ocp_solver = hp.MultipleShootingSolver(optimization_solver=optimization_solver)
+
         self.ocp = hp.OptimalControlProblem.create(
-            self.variables, horizon_length=self.settings.horizon_length
+            self.variables,
+            optimal_control_solver=ocp_solver,
+            horizon_length=self.settings.horizon_length,
         )
 
         sym = self.ocp.symbolic_structure
@@ -1059,3 +1066,6 @@ class HumanoidWalkingFlatGround:
         guess = self.get_initial_guess()
         guess.references = references
         self.set_initial_guess(guess)
+
+    def solve(self) -> hp.Output[Variables]:
+        return self.ocp.problem.solve()
