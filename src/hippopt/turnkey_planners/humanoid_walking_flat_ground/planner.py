@@ -19,7 +19,8 @@ class ExtendedContactPoint(
     u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
 
     def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
-        super().__post_init__(input_descriptor)
+        hp_rp.ContactPointState.__post_init__(self, input_descriptor)
+        hp_rp.ContactPointStateDerivative.__post_init__(self)
         self.u_v = np.zeros(3)
 
 
