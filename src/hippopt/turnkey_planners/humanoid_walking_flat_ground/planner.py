@@ -227,25 +227,57 @@ class References(hp.OptimizationObject):
 
 
 @dataclasses.dataclass
+class InitialState(hp.OptimizationObject):
+    contact_points: hp.CompositeType[
+        hp_rp.FeetContactPoints
+    ] = hp.default_composite_field(time_varying=False)
+
+    kinematics: hp.CompositeType[
+        hp_rp.FloatingBaseSystemState
+    ] = hp.default_composite_field(time_varying=False)
+
+    com: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
+    kin_dyn_object: dataclasses.InitVar[
+        adam.casadi.KinDynComputations
+    ] = dataclasses.field(default=None)
+
+    def __post_init__(
+        self,
+        settings: Settings,
+        kin_dyn_object: adam.casadi.KinDynComputations,
+    ) -> None:
+        self.contact_points.left = [
+            hp_rp.ContactPointState(descriptor=point)
+            for point in settings.contact_points.left
+        ]
+        self.contact_points.right = [
+            hp_rp.ContactPointState(descriptor=point)
+            for point in settings.contact_points.right
+        ]
+        self.kinematics = hp_rp.FloatingBaseSystemState(kin_dyn_object.NDoF)
+        self.com = np.zeros(3)
+        self.centroidal_momentum = np.zeros(6)
+
+
+@dataclasses.dataclass
 class Variables(hp.OptimizationObject):
     contact_points: hp.CompositeType[
         FeetContactPointsExtended
     ] = hp.default_composite_field()
-    contact_points_initial_state: hp.CompositeType[
-        hp_rp.FeetContactPoints
-    ] = hp.default_composite_field(time_varying=False)
+
     com: hp.StorageType = hp.default_storage_field(hp.Variable)
     centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
     kinematics: hp.CompositeType[
         hp_rp.FloatingBaseSystem
     ] = hp.default_composite_field()
-    kinematics_initial_state: hp.CompositeType[
-        hp_rp.FloatingBaseSystemState
-    ] = hp.default_composite_field(time_varying=False)
 
-    com_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
-    centroidal_momentum_initial: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    initial_state: hp.CompositeType[InitialState] = hp.default_composite_field(
+        time_varying=False
+    )
 
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -290,27 +322,18 @@ class Variables(hp.OptimizationObject):
             ExtendedContactPoint(descriptor=point)
             for point in settings.contact_points.right
         ]
-        self.contact_points_initial_state.left = [
-            hp_rp.ContactPointState(descriptor=point)
-            for point in settings.contact_points.left
-        ]
-        self.contact_points_initial_state.right = [
-            hp_rp.ContactPointState(descriptor=point)
-            for point in settings.contact_points.right
-        ]
 
         self.com = np.zeros(3)
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(kin_dyn_object.NDoF)
-        self.kinematics_initial_state = hp_rp.FloatingBaseSystemState(
-            kin_dyn_object.NDoF
+
+        self.initial_state = InitialState(
+            settings=settings, kin_dyn_object=kin_dyn_object
         )
+
         self.dt = settings.time_step
         self.gravity = kin_dyn_object.g[:, 3]
         self.mass = kin_dyn_object.get_total_mass()
-
-        self.com_initial = np.zeros(3)
-        self.centroidal_momentum_initial = np.zeros(6)
 
         self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
         self.dcc_gain = settings.dcc_gain
@@ -393,8 +416,8 @@ class HumanoidWalkingFlatGround:
         point_kinematics_functions = {}
         all_contact_points = sym.contact_points.left + sym.contact_points.right
         all_contact_initial_state = (
-            sym.contact_points_initial_state.left
-            + sym.contact_points_initial_state.right
+            sym.initial_state.contact_points.left
+            + sym.initial_state.contact_points.right
         )
 
         for i, point in enumerate(all_contact_points):
@@ -733,7 +756,7 @@ class HumanoidWalkingFlatGround:
         # dot(pb) = pb_dot (base position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
-            x0=problem.initial(sym.kinematics_initial_state.base.position),
+            x0=problem.initial(sym.initial_state.kinematics.base.position),
             integrator=default_integrator,
             name="base_position_dynamics",
         )
@@ -742,7 +765,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.quaternion_xyzw)
             == sym.kinematics.base.quaternion_velocity_xyzw,
-            x0=problem.initial(sym.kinematics_initial_state.base.quaternion_xyzw),
+            x0=problem.initial(sym.initial_state.kinematics.base.quaternion_xyzw),
             integrator=default_integrator,
             name="base_quaternion_dynamics",
         )
@@ -750,7 +773,7 @@ class HumanoidWalkingFlatGround:
         # dot(s) = s_dot (joint position dynamics)
         problem.add_dynamics(
             hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
-            x0=problem.initial(sym.kinematics_initial_state.joints.positions),
+            x0=problem.initial(sym.initial_state.kinematics.joints.positions),
             integrator=default_integrator,
             name="joint_position_dynamics",
         )
@@ -759,7 +782,7 @@ class HumanoidWalkingFlatGround:
         com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
         problem.add_dynamics(
             hp.dot(sym.com) == com_dynamics,  # noqa
-            x0=problem.initial(sym.com_initial),  # noqa
+            x0=problem.initial(sym.initial_state.com),  # noqa
             integrator=default_integrator,
             name="com_dynamics",
         )
@@ -777,7 +800,7 @@ class HumanoidWalkingFlatGround:
         )
         problem.add_dynamics(
             hp.dot(sym.centroidal_momentum) == centroidal_dynamics,  # noqa
-            x0=problem.initial(sym.centroidal_momentum_initial),  # noqa
+            x0=problem.initial(sym.initial_state.centroidal_momentum),  # noqa
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
         )
@@ -1089,6 +1112,11 @@ class HumanoidWalkingFlatGround:
     def set_references(self, references: References) -> None:
         guess = self.get_initial_guess()
         guess.references = references
+        self.set_initial_guess(guess)
+
+    def set_initial_state(self, initial_state: InitialState) -> None:
+        guess = self.get_initial_guess()
+        guess.initial_state = initial_state
         self.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
