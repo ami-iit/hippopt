@@ -37,7 +37,7 @@ jobs:
       - name: Dependencies
         shell: bash -l {0}
         run: |
-          mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics
+          mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree
 
       - name: Install
         shell: bash  -l {0}
