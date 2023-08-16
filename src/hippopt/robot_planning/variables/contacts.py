@@ -29,6 +29,35 @@ class ContactPointDescriptor(OptimizationObject):
         self.foot_frame = input_foot_frame
         self.position_in_foot_frame = input_position_in_foot_frame
 
+    @staticmethod
+    def rectangular_foot(
+        foot_frame: str,
+        x_length: float,
+        y_length: float,
+        top_left_point_position: np.array,
+    ):
+        return [
+            ContactPointDescriptor(
+                input_foot_frame=foot_frame,
+                input_position_in_foot_frame=top_left_point_position,
+            ),
+            ContactPointDescriptor(
+                input_foot_frame=foot_frame,
+                input_position_in_foot_frame=top_left_point_position
+                + np.array([-x_length, 0.0, 0.0]),
+            ),
+            ContactPointDescriptor(
+                input_foot_frame=foot_frame,
+                input_position_in_foot_frame=top_left_point_position
+                + np.array([-x_length, -y_length, 0.0]),
+            ),
+            ContactPointDescriptor(
+                input_foot_frame=foot_frame,
+                input_position_in_foot_frame=top_left_point_position
+                + np.array([0.0, -y_length, 0.0]),
+            ),
+        ]
+
 
 @dataclasses.dataclass
 class ContactPointState(OptimizationObject):
