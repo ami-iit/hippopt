@@ -97,5 +97,5 @@ class FeetContactPointDescriptors:
 
 @dataclasses.dataclass
 class FeetContactPoints(OptimizationObject):
-    left: list[ContactPointState] = default_composite_field()
-    right: list[ContactPointState] = default_composite_field()
+    left: list[ContactPointState] = default_composite_field(factory=list)
+    right: list[ContactPointState] = default_composite_field(factory=list)

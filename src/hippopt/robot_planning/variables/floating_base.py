@@ -44,7 +44,7 @@ class FreeFloatingObject(FreeFloatingObjectState, FreeFloatingObjectStateDerivat
 class KinematicTreeState(OptimizationObject):
     positions: StorageType = default_storage_field(Variable)
 
-    number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=None)
+    number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
     def __post_init__(self, number_of_joints_state: int):
         self.positions = np.zeros(number_of_joints_state)
@@ -70,10 +70,9 @@ class KinematicTree(KinematicTreeState, KinematicTreeStateDerivative):
         number_of_joints_state: int = None,
     ):
         if number_of_joints_derivative is None and number_of_joints_state is None:
-            raise ValueError(
-                "Either number_of_joints_derivative or "
-                "number_of_joints_state must be specified"
-            )
+            number_of_joints_state = 0
+            number_of_joints_derivative = 0
+
         number_of_joints_state = (
             number_of_joints_derivative
             if number_of_joints_state is None
@@ -97,7 +96,9 @@ class FloatingBaseSystemState(OptimizationObject):
     base: CompositeType[FreeFloatingObjectState] = default_composite_field(
         factory=FreeFloatingObjectState
     )
-    joints: CompositeType[KinematicTreeState] = default_composite_field()
+    joints: CompositeType[KinematicTreeState] = default_composite_field(
+        factory=KinematicTreeState
+    )
 
     number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
@@ -110,7 +111,9 @@ class FloatingBaseSystemStateDerivative(OptimizationObject):
     base: CompositeType[FreeFloatingObjectStateDerivative] = default_composite_field(
         factory=FreeFloatingObjectStateDerivative
     )
-    joints: CompositeType[KinematicTreeStateDerivative] = default_composite_field()
+    joints: CompositeType[KinematicTreeStateDerivative] = default_composite_field(
+        factory=KinematicTreeStateDerivative
+    )
 
     number_of_joints_derivative: dataclasses.InitVar[int] = dataclasses.field(
         default=None
@@ -127,7 +130,9 @@ class FloatingBaseSystem(OptimizationObject):
     base: CompositeType[FreeFloatingObject] = default_composite_field(
         factory=FreeFloatingObject
     )
-    joints: CompositeType[KinematicTree] = default_composite_field()
+    joints: CompositeType[KinematicTree] = default_composite_field(
+        factory=KinematicTree
+    )
 
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
