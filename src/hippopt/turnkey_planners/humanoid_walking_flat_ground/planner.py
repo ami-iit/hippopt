@@ -82,6 +82,10 @@ class Settings:
 
     contact_force_control_cost_multiplier: float = dataclasses.field(default=None)
 
+    opti_solver: str = dataclasses.field(default="ipopt")
+
+    problem_type: str = dataclasses.field(default="nlp")
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     casadi_opti_options: dict = dataclasses.field(default_factory=dict)
@@ -303,7 +307,9 @@ class Variables(hp.OptimizationObject):
     maximum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_joint_velocities: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
-    references: hp.CompositeType[References] = hp.default_composite_field()
+    references: hp.CompositeType[References] = hp.default_composite_field(
+        time_varying=True
+    )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[
@@ -371,6 +377,8 @@ class HumanoidWalkingFlatGround:
         )
 
         optimization_solver = hp.OptiSolver(
+            inner_solver=self.settings.opti_solver,
+            problem_type=self.settings.problem_type,
             options_solver=self.settings.casadi_solver_options,
             options_plugin=self.settings.casadi_opti_options,
         )
@@ -1110,9 +1118,17 @@ class HumanoidWalkingFlatGround:
     def get_initial_guess(self) -> Variables:
         return self.ocp.problem.get_initial_guess()
 
-    def set_references(self, references: References) -> None:
+    def set_references(self, references: References | list[References]) -> None:
         guess = self.get_initial_guess()
-        guess.references = references
+
+        assert isinstance(guess.references, list)
+        if isinstance(references, list):
+            assert len(references) == len(guess.references)
+            for i in range(len(guess.references)):
+                guess.references[i] = references[i]
+        else:
+            for i in range(len(guess.references)):
+                guess.references[i] = references
         self.set_initial_guess(guess)
 
     def set_initial_state(self, initial_state: InitialState) -> None:
