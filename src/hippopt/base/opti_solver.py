@@ -103,6 +103,9 @@ class OptiSolver(OptimizationSolver):
                 raise ValueError(
                     "Field " + name + " has number of dimensions greater than 2."
                 )
+            if value.ndim == 0:
+                raise ValueError("Field " + name + " is a zero-dimensional vector.")
+
             if value.ndim < 2:
                 value = np.expand_dims(value, axis=1)
 
@@ -136,7 +139,10 @@ class OptiSolver(OptimizationSolver):
                 or list_of_optimization_objects
             ):
                 output.__setattr__(
-                    field.name, self.generate_optimization_objects(composite_value)
+                    field.name,
+                    self.generate_optimization_objects(
+                        input_structure=composite_value, fill_initial_guess=False
+                    ),
                 )
                 continue
 
@@ -173,7 +179,9 @@ class OptiSolver(OptimizationSolver):
 
         output = copy.deepcopy(input_structure)
         for i in range(len(output)):
-            output[i] = self.generate_optimization_objects(output[i])
+            output[i] = self.generate_optimization_objects(
+                input_structure=output[i], fill_initial_guess=False
+            )
 
         self._variables = output
         return output
