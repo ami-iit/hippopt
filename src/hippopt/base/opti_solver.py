@@ -38,6 +38,7 @@ class InitialGuessFailure(Exception):
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
     _inner_solver: str = dataclasses.field(default=DefaultSolverType)
+    inner_solver: dataclasses.InitVar[str] = dataclasses.field(default=None)
     problem_type: dataclasses.InitVar[str] = dataclasses.field(default="nlp")
 
     _options_plugin: dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -70,11 +71,15 @@ class OptiSolver(OptimizationSolver):
 
     def __post_init__(
         self,
-        problem_type: str,
+        inner_solver: str = DefaultSolverType,
+        problem_type: str = "nlp",
         options_solver: dict[str, Any] = None,
         options_plugin: dict[str, Any] = None,
     ):
         self._solver = cs.Opti(problem_type)
+        self._inner_solver = (
+            inner_solver if inner_solver is not None else self.DefaultSolverType
+        )
         self._options_solver = (
             options_solver if isinstance(options_solver, dict) else {}
         )
