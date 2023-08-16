@@ -61,13 +61,12 @@ class MultipleShootingSolver(OptimalControlSolver):
         )
         self._flattened_variables = {}
 
+    @staticmethod
     def _extend_structure_to_horizon(
-        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+        input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
         if "horizon" not in kwargs and "horizons" not in kwargs:
-            return self._optimization_solver.generate_optimization_objects(
-                input_structure=input_structure, **kwargs
-            )
+            return input_structure
 
         default_horizon_length = int(1)
         if "horizon" in kwargs:
