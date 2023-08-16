@@ -3,6 +3,7 @@ import dataclasses
 import numpy as np
 
 from hippopt import (
+    CompositeType,
     OptimizationObject,
     Parameter,
     StorageType,
@@ -34,7 +35,9 @@ class ContactPointState(OptimizationObject):
     p: StorageType = default_storage_field(Variable)
     f: StorageType = default_storage_field(Variable)
 
-    descriptor: ContactPointDescriptor = default_composite_field(time_varying=False)
+    descriptor: CompositeType[ContactPointDescriptor] = default_composite_field(
+        factory=ContactPointDescriptor, time_varying=False
+    )
 
     input_descriptor: dataclasses.InitVar[ContactPointDescriptor] = dataclasses.field(
         default=None
