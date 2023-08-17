@@ -28,7 +28,7 @@ def dcc_planar_complementarity(
     terrain_orientation = terrain_orientation_fun(point_position)
 
     planar_multiplier = cs.tanh(height_multiplier * height)
-    multipliers = cs.diag(cs.horzcat([planar_multiplier, planar_multiplier, 1]))
+    multipliers = cs.diag(cs.horzcat(planar_multiplier, planar_multiplier, 1))
     planar_complementarity = terrain_orientation @ multipliers @ point_control
 
     return cs.Function(
@@ -74,13 +74,13 @@ def dcc_complementarity_margin(
     # See Sec III.A of https://ieeexplore.ieee.org/abstract/document/9847574
     height_derivative = cs.jtimes(height, point_position, point_velocity)
     normal_derivative = cs.jtimes(normal_direction, point_position, point_velocity)
-    normal_force = normal_direction.T() @ point_force
-    normal_force_derivative = normal_direction.T() @ point_force_derivative
+    normal_force = normal_direction.T @ point_force
+    normal_force_derivative = normal_direction.T @ point_force_derivative
     complementarity = height * normal_force
 
     csi = (
         height_derivative * normal_force
-        + height * point_force.T() @ normal_derivative
+        + height * point_force.T @ normal_derivative
         + height * normal_force_derivative
     )
 

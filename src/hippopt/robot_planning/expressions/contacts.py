@@ -21,7 +21,7 @@ def normal_force_component(
 
     normal_direction_fun = terrain.normal_direction_function()
 
-    normal_component = normal_direction_fun(point_position).T() @ point_force
+    normal_component = normal_direction_fun(point_position).T @ point_force
 
     return cs.Function(
         "normal_force_component",
@@ -53,7 +53,7 @@ def friction_cone_square_margin(
 
     orientation_fun = terrain.orientation_function()
     terrain_orientation = orientation_fun(point_position)
-    force_in_contact = terrain_orientation.T() @ point_force
+    force_in_contact = terrain_orientation.T @ point_force
 
     # In principle, it should be sqrt(fx^2 + fy^2) <= u * fz,
     # but since both sides are positive, we square them both.
@@ -61,7 +61,7 @@ def friction_cone_square_margin(
     # (u * fz)^2 - (fx^2 + fy^2) >= 0
     # that is equal to
     # [-1, -1, u^2] * f.^2
-    margin = cs.horzcat([-1, -1, cs.constpow(static_friction, 2)]) * cs.constpow(
+    margin = cs.horzcat(-1, -1, cs.constpow(static_friction, 2)) @ cs.constpow(
         force_in_contact, 2
     )
 
@@ -163,7 +163,7 @@ def swing_height_heuristic(
     terrain_orientation = terrain_orientation_fun(point)
 
     height_difference = terrain_height - desired_height
-    planar_velocity = (terrain_orientation.T() @ point_velocity)[:2]
+    planar_velocity = (terrain_orientation.T @ point_velocity)[:2]
 
     heuristic = 0.5 * (cs.constpow(height_difference, 2) + cs.sumsqr(planar_velocity))
 
