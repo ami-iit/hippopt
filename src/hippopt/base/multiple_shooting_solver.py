@@ -598,7 +598,7 @@ class MultipleShootingSolver(OptimalControlSolver):
                 )
             dt_var_tuple = self._flattened_variables[dt_in]
             dt_size = dt_var_tuple[0]
-            dt_generator = dt_var_tuple[1]
+            dt_generator = dt_var_tuple[1]()
         else:
             raise ValueError("Unsupported dt type")
 
