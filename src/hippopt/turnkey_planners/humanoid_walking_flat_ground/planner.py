@@ -187,11 +187,14 @@ class FeetReferences(hp.OptimizationObject):
 
     desired_swing_height: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
-    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=None)
+    number_of_points_left: dataclasses.InitVar[int] = dataclasses.field(default=0)
+    number_of_points_right: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
-    def __post_init__(self, number_of_points: int) -> None:
-        self.left = FootReferences(number_of_points=number_of_points)
-        self.right = FootReferences(number_of_points=number_of_points)
+    def __post_init__(
+        self, number_of_points_left: int, number_of_points_right: int
+    ) -> None:
+        self.left = FootReferences(number_of_points=number_of_points_left)
+        self.right = FootReferences(number_of_points=number_of_points_right)
         self.desired_swing_height = 0.02
 
 
@@ -221,10 +224,19 @@ class References(hp.OptimizationObject):
     joint_regularization_cost: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=0)
-    number_of_points: dataclasses.InitVar[int] = dataclasses.field(default=0)
+    number_of_points_left: dataclasses.InitVar[int] = dataclasses.field(default=0)
+    number_of_points_right: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
-    def __post_init__(self, number_of_joints: int, number_of_points: int) -> None:
-        self.feet = FeetReferences(number_of_points=number_of_points)
+    def __post_init__(
+        self,
+        number_of_joints: int,
+        number_of_points_left: int,
+        number_of_points_right: int,
+    ) -> None:
+        self.feet = FeetReferences(
+            number_of_points_left=number_of_points_left,
+            number_of_points_right=number_of_points_right,
+        )
         self.contacts_centroid_cost_weights = np.zeros((3, 1))
         self.contacts_centroid = np.zeros((3, 1))
         self.com_linear_velocity = np.zeros((3, 1))
@@ -369,7 +381,11 @@ class Variables(hp.OptimizationObject):
         self.minimum_joint_positions = settings.minimum_joint_positions
         self.maximum_joint_velocities = settings.maximum_joint_velocities
         self.minimum_joint_velocities = settings.minimum_joint_velocities
-        self.references = References(number_of_joints=kin_dyn_object.NDoF)
+        self.references = References(
+            number_of_joints=kin_dyn_object.NDoF,
+            number_of_points_left=len(settings.contact_points.left),
+            number_of_points_right=len(settings.contact_points.right),
+        )
 
 
 class HumanoidWalkingFlatGround:
