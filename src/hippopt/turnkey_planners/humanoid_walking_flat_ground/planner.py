@@ -221,7 +221,7 @@ class References(hp.OptimizationObject):
         hp.Parameter
     )
 
-    joint_regularization_cost: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    joint_regularization: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=0)
     number_of_points_left: dataclasses.InitVar[int] = dataclasses.field(default=0)
@@ -245,7 +245,7 @@ class References(hp.OptimizationObject):
         self.base_quaternion_xyzw = np.zeros((4, 1))
         self.base_quaternion_xyzw[3] = 1
         self.base_quaternion_xyzw_velocity = np.zeros((4, 1))
-        self.joint_regularization_cost = np.zeros((number_of_joints, 1))
+        self.joint_regularization = np.zeros((number_of_joints, 1))
 
 
 @dataclasses.dataclass
@@ -347,11 +347,11 @@ class Variables(hp.OptimizationObject):
         kin_dyn_object: adam.casadi.KinDynComputations,
     ) -> None:
         self.contact_points.left = [
-            ExtendedContactPoint(descriptor=point)
+            ExtendedContactPoint(input_descriptor=point)
             for point in settings.contact_points.left
         ]
         self.contact_points.right = [
-            ExtendedContactPoint(descriptor=point)
+            ExtendedContactPoint(input_descriptor=point)
             for point in settings.contact_points.right
         ]
 
@@ -364,7 +364,7 @@ class Variables(hp.OptimizationObject):
         )
 
         self.dt = settings.time_step
-        self.gravity = kin_dyn_object.g[:3]
+        self.gravity = kin_dyn_object.g
         self.mass = kin_dyn_object.get_total_mass()
 
         self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
@@ -414,7 +414,7 @@ class HumanoidWalkingFlatGround:
         ocp_solver = hp.MultipleShootingSolver(optimization_solver=optimization_solver)
 
         self.ocp = hp.OptimalControlProblem.create(
-            self.variables,
+            input_structure=self.variables,
             optimal_control_solver=ocp_solver,
             horizon=self.settings.horizon_length,
         )
@@ -577,12 +577,12 @@ class HumanoidWalkingFlatGround:
         )
 
         # Contact centroid position cost
-        centroid_error = sym.contacts_centroid_references - 0.5 * (
+        centroid_error = sym.references.contacts_centroid - 0.5 * (
             left_centroid + right_centroid
         )
         weighted_centroid_squared_error = (
             centroid_error.T
-            @ cs.diag(sym.contacts_centroid_cost_weights)
+            @ cs.diag(sym.references.contacts_centroid_cost_weights)
             @ centroid_error
         )
         problem.add_expression_to_horizon(
@@ -712,8 +712,8 @@ class HumanoidWalkingFlatGround:
         )
         com_velocity_weighted_error = (
             com_velocity_error.T
-            * cs.diag(cs.DM(self.settings.com_linear_velocity_cost_weights))
-            * com_velocity_error
+            @ cs.diag(cs.DM(self.settings.com_linear_velocity_cost_weights))
+            @ com_velocity_error
         )
         problem.add_expression_to_horizon(
             expression=com_velocity_weighted_error,
@@ -795,6 +795,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
             x0=problem.initial(sym.initial_state.kinematics.base.position),
+            dt=sym.dt,
             integrator=default_integrator,
             name="base_position_dynamics",
         )
@@ -804,6 +805,7 @@ class HumanoidWalkingFlatGround:
             hp.dot(sym.kinematics.base.quaternion_xyzw)
             == sym.kinematics.base.quaternion_velocity_xyzw,
             x0=problem.initial(sym.initial_state.kinematics.base.quaternion_xyzw),
+            dt=sym.dt,
             integrator=default_integrator,
             name="base_quaternion_dynamics",
         )
@@ -812,6 +814,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
             x0=problem.initial(sym.initial_state.kinematics.joints.positions),
+            dt=sym.dt,
             integrator=default_integrator,
             name="joint_position_dynamics",
         )
@@ -821,6 +824,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.com) == com_dynamics,  # noqa
             x0=problem.initial(sym.initial_state.com),  # noqa
+            dt=sym.dt,
             integrator=default_integrator,
             name="com_dynamics",
         )
@@ -839,6 +843,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(sym.centroidal_momentum) == centroidal_dynamics,  # noqa
             x0=problem.initial(sym.initial_state.centroidal_momentum),  # noqa
+            dt=sym.dt,
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
         )
@@ -887,7 +892,7 @@ class HumanoidWalkingFlatGround:
         point: ExtendedContactPoint,
     ):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         # Planar complementarity
         dcc_planar = dcc_planar_fun(
@@ -956,12 +961,12 @@ class HumanoidWalkingFlatGround:
         # Bounds on contact force control inputs
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
-                -sym.maximum_force_control,
-                point.u_f,  # noqa
-                sym.maximum_force_control,
+                -sym.maximum_force_derivative,
+                point.f_dot,
+                sym.maximum_force_derivative,
             ),
             apply_to_first_elements=True,
-            name=point.u_f.name() + "_bounds",  # noqa
+            name=point.f_dot.name() + "_bounds",  # noqa
         )
 
     def add_point_dynamics(
@@ -969,11 +974,13 @@ class HumanoidWalkingFlatGround:
     ) -> None:
         default_integrator = self.settings.integrator
         problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         # dot(f) = f_dot
         problem.add_dynamics(
             hp.dot(point.f) == point.f_dot,
             x0=problem.initial(initial_state.f),
+            dt=sym.dt,
             integrator=default_integrator,
             name=point.f.name() + "_dynamics",
         )
@@ -982,6 +989,7 @@ class HumanoidWalkingFlatGround:
         problem.add_dynamics(
             hp.dot(point.p) == point.v,
             x0=problem.initial(initial_state.p),
+            dt=sym.dt,
             integrator=default_integrator,
             name=point.p.name() + "_dynamics",
         )
@@ -1023,7 +1031,8 @@ class HumanoidWalkingFlatGround:
         # Foot yaw task
         centroid_position = np.zeros((3, 1))
         for descriptor in descriptors:
-            centroid_position += descriptor.position_in_foot_frame
+            position_in_foot_frame = descriptor.position_in_foot_frame.reshape((3, 1))
+            centroid_position += position_in_foot_frame
         centroid_position /= len(descriptors)
 
         bottom_right_index = None
@@ -1036,7 +1045,9 @@ class HumanoidWalkingFlatGround:
         top_left_value = 0
 
         for i, descriptor in enumerate(descriptors):
-            relative_position = descriptor.position_in_foot_frame - centroid_position
+            relative_position = (
+                descriptor.position_in_foot_frame.reshape((3, 1)) - centroid_position
+            )
 
             if (
                 relative_position[1] < 0
