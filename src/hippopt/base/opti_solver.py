@@ -133,6 +133,12 @@ class OptiSolver(OptimizationSolver):
                 isinstance(elem, OptimizationObject) or isinstance(elem, list)
                 for elem in composite_value
             )
+            list_of_float = is_list and all(
+                isinstance(elem, float) for elem in composite_value
+            )
+            if list_of_float:
+                composite_value = np.array(composite_value)
+                is_list = False
 
             if (
                 isinstance(composite_value, OptimizationObject)
@@ -147,11 +153,7 @@ class OptiSolver(OptimizationSolver):
                 continue
 
             if OptimizationObject.StorageTypeField in field.metadata:
-                value_list = []
-                value_field = dataclasses.asdict(output)[field.name]
-                value_list.append(value_field)
-
-                value_list = value_field if is_list else value_list
+                value_list = composite_value if is_list else [composite_value]
                 output_value = []
                 for value in value_list:
                     output_value.append(
@@ -326,6 +328,11 @@ class OptiSolver(OptimizationSolver):
                 if isinstance(guess, float):
                     guess = guess * np.ones((1, 1))
 
+                if isinstance(guess, list) and all(
+                    isinstance(elem, float) for elem in guess
+                ):
+                    guess = np.array(guess)
+
                 if not isinstance(guess, np.ndarray):
                     raise ValueError(
                         "The guess for the field "
@@ -440,6 +447,13 @@ class OptiSolver(OptimizationSolver):
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
+        if not isinstance(input_structure, OptimizationObject) and not isinstance(
+            input_structure, list
+        ):
+            raise ValueError(
+                "The input structure is neither an optimization object nor a list."
+            )
+
         if isinstance(input_structure, OptimizationObject):
             output = self._generate_objects_from_instance(
                 input_structure=input_structure
