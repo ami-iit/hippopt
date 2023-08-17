@@ -131,7 +131,7 @@ def contact_points_yaw_alignment_error(
     p1 = cs.MX.sym(second_point_name, 3)
     yaw = cs.MX.sym(desired_yaw_name, 1)
 
-    yaw_alignment = cs.horzcat([-cs.sin(yaw), cs.cos(yaw)]) @ (p1 - p0)[:2]
+    yaw_alignment = cs.horzcat(-cs.sin(yaw), cs.cos(yaw)) @ (p1 - p0)[:2]
 
     return cs.Function(
         "contact_points_yaw_alignment_error",

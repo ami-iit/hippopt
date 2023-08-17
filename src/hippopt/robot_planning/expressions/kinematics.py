@@ -37,7 +37,7 @@ def centroidal_momentum_from_kinematics(
     base_angular_velocity_fun = (
         quaternion_xyzw_velocity_to_right_trivialized_angular_velocity(
             quaternion_xyzw_name=base_quaternion_xyzw_name,
-            base_quaternion_xyzw_derivative_name=base_quaternion_xyzw_derivative_name,
+            quaternion_xyzw_velocity_name=base_quaternion_xyzw_derivative_name,
             options=options,
         )
     )
@@ -46,7 +46,7 @@ def centroidal_momentum_from_kinematics(
             base_quaternion_xyzw_name: base_quaternion,
             base_quaternion_xyzw_derivative_name: base_quaternion_derivative,
         }
-    )
+    )["right_trivialized_angular_velocity"]
 
     robot_velocity = cs.vertcat(
         base_position_derivative, base_angular_velocity, joint_velocities
@@ -196,7 +196,8 @@ def frames_relative_position(
         "frames_relative_position",
         [joint_positions],
         [relative_position],
-        "relative_position",
+        [joint_positions_name],
+        ["relative_position"],
         options,
     )
 
