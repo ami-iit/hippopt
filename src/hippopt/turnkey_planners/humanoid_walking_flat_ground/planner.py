@@ -565,7 +565,7 @@ class HumanoidWalkingFlatGround:
             left_centroid + right_centroid
         )
         weighted_centroid_squared_error = (
-            centroid_error.T()
+            centroid_error.T
             @ cs.diag(sym.contacts_centroid_cost_weights)
             @ centroid_error
         )
@@ -695,7 +695,7 @@ class HumanoidWalkingFlatGround:
             sym.centroidal_momentum[:3] - sym.references.com_linear_velocity * sym.mass
         )
         com_velocity_weighted_error = (
-            com_velocity_error.T()
+            com_velocity_error.T
             * cs.diag(cs.DM(self.settings.com_linear_velocity_cost_weights))
             * com_velocity_error
         )
