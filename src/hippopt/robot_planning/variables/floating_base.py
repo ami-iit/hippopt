@@ -5,8 +5,8 @@ import numpy as np
 from hippopt import (
     CompositeType,
     OptimizationObject,
+    OverridableVariable,
     StorageType,
-    Variable,
     default_composite_field,
     default_storage_field,
 )
@@ -14,8 +14,8 @@ from hippopt import (
 
 @dataclasses.dataclass
 class FreeFloatingObjectState(OptimizationObject):
-    position: StorageType = default_storage_field(Variable)
-    quaternion_xyzw: StorageType = default_storage_field(Variable)
+    position: StorageType = default_storage_field(OverridableVariable)
+    quaternion_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
         self.position = np.zeros(3)
@@ -25,8 +25,8 @@ class FreeFloatingObjectState(OptimizationObject):
 
 @dataclasses.dataclass
 class FreeFloatingObjectStateDerivative(OptimizationObject):
-    linear_velocity: StorageType = default_storage_field(Variable)
-    quaternion_velocity_xyzw: StorageType = default_storage_field(Variable)
+    linear_velocity: StorageType = default_storage_field(OverridableVariable)
+    quaternion_velocity_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
         self.linear_velocity = np.zeros(3)
@@ -42,7 +42,7 @@ class FreeFloatingObject(FreeFloatingObjectState, FreeFloatingObjectStateDerivat
 
 @dataclasses.dataclass
 class KinematicTreeState(OptimizationObject):
-    positions: StorageType = default_storage_field(Variable)
+    positions: StorageType = default_storage_field(OverridableVariable)
 
     number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
@@ -52,7 +52,7 @@ class KinematicTreeState(OptimizationObject):
 
 @dataclasses.dataclass
 class KinematicTreeStateDerivative(OptimizationObject):
-    velocities: StorageType = default_storage_field(Variable)
+    velocities: StorageType = default_storage_field(OverridableVariable)
 
     number_of_joints_derivative: dataclasses.InitVar[int] = dataclasses.field(
         default=None

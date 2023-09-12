@@ -1,4 +1,4 @@
-from . import dynamics, expressions, utilities
+from . import dynamics, expressions, utilities, variables
 from .dynamics.centroidal import (
     centroidal_dynamics_with_point_forces,
     com_dynamics_from_momentum,
@@ -45,3 +45,4 @@ from .variables.floating_base import (
     KinematicTreeState,
     KinematicTreeStateDerivative,
 )
+from .variables.humanoid import HumanoidState

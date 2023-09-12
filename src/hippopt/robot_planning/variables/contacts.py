@@ -5,9 +5,9 @@ import numpy as np
 from hippopt import (
     CompositeType,
     OptimizationObject,
+    OverridableVariable,
     Parameter,
     StorageType,
-    Variable,
     default_composite_field,
     default_storage_field,
 )
@@ -61,8 +61,8 @@ class ContactPointDescriptor(OptimizationObject):
 
 @dataclasses.dataclass
 class ContactPointState(OptimizationObject):
-    p: StorageType = default_storage_field(Variable)
-    f: StorageType = default_storage_field(Variable)
+    p: StorageType = default_storage_field(OverridableVariable)
+    f: StorageType = default_storage_field(OverridableVariable)
 
     descriptor: CompositeType[ContactPointDescriptor] = default_composite_field(
         factory=ContactPointDescriptor, time_varying=False
@@ -81,8 +81,8 @@ class ContactPointState(OptimizationObject):
 
 @dataclasses.dataclass
 class ContactPointStateDerivative(OptimizationObject):
-    v: StorageType = default_storage_field(Variable)
-    f_dot: StorageType = default_storage_field(Variable)
+    v: StorageType = default_storage_field(OverridableVariable)
+    f_dot: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self) -> None:
         self.v = np.zeros(3)

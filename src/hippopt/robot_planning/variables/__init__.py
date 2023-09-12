@@ -1,1 +1,1 @@
-from . import contacts, floating_base
+from . import contacts, floating_base, humanoid
