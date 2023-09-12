@@ -37,7 +37,9 @@ jobs:
       - name: Dependencies
         shell: bash -l {0}
         run: |
+          mamba install ipopt=3.14.12=*_0 # Workaround for https://github.com/ami-iit/hippopt/issues/8
           mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree
+          mamba list
 
       - name: Install
         shell: bash  -l {0}
