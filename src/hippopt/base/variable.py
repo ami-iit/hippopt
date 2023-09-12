@@ -23,6 +23,7 @@ class Variable(OptimizationObject):
         TimeDependent=True,
         TimeExpansion=TimeExpansion.List,
         VariableType=VariableType.continuous,
+        OverrideIfComposite=False,
     )
 
     @classmethod
@@ -38,3 +39,15 @@ class Variable(OptimizationObject):
         cls_dict[cls.VariableTypeField] = variable_type
 
         return cls_dict
+
+
+@dataclasses.dataclass
+class OverridableVariable(Variable):
+    """"""
+
+    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
+        StorageType=Variable.StorageTypeValue,
+        TimeDependent=True,
+        TimeExpansion=TimeExpansion.List,
+        OverrideIfComposite=True,
+    )

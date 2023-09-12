@@ -23,8 +23,13 @@ class OptimizationObject(abc.ABC):
     StorageTypeField: ClassVar[str] = "StorageType"
     TimeDependentField: ClassVar[str] = "TimeDependent"
     TimeExpansionField: ClassVar[str] = "TimeExpansion"
+    OverrideIfCompositeField: ClassVar[str] = "OverrideIfComposite"
+    CompositeTypeField: ClassVar[str] = "CompositeType"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
-        StorageType=StorageType, TimeDependent=False, TimeExpansion=TimeExpansion.List
+        StorageType=StorageTypeValue,
+        TimeDependent=False,
+        TimeExpansion=TimeExpansion.List,
+        OverrideIfComposite=False,
     )
 
     @classmethod
@@ -46,8 +51,15 @@ def time_varying_metadata(time_varying: bool = True):
     return {OptimizationObject.TimeDependentField: time_varying}
 
 
-def default_composite_field(factory=None, time_varying: bool = True):
+def default_composite_field(
+    cls: Type[OptimizationObject] = None, factory=None, time_varying: bool = True
+):
+    cls_dict = time_varying_metadata(time_varying)
+    cls_dict[OptimizationObject.CompositeTypeField] = (
+        cls.StorageTypeMetadata if cls is not None else None
+    )
+
     return dataclasses.field(
         default_factory=factory,
-        metadata=time_varying_metadata(time_varying),
+        metadata=cls_dict,
     )

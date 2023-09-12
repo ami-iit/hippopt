@@ -68,6 +68,7 @@ class OptiSolver(OptimizationSolver):
     _guess: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
+    _objects_type_map: dict[cs.MX, str] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
@@ -91,6 +92,7 @@ class OptiSolver(OptimizationSolver):
         )
         self._cost_expressions = {}
         self._constraint_expressions = {}
+        self._objects_type_map = {}
 
     def _generate_opti_object(
         self, storage_type: str, name: str, value: StorageType
@@ -113,15 +115,19 @@ class OptiSolver(OptimizationSolver):
             value = value * np.ones((1, 1))
 
         if storage_type is Variable.StorageTypeValue:
-            return self._solver.variable(*value.shape)
+            opti_object = self._solver.variable(*value.shape)
+            self._objects_type_map[opti_object] = Variable.StorageTypeValue
+            return opti_object
 
         if storage_type is Parameter.StorageTypeValue:
-            return self._solver.parameter(*value.shape)
+            opti_object = self._solver.parameter(*value.shape)
+            self._objects_type_map[opti_object] = Parameter.StorageTypeValue
+            return opti_object
 
         raise ValueError("Unsupported input storage type")
 
     def _generate_objects_from_instance(
-        self, input_structure: TOptimizationObject
+        self, input_structure: TOptimizationObject, parent_metadata: dict
     ) -> TOptimizationObject:
         output = copy.deepcopy(input_structure)
 
@@ -144,10 +150,34 @@ class OptiSolver(OptimizationSolver):
                 isinstance(composite_value, OptimizationObject)
                 or list_of_optimization_objects
             ):
+                new_parent_metadata = parent_metadata
+                has_composite_metadata = (
+                    OptimizationObject.CompositeTypeField in field.metadata
+                    and field.metadata[OptimizationObject.CompositeTypeField]
+                    is not None
+                )
+                if has_composite_metadata:
+                    composite_metadata = field.metadata[
+                        OptimizationObject.CompositeTypeField
+                    ]
+                    use_old_metadata = (
+                        parent_metadata is not None
+                        and OptimizationObject.OverrideIfCompositeField
+                        in composite_metadata
+                        and composite_metadata[
+                            OptimizationObject.OverrideIfCompositeField
+                        ]
+                    )
+
+                    if not use_old_metadata:
+                        new_parent_metadata = composite_metadata
+
                 output.__setattr__(
                     field.name,
                     self.generate_optimization_objects(
-                        input_structure=composite_value, fill_initial_guess=False
+                        input_structure=composite_value,
+                        fill_initial_guess=False,
+                        _parent_metadata=new_parent_metadata,
                     ),
                 )
                 continue
@@ -156,11 +186,26 @@ class OptiSolver(OptimizationSolver):
                 value_list = composite_value if is_list else [composite_value]
                 output_value = []
                 for value in value_list:
+                    should_override = (
+                        OptimizationObject.OverrideIfCompositeField in field.metadata
+                        and field.metadata[OptimizationObject.OverrideIfCompositeField]
+                    )
+                    parent_can_override = (
+                        parent_metadata is not None
+                        and OptimizationObject.StorageTypeField in parent_metadata
+                    )
+                    if should_override and parent_can_override:
+                        storage_type = parent_metadata[
+                            OptimizationObject.StorageTypeField
+                        ]
+                    else:
+                        storage_type = field.metadata[
+                            OptimizationObject.StorageTypeField
+                        ]
+
                     output_value.append(
                         self._generate_opti_object(
-                            storage_type=field.metadata[
-                                OptimizationObject.StorageTypeField
-                            ],
+                            storage_type=storage_type,
                             name=field.name,
                             value=value,
                         )
@@ -175,14 +220,16 @@ class OptiSolver(OptimizationSolver):
         return output
 
     def _generate_objects_from_list(
-        self, input_structure: list[TOptimizationObject]
+        self, input_structure: list[TOptimizationObject], parent_metadata: dict
     ) -> list[TOptimizationObject]:
         assert isinstance(input_structure, list)
 
         output = copy.deepcopy(input_structure)
         for i in range(len(output)):
             output[i] = self.generate_optimization_objects(
-                input_structure=output[i], fill_initial_guess=False
+                input_structure=output[i],
+                fill_initial_guess=False,
+                _parent_metadata=parent_metadata,
             )
 
         self._variables = output
@@ -243,10 +290,8 @@ class OptiSolver(OptimizationSolver):
 
         return output
 
-    def _set_opti_guess(
-        self, storage_type: str, variable: cs.MX, value: np.ndarray
-    ) -> None:
-        match storage_type:
+    def _set_opti_guess(self, variable: cs.MX, value: np.ndarray) -> None:
+        match self._objects_type_map[variable]:
             case Variable.StorageTypeValue:
                 self._solver.set_initial(variable, value)
             case Parameter.StorageTypeValue:
@@ -355,7 +400,6 @@ class OptiSolver(OptimizationSolver):
                     )
 
                 self._set_opti_guess(
-                    storage_type=field.metadata[OptimizationObject.StorageTypeField],
                     variable=corresponding_value,
                     value=guess,
                 )
@@ -417,12 +461,13 @@ class OptiSolver(OptimizationSolver):
 
             if not isinstance(value, np.ndarray):
                 raise ValueError(
-                    "The guess for the field "
+                    "The field "
                     + base_name
                     + field.name
                     + "["
                     + str(i)
-                    + "] is supposed to be an array (or even a float if scalar)."
+                    + "] is marked as a variable or a parameter. Its guess "
+                    + "is supposed to be an array (or even a float if scalar)."
                 )
 
             input_shape = value.shape if len(value.shape) > 1 else (value.shape[0], 1)
@@ -439,7 +484,6 @@ class OptiSolver(OptimizationSolver):
                 )
 
             self._set_opti_guess(
-                storage_type=field.metadata[OptimizationObject.StorageTypeField],
                 variable=corresponding_value[i],
                 value=value,
             )
@@ -454,12 +498,18 @@ class OptiSolver(OptimizationSolver):
                 "The input structure is neither an optimization object nor a list."
             )
 
+        parent_metadata = (
+            kwargs["_parent_metadata"] if "_parent_metadata" in kwargs else None
+        )
+
         if isinstance(input_structure, OptimizationObject):
             output = self._generate_objects_from_instance(
-                input_structure=input_structure
+                input_structure=input_structure, parent_metadata=parent_metadata
             )
         else:
-            output = self._generate_objects_from_list(input_structure=input_structure)
+            output = self._generate_objects_from_list(
+                input_structure=input_structure, parent_metadata=parent_metadata
+            )
 
         fill_initial_guess = (
             kwargs["fill_initial_guess"] if "fill_initial_guess" in kwargs else True
@@ -587,3 +637,8 @@ class OptiSolver(OptimizationSolver):
 
     def get_constraint_multipliers(self) -> dict[str, np.ndarray]:
         return self._constraint_values
+
+    def get_object_type(self, obj: cs.MX) -> str:
+        if obj not in self._objects_type_map:
+            raise ValueError("The object is not an optimization object.")
+        return self._objects_type_map[obj]

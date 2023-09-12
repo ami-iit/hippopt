@@ -16,6 +16,7 @@ class Parameter(OptimizationObject):
         StorageType=StorageTypeValue,
         TimeDependent=False,
         TimeExpansion=TimeExpansion.List,
+        OverrideIfComposite=False,
     )
 
     @classmethod
@@ -29,3 +30,15 @@ class Parameter(OptimizationObject):
         cls_dict[OptimizationObject.TimeExpansionField] = time_expansion
 
         return cls_dict
+
+
+@dataclasses.dataclass
+class OverridableParameter(Parameter):
+    """"""
+
+    StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
+        StorageType=Parameter.StorageTypeValue,
+        TimeDependent=False,
+        TimeExpansion=TimeExpansion.List,
+        OverrideIfComposite=True,
+    )
