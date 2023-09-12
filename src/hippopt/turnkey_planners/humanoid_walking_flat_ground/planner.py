@@ -249,50 +249,6 @@ class References(hp.OptimizationObject):
 
 
 @dataclasses.dataclass
-class InitialState(hp.OptimizationObject):
-    contact_points: hp.CompositeType[
-        hp_rp.FeetContactPoints
-    ] = hp.default_composite_field(factory=hp_rp.FeetContactPoints, time_varying=False)
-
-    kinematics: hp.CompositeType[
-        hp_rp.FloatingBaseSystemState
-    ] = hp.default_composite_field(
-        factory=hp_rp.FloatingBaseSystemState, time_varying=False
-    )
-
-    com: hp.StorageType = hp.default_storage_field(hp.Parameter)
-    centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Parameter)
-
-    settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
-    kin_dyn_object: dataclasses.InitVar[
-        adam.casadi.KinDynComputations
-    ] = dataclasses.field(default=None)
-
-    def __post_init__(
-        self,
-        settings: Settings,
-        kin_dyn_object: adam.casadi.KinDynComputations,
-    ) -> None:
-        if settings is not None:
-            self.contact_points.left = [
-                hp_rp.ContactPointState(descriptor=point)
-                for point in settings.contact_points.left
-            ]
-            self.contact_points.right = [
-                hp_rp.ContactPointState(descriptor=point)
-                for point in settings.contact_points.right
-            ]
-        if kin_dyn_object is not None:
-            self.kinematics = hp_rp.FloatingBaseSystemState(
-                number_of_joints_state=kin_dyn_object.NDoF
-            )
-        else:
-            self.kinematics = hp_rp.FloatingBaseSystemState(number_of_joints_state=0)
-        self.com = np.zeros(3)
-        self.centroidal_momentum = np.zeros(6)
-
-
-@dataclasses.dataclass
 class Variables(hp.OptimizationObject):
     contact_points: hp.CompositeType[
         FeetContactPointsExtended
@@ -302,11 +258,11 @@ class Variables(hp.OptimizationObject):
     centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
     kinematics: hp.CompositeType[hp_rp.FloatingBaseSystem] = hp.default_composite_field(
-        factory=hp_rp.FloatingBaseSystem
+        cls=hp.Variable, factory=hp_rp.FloatingBaseSystem
     )
 
-    initial_state: hp.CompositeType[InitialState] = hp.default_composite_field(
-        factory=InitialState, time_varying=False
+    initial_state: hp.CompositeType[hp_rp.HumanoidState] = hp.default_composite_field(
+        cls=hp.Parameter, factory=hp_rp.HumanoidState, time_varying=False
     )
 
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -359,8 +315,9 @@ class Variables(hp.OptimizationObject):
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=kin_dyn_object.NDoF)
 
-        self.initial_state = InitialState(
-            settings=settings, kin_dyn_object=kin_dyn_object
+        self.initial_state = hp_rp.HumanoidState(
+            contact_point_descriptors=settings.contact_points,
+            number_of_joints=kin_dyn_object.NDoF,
         )
 
         self.dt = settings.time_step
@@ -1171,7 +1128,7 @@ class HumanoidWalkingFlatGround:
                 guess.references[i] = references
         self.set_initial_guess(guess)
 
-    def set_initial_state(self, initial_state: InitialState) -> None:
+    def set_initial_state(self, initial_state: hp_rp.HumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.initial_state = initial_state
         self.set_initial_guess(guess)
