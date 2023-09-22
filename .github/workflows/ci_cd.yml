@@ -34,12 +34,6 @@ jobs:
           channels: conda-forge,robotology
           channel-priority: true
 
-      - name: Python Crash Workaround [Ubuntu]
-        if: matrix.os == 'ubuntu-22.04'
-        shell: bash -l {0}
-        run: |
-          mamba install libgomp=12.* # Workaround for https://github.com/ami-iit/hippopt/issues/8, see https://github.com/conda-forge/casadi-feedstock/issues/91#issuecomment-1717093459
-
       - name: Dependencies
         shell: bash -l {0}
         run: |
