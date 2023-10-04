@@ -108,3 +108,48 @@ def dcc_complementarity_margin(
         ["dcc_complementarity_margin"],
         options,
     )
+
+
+def relaxed_complementarity_margin(
+    terrain: TerrainDescriptor,
+    point_position_name: str = None,
+    point_force_name: str = "point_force",
+    relaxed_complementarity_epsilon_name: str = "eps",
+    options: dict = None,
+    **_
+) -> cs.Function:
+    options = {} if options is None else options
+    point_position_name = (
+        terrain.get_point_position_name()
+        if point_position_name is None
+        else point_position_name
+    )
+    point_position = cs.MX.sym(point_position_name, 3)
+    point_force = cs.MX.sym(point_force_name, 3)
+    eps = cs.MX.sym(relaxed_complementarity_epsilon_name, 1)
+
+    normal_direction_fun = terrain.normal_direction_function()
+    height_function = terrain.height_function()
+
+    height = height_function(point_position)
+    normal_direction = normal_direction_fun(point_position)
+    normal_force = normal_direction.T @ point_force
+
+    margin = eps - height * normal_force
+
+    return cs.Function(
+        "relaxed_complementarity_margin",
+        [
+            point_position,
+            point_force,
+            eps,
+        ],
+        [margin],
+        [
+            point_position_name,
+            point_force_name,
+            relaxed_complementarity_epsilon_name,
+        ],
+        ["relaxed_complementarity_margin"],
+        options,
+    )

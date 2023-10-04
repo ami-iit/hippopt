@@ -6,6 +6,7 @@ from .dynamics.centroidal import (
 from .expressions.complementarity import (
     dcc_complementarity_margin,
     dcc_planar_complementarity,
+    relaxed_complementarity_margin,
 )
 from .expressions.contacts import (
     contact_points_centroid,
