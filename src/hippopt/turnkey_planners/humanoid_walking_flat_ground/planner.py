@@ -962,20 +962,13 @@ class HumanoidWalkingFlatGround:
         problem = self.ocp.problem
 
         # Force ratio regularization
-        def sum_of_other_forces(
-            input_points: list[ExtendedContactPoint], point_index: int
-        ) -> cs.MX:
-            output_force = cs.MX.zeros(3, 1)
-            for f in range(len(input_points)):
-                if f != point_index:
-                    output_force += input_points[f].f
-            return output_force
+        sum_of_forces = cs.MX.zeros(3, 1)
+        for point in points:
+            sum_of_forces += point.f
 
         for i, point in enumerate(points):
             alpha = references.points[i].desired_force_ratio
-            force_error = point.f - alpha * sum_of_other_forces(
-                input_points=points, point_index=i
-            )
+            force_error = point.f - alpha * sum_of_forces
 
             problem.add_expression_to_horizon(
                 expression=cs.sumsqr(force_error),
