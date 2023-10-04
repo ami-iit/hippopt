@@ -1,5 +1,6 @@
 import dataclasses
 
+import liecasadi
 import numpy as np
 
 from hippopt import (
@@ -89,6 +90,14 @@ class ContactPointStateDerivative(OptimizationObject):
         self.f_dot = np.zeros(3)
 
 
+class FootContactState(list[ContactPointState]):
+    def set_from_parent_frame_transform(self, transform: liecasadi.SE3):
+        for contact_point in self:
+            contact_point.p = transform.translation() + transform.rotation().act(
+                contact_point.descriptor.position_in_foot_frame
+            )
+
+
 @dataclasses.dataclass
 class FeetContactPointDescriptors:
     left: list[ContactPointDescriptor] = dataclasses.field(default_factory=list)
@@ -97,5 +106,5 @@ class FeetContactPointDescriptors:
 
 @dataclasses.dataclass
 class FeetContactPoints(OptimizationObject):
-    left: list[ContactPointState] = default_composite_field(factory=list)
-    right: list[ContactPointState] = default_composite_field(factory=list)
+    left: FootContactState = default_composite_field(factory=FootContactState)
+    right: FootContactState = default_composite_field(factory=FootContactState)
