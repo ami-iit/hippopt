@@ -43,11 +43,11 @@ class HumanoidState(OptimizationObject):
     ) -> None:
         if contact_point_descriptors is not None:
             self.contact_points.left = [
-                ContactPointState(descriptor=point)
+                ContactPointState(input_descriptor=point)
                 for point in contact_point_descriptors.left
             ]
             self.contact_points.right = [
-                ContactPointState(descriptor=point)
+                ContactPointState(input_descriptor=point)
                 for point in contact_point_descriptors.right
             ]
         number_of_joints = number_of_joints if number_of_joints is not None else 0
