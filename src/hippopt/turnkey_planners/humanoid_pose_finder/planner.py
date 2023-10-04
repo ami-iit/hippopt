@@ -24,6 +24,8 @@ class Settings:
 
     base_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
+    com_regularization_cost_multiplier: float = dataclasses.field(default=None)
+
     joint_regularization_cost_weights: np.ndarray = dataclasses.field(default=None)
     joint_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
@@ -61,6 +63,7 @@ class Settings:
             and self.static_friction is not None
             and self.maximum_joint_positions is not None
             and self.minimum_joint_positions is not None
+            and self.com_regularization_cost_multiplier is not None
             and self.base_quaternion_cost_multiplier is not None
             and self.joint_regularization_cost_weights is not None
             and self.joint_regularization_cost_multiplier is not None
@@ -318,6 +321,14 @@ class Planner:
             expression=cs.sumsqr(quaternion_error),
             name="base_quaternion_error",
             scaling=self.settings.base_quaternion_cost_multiplier,
+        )
+
+        # Desired center of mass position
+        com_position_error = variables.state.com - variables.references.com
+        problem.add_cost(
+            expression=cs.sumsqr(com_position_error),
+            name="com_position_error",
+            scaling=self.settings.com_regularization_cost_multiplier,
         )
 
         # Desired joint positions
