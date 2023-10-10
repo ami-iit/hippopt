@@ -378,12 +378,12 @@ class OptiSolver(OptimizationSolver):
                 ):
                     guess = np.array(guess)
 
-                if not isinstance(guess, np.ndarray):
+                if not isinstance(guess, np.ndarray) and not isinstance(guess, cs.DM):
                     raise ValueError(
                         "The guess for the field "
                         + base_name
                         + field.name
-                        + " is not an numpy array."
+                        + " is neither an numpy nor a DM array."
                     )
 
                 input_shape = (
