@@ -69,6 +69,8 @@ class OptiSolver(OptimizationSolver):
         default=None
     )
     _objects_type_map: dict[cs.MX, str] = dataclasses.field(default=None)
+    _free_parameters: list[str] = dataclasses.field(default=None)
+    _parameters_map: dict[cs.MX, str] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
@@ -93,6 +95,8 @@ class OptiSolver(OptimizationSolver):
         self._cost_expressions = {}
         self._constraint_expressions = {}
         self._objects_type_map = {}
+        self._free_parameters = []
+        self._parameters_map = {}
 
     def _generate_opti_object(
         self, storage_type: str, name: str, value: StorageType
@@ -122,12 +126,17 @@ class OptiSolver(OptimizationSolver):
         if storage_type is Parameter.StorageTypeValue:
             opti_object = self._solver.parameter(*value.shape)
             self._objects_type_map[opti_object] = Parameter.StorageTypeValue
+            self._free_parameters.append(name)
+            self._parameters_map[opti_object] = name
             return opti_object
 
         raise ValueError("Unsupported input storage type")
 
     def _generate_objects_from_instance(
-        self, input_structure: TOptimizationObject, parent_metadata: dict
+        self,
+        input_structure: TOptimizationObject,
+        parent_metadata: dict,
+        base_name: str,
     ) -> TOptimizationObject:
         output = copy.deepcopy(input_structure)
 
@@ -178,6 +187,7 @@ class OptiSolver(OptimizationSolver):
                         input_structure=composite_value,
                         fill_initial_guess=False,
                         _parent_metadata=new_parent_metadata,
+                        _base_name=base_name + field.name + ".",
                     ),
                 )
                 continue
@@ -206,7 +216,7 @@ class OptiSolver(OptimizationSolver):
                     output_value.append(
                         self._generate_opti_object(
                             storage_type=storage_type,
-                            name=field.name,
+                            name=base_name + field.name,
                             value=value,
                         )
                     )
@@ -220,7 +230,10 @@ class OptiSolver(OptimizationSolver):
         return output
 
     def _generate_objects_from_list(
-        self, input_structure: list[TOptimizationObject], parent_metadata: dict
+        self,
+        input_structure: list[TOptimizationObject],
+        parent_metadata: dict,
+        base_name: str,
     ) -> list[TOptimizationObject]:
         assert isinstance(input_structure, list)
 
@@ -230,6 +243,7 @@ class OptiSolver(OptimizationSolver):
                 input_structure=output[i],
                 fill_initial_guess=False,
                 _parent_metadata=parent_metadata,
+                _base_name=base_name + "[" + str(i) + "].",
             )
 
         self._variables = output
@@ -296,6 +310,9 @@ class OptiSolver(OptimizationSolver):
                 self._solver.set_initial(variable, value)
             case Parameter.StorageTypeValue:
                 self._solver.set_value(variable, value)
+                parameter_name = self._parameters_map[variable]
+                if parameter_name in self._free_parameters:
+                    self._free_parameters.remove(parameter_name)
 
         return
 
@@ -502,13 +519,19 @@ class OptiSolver(OptimizationSolver):
             kwargs["_parent_metadata"] if "_parent_metadata" in kwargs else None
         )
 
+        base_name = kwargs["_base_name"] if "_base_name" in kwargs else ""
+
         if isinstance(input_structure, OptimizationObject):
             output = self._generate_objects_from_instance(
-                input_structure=input_structure, parent_metadata=parent_metadata
+                input_structure=input_structure,
+                parent_metadata=parent_metadata,
+                base_name=base_name,
             )
         else:
             output = self._generate_objects_from_list(
-                input_structure=input_structure, parent_metadata=parent_metadata
+                input_structure=input_structure,
+                parent_metadata=parent_metadata,
+                base_name=base_name,
             )
 
         fill_initial_guess = (
@@ -568,6 +591,10 @@ class OptiSolver(OptimizationSolver):
     def solve(self) -> None:
         self._cost = self._cost if self._cost is not None else cs.MX(0)
         self._solver.minimize(self._cost)
+        if len(self._free_parameters):
+            raise ValueError(
+                "The following parameters are not set: " + str(self._free_parameters)
+            )
         try:
             self._opti_solution = self._solver.solve()
         except Exception as err:  # noqa
