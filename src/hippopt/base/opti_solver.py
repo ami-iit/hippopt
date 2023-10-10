@@ -249,6 +249,12 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
+    def _get_opti_solution(self, variable: cs.MX) -> StorageType:
+        try:
+            return self._opti_solution.value(variable)
+        except Exception as err:  # noqa
+            return None
+
     def _generate_solution_output(
         self,
         variables: TOptimizationObject
@@ -279,9 +285,9 @@ class OptiSolver(OptimizationSolver):
                 if isinstance(var, list):
                     output_val = []
                     for el in var:
-                        output_val.append(np.array(self._opti_solution.value(el)))
+                        output_val.append(np.array(self._get_opti_solution(el)))
                 else:
-                    output_val = np.array(self._opti_solution.value(var))
+                    output_val = np.array(self._get_opti_solution(var))
 
                 output.__setattr__(field.name, output_val)
                 continue
