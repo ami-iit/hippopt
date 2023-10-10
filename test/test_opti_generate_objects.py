@@ -34,12 +34,17 @@ class AggregateClass(OptimizationObject):
     aggregated: CompositeType[CustomVariable] = default_composite_field(
         factory=CustomVariable
     )
+    aggregated_list: CompositeType[list[CustomVariable]] = default_composite_field(
+        factory=list
+    )
     other_parameter: StorageType = default_storage_field(cls=Parameter)
     other: str = ""
 
     def __post_init__(self):
         self.other_parameter = np.ones(3)
         self.other = "untouched"
+        for _ in range(3):
+            self.aggregated_list.append(CustomVariable())
 
 
 def test_generate_objects():
@@ -54,8 +59,17 @@ def test_generate_objects():
     assert opti_var.other_parameter.shape == (3, 1)
     assert isinstance(opti_var.aggregated.scalar, cs.MX)
     assert opti_var.aggregated.scalar.shape == (1, 1)
+    assert isinstance(opti_var.aggregated_list, list)
+    for opti_var_list in opti_var.aggregated_list:
+        assert isinstance(opti_var_list.parameter, cs.MX)
+        assert opti_var_list.parameter.shape == (3, 1)
+        assert isinstance(opti_var_list.variable, cs.MX)
+        assert opti_var_list.variable.shape == (3, 1)
+        assert isinstance(opti_var_list.scalar, cs.MX)
+        assert opti_var_list.scalar.shape == (1, 1)
     assert opti_var.other == "untouched"
     assert solver.get_optimization_objects() is opti_var
+    assert len(solver.get_free_parameters_names()) == 0
 
 
 def test_generate_objects_list():

@@ -424,7 +424,9 @@ class OptiSolver(OptimizationSolver):
 
             composite_variable_guess = initial_guess.__getattribute__(field.name)
 
-            if not isinstance(composite_variable_guess, OptimizationObject):
+            if not isinstance(
+                composite_variable_guess, OptimizationObject
+            ) and not isinstance(composite_variable_guess, list):
                 continue
 
             if not hasattr(corresponding_variable, field.name):
@@ -669,3 +671,6 @@ class OptiSolver(OptimizationSolver):
         if obj not in self._objects_type_map:
             raise ValueError("The object is not an optimization object.")
         return self._objects_type_map[obj]
+
+    def get_free_parameters_names(self) -> list[str]:
+        return self._free_parameters
