@@ -34,6 +34,7 @@ from .variables.contacts import (
     ContactPointStateDerivative,
     FeetContactPointDescriptors,
     FeetContactPoints,
+    FootContactState,
 )
 from .variables.floating_base import (
     FloatingBaseSystem,

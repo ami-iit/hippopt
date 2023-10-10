@@ -97,6 +97,19 @@ class FootContactState(list[ContactPointState]):
                 contact_point.descriptor.position_in_foot_frame
             )
 
+    @staticmethod
+    def from_parent_frame_transform(
+        descriptor: list[ContactPointDescriptor], transform: liecasadi.SE3
+    ):
+        foot_contact_state = FootContactState()
+        for contact_point_descriptor in descriptor:
+            foot_contact_state.append(
+                ContactPointState(input_descriptor=contact_point_descriptor)
+            )
+
+        foot_contact_state.set_from_parent_frame_transform(transform)
+        return foot_contact_state
+
 
 @dataclasses.dataclass
 class FeetContactPointDescriptors:
