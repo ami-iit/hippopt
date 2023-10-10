@@ -2,6 +2,7 @@ import argparse
 
 import casadi as cs
 import idyntree.bindings as idyntree
+import liecasadi
 import numpy as np
 
 import hippopt.robot_planning as hp_rp
@@ -94,6 +95,7 @@ if __name__ == "__main__":
     planner_settings.base_quaternion_cost_multiplier = 50.0
     planner_settings.joint_regularization_cost_multiplier = 0.1
     planner_settings.force_regularization_cost_multiplier = 0.2
+    planner_settings.com_regularization_cost_multiplier = 10.0
     planner_settings.average_force_regularization_cost_multiplier = 10.0
     planner_settings.point_position_regularization_cost_multiplier = 100.0
     planner_settings.casadi_function_options = {}
@@ -101,3 +103,60 @@ if __name__ == "__main__":
     planner_settings.casadi_solver_options = {}
 
     planner = pose_finder.Planner(settings=planner_settings)
+
+    references = hp_rp.HumanoidState(
+        contact_point_descriptors=planner_settings.contact_points,
+        number_of_joints=number_of_joints,
+    )
+
+    references.com = np.array([0.0, 0.0, 0.7])
+    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    references.contact_points.left = hp_rp.FootContactState.from_parent_frame_transform(
+        descriptor=planner_settings.contact_points.left,
+        transform=desired_left_foot_pose,
+    )
+    references.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=planner_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+
+    references.kinematics.base.quaternion_xyzw = (
+        liecasadi.SO3.Identity().as_quat().coeffs()
+    )
+
+    references.kinematics.joints.positions = np.deg2rad(
+        [
+            7,
+            0.12,
+            -0.01,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+        ]
+    )
+
+    planner.set_references(references)
