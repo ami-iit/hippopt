@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import logging
 from typing import Any, ClassVar
 
 import casadi as cs
@@ -71,6 +72,8 @@ class OptiSolver(OptimizationSolver):
     _objects_type_map: dict[cs.MX, str] = dataclasses.field(default=None)
     _free_parameters: list[str] = dataclasses.field(default=None)
     _parameters_map: dict[cs.MX, str] = dataclasses.field(default=None)
+    _variables_map: dict[cs.MX, str] = dataclasses.field(default=None)
+    _logger: logging.Logger = dataclasses.field(default=None)
 
     def __post_init__(
         self,
@@ -97,6 +100,8 @@ class OptiSolver(OptimizationSolver):
         self._objects_type_map = {}
         self._free_parameters = []
         self._parameters_map = {}
+        self._variables_map = {}
+        self._logger = logging.getLogger("[hippopt::opti_solver]")
 
     def _generate_opti_object(
         self, storage_type: str, name: str, value: StorageType
@@ -119,11 +124,14 @@ class OptiSolver(OptimizationSolver):
             value = value * np.ones((1, 1))
 
         if storage_type is Variable.StorageTypeValue:
+            self._logger.debug("Creating variable " + name)
             opti_object = self._solver.variable(*value.shape)
             self._objects_type_map[opti_object] = Variable.StorageTypeValue
+            self._variables_map[opti_object] = name
             return opti_object
 
         if storage_type is Parameter.StorageTypeValue:
+            self._logger.debug("Creating parameter " + name)
             opti_object = self._solver.parameter(*value.shape)
             self._objects_type_map[opti_object] = Parameter.StorageTypeValue
             self._free_parameters.append(name)
@@ -253,6 +261,12 @@ class OptiSolver(OptimizationSolver):
         try:
             return self._opti_solution.value(variable)
         except Exception as err:  # noqa
+            self._logger.debug(
+                "Failed to get the solution for variable "
+                + self._variables_map[variable]
+                + ". Message: "
+                + str(err)
+            )
             return None
 
     def _generate_solution_output(
@@ -313,8 +327,16 @@ class OptiSolver(OptimizationSolver):
     def _set_opti_guess(self, variable: cs.MX, value: np.ndarray) -> None:
         match self._objects_type_map[variable]:
             case Variable.StorageTypeValue:
+                self._logger.debug(
+                    "Setting initial value for variable "
+                    + self._variables_map[variable]
+                )
                 self._solver.set_initial(variable, value)
             case Parameter.StorageTypeValue:
+                self._logger.debug(
+                    "Setting initial value for parameter "
+                    + self._parameters_map[variable]
+                )
                 self._solver.set_value(variable, value)
                 parameter_name = self._parameters_map[variable]
                 if parameter_name in self._free_parameters:
