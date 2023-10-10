@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 import casadi as cs
 import idyntree.bindings as idyntree
@@ -9,6 +10,8 @@ import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
     parser = argparse.ArgumentParser(
         description="Trajectory Optimization of a forward walking motion on ergoCub.",
     )
@@ -160,3 +163,5 @@ if __name__ == "__main__":
     )
 
     planner.set_references(references)
+
+    output = planner.solve()
