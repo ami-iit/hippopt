@@ -101,7 +101,7 @@ class OptiSolver(OptimizationSolver):
         self._free_parameters = []
         self._parameters_map = {}
         self._variables_map = {}
-        self._logger = logging.getLogger("[hippopt::opti_solver]")
+        self._logger = logging.getLogger("[hippopt::OptiSolver]")
 
     def _generate_opti_object(
         self, storage_type: str, name: str, value: StorageType
