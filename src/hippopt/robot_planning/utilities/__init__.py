@@ -1,1 +1,1 @@
-from . import terrain_descriptor
+from . import humanoid_state_visualizer, terrain_descriptor

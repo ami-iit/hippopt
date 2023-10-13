@@ -27,6 +27,10 @@ from .expressions.quaternion import (
     quaternion_xyzw_normalization,
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
+from .utilities.humanoid_state_visualizer import (
+    HumanoidStateVisualizer,
+    HumanoidStateVisualizerSettings,
+)
 from .utilities.terrain_descriptor import PlanarTerrain, TerrainDescriptor
 from .variables.contacts import (
     ContactPointDescriptor,
