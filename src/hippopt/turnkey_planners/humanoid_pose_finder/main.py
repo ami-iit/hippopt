@@ -165,3 +165,14 @@ if __name__ == "__main__":
     planner.set_references(references)
 
     output = planner.solve()
+
+    visualizer_settings = hp_rp.HumanoidStateVisualizerSettings()
+    visualizer_settings.robot_model = planner_settings.robot_urdf
+    visualizer_settings.considered_joints = planner_settings.joints_name_list
+    visualizer_settings.terrain = planner_settings.terrain
+    visualizer_settings.working_folder = "./"
+
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+
+    print("Press [Enter] to close.")
+    input()
