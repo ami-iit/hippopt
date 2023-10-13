@@ -9,9 +9,11 @@ class TerrainDescriptor(abc.ABC):
     _height_function: cs.Function = dataclasses.field(default=None)
     _normal_direction_function: cs.Function = dataclasses.field(default=None)
     _orientation_function: cs.Function = dataclasses.field(default=None)
-    _point_position_name: str = dataclasses.field(default=None)
+    _point_position_name: str = dataclasses.field(default="point_position")
     _options: dict = dataclasses.field(default=None)
-    point_position_name: dataclasses.InitVar[str] = dataclasses.field(default=None)
+    point_position_name: dataclasses.InitVar[str] = dataclasses.field(
+        default="point_position"
+    )
     options: dataclasses.InitVar[dict] = dataclasses.field(default=None)
 
     def __post_init__(
