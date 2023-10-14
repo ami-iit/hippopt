@@ -2,17 +2,24 @@ import dataclasses
 import logging
 import os
 
+import idyntree.bindings
+import liecasadi
 import numpy as np
 from idyntree.visualize import MeshcatVisualizer
 
 import hippopt.deps.surf2stl as surf2stl
 from hippopt.robot_planning.utilities.terrain_descriptor import TerrainDescriptor
+from hippopt.robot_planning.variables.humanoid import (
+    FeetContactPointDescriptors,
+    HumanoidState,
+)
 
 
 @dataclasses.dataclass
 class HumanoidStateVisualizerSettings:
     robot_model: str = dataclasses.field(default=None)
     considered_joints: list[str] = dataclasses.field(default=None)
+    contact_points: FeetContactPointDescriptors = dataclasses.field(default=None)
     robot_color: list[float] = dataclasses.field(default=None)
     ground_color: list[float] = dataclasses.field(default=None)
     terrain: TerrainDescriptor = dataclasses.field(default=None)
@@ -22,6 +29,7 @@ class HumanoidStateVisualizerSettings:
     contact_points_radius: float = dataclasses.field(default=None)
     contact_forces_color: list[float] = dataclasses.field(default=None)
     contact_force_radius: float = dataclasses.field(default=None)
+    contact_force_scaling: float = dataclasses.field(default=None)
     working_folder: str = dataclasses.field(default=None)
     ground_mesh_axis_points: int = dataclasses.field(default=None)
     ground_x_limits: list[float] = dataclasses.field(default=None)
@@ -36,6 +44,7 @@ class HumanoidStateVisualizerSettings:
         self.contact_forces_color = [1, 0, 0, 1]
         self.contact_points_radius = 0.01
         self.contact_force_radius = 0.005
+        self.contact_force_scaling = 0.01
         self.ground_x_limits = [-1.5, 1.5]
         self.ground_y_limits = [-1.5, 1.5]
         self.ground_mesh_axis_points = 200
@@ -49,6 +58,9 @@ class HumanoidStateVisualizerSettings:
             ok = False
         if self.considered_joints is None:
             logger.error("considered_joints is not specified.")
+            ok = False
+        if self.contact_points is None:
+            logger.error("contact_points is not specified.")
             ok = False
         if not os.access(self.working_folder, os.W_OK):
             logger.error("working_folder is not writable.")
@@ -118,6 +130,20 @@ class HumanoidStateVisualizer:
         self._viz.load_sphere(
             radius=settings.com_radius, shape_name="CoM", color=settings.com_color
         )
+        for i, point in enumerate(
+            (settings.contact_points.left + settings.contact_points.right)
+        ):
+            self._viz.load_sphere(
+                radius=settings.contact_points_radius,
+                shape_name=f"p_{i}",
+                color=settings.contact_points_color,
+            )
+            self._viz.load_cylinder(
+                radius=settings.contact_force_radius,
+                length=1.0,
+                shape_name=f"f_{i}",
+                color=settings.contact_forces_color,
+            )
 
     def create_ground_urdf(self):
         with open(os.path.join(self._settings.working_folder, "ground.urdf"), "w") as f:
@@ -182,3 +208,47 @@ class HumanoidStateVisualizer:
         surf2stl.write(
             os.path.join(self._settings.working_folder, "ground.stl"), x, y, z
         )
+
+    def visualize(self, state: HumanoidState):
+        self._viz.set_multibody_system_state(
+            state.kinematics.base.position,
+            liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
+            .as_matrix()
+            .full(),
+            state.kinematics.joints.positions,
+            "robot",
+        )
+        self._viz.set_primitive_geometry_transform(
+            state.com,
+            np.eye(3),
+            "CoM",
+        )
+        for i, point in enumerate(
+            (state.contact_points.left + state.contact_points.right)
+        ):
+            self._viz.set_primitive_geometry_transform(
+                point.p,
+                np.eye(3),
+                f"p_{i}",
+            )
+            force_norm = np.linalg.norm(point.f)
+            force_direction = (
+                point.f / force_norm if force_norm > 0 else np.array([0, 0, 1])
+            )
+            direction = idyntree.bindings.Direction()
+            direction.FromPython(force_direction)
+            angle = np.arccos(np.dot(np.array([0, 0, 1]), force_direction))
+            rotation = idyntree.bindings.Rotation.RotAxis(direction, angle).toNumPy()
+            scaling = np.diag([1, 1, self._settings.contact_force_scaling * force_norm])
+            position = (
+                point.p + scaling @ force_direction / 2
+            )  # the origin is in the cylinder center
+            transform = (
+                liecasadi.SE3.from_translation_and_rotation(
+                    position, liecasadi.SO3.from_matrix(rotation)
+                )
+                .as_matrix()
+                .full()
+            )
+            transform[0:3, 0:3] = rotation @ scaling
+            self._viz.viewer[f"f_{i}"].set_transform(transform)
