@@ -64,7 +64,7 @@ if __name__ == "__main__":
             foot_frame="l_sole",
             x_length=0.232,
             y_length=0.1,
-            top_left_point_position=np.array([0.116, 0.5, 0.0]),
+            top_left_point_position=np.array([0.116, 0.05, 0.0]),
         )
     )
     planner_settings.contact_points.right = (
@@ -72,7 +72,7 @@ if __name__ == "__main__":
             foot_frame="r_sole",
             x_length=0.232,
             y_length=0.1,
-            top_left_point_position=np.array([0.116, 0.5, 0.0]),
+            top_left_point_position=np.array([0.116, 0.05, 0.0]),
         )
     )
 
