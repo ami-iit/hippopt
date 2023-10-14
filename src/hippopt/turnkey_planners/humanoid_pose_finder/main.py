@@ -169,10 +169,13 @@ if __name__ == "__main__":
     visualizer_settings = hp_rp.HumanoidStateVisualizerSettings()
     visualizer_settings.robot_model = planner_settings.robot_urdf
     visualizer_settings.considered_joints = planner_settings.joints_name_list
+    visualizer_settings.contact_points = planner_settings.contact_points
     visualizer_settings.terrain = planner_settings.terrain
     visualizer_settings.working_folder = "./"
 
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    output_var = output.values  # type: pose_finder.Variables # noqa
+    visualizer.visualize(output_var.state)
 
     print("Press [Enter] to close.")
     input()
