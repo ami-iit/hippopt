@@ -20,7 +20,7 @@ from .expressions.kinematics import (
     centroidal_momentum_from_kinematics,
     frames_relative_position,
     point_position_from_kinematics,
-    quaternion_error_from_kinematics,
+    rotation_error_from_kinematics,
 )
 from .expressions.quaternion import (
     quaternion_xyzw_error,

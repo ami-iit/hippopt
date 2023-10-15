@@ -202,7 +202,7 @@ def frames_relative_position(
     )
 
 
-def quaternion_error_from_kinematics(
+def rotation_error_from_kinematics(
     kindyn_object: KinDynComputations,
     target_frame: str,
     base_position_name: str = "base_position",
@@ -224,11 +224,11 @@ def quaternion_error_from_kinematics(
 
     target_fk_function = kindyn_object.forward_kinematics_fun(frame=target_frame)
     target_pose = target_fk_function(base_pose, joint_positions)
+    target_orientation = target_pose[:3, :3]
 
-    target_quaternion = liecasadi.SO3.from_matrix(target_pose[:3, :3]).as_quat()
-    quaternion_error_fun = quaternion_xyzw_error(options=options)
-
-    error = quaternion_error_fun(target_quaternion, desired_quaternion)
+    rotation_error = (
+        target_orientation @ liecasadi.SO3.from_quat(desired_quaternion).as_matrix().T
+    )
 
     return cs.Function(
         "quaternion_error_from_kinematics",
@@ -238,13 +238,13 @@ def quaternion_error_from_kinematics(
             joint_positions,
             desired_quaternion,
         ],
-        [error],
+        [rotation_error],
         [
             base_position_name,
             base_quaternion_xyzw_name,
             joint_positions_name,
             desired_quaternion_xyzw_name,
         ],
-        ["quaternion_error"],
+        ["rotation_error"],
         options,
     )
