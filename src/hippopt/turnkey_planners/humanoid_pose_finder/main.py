@@ -59,6 +59,7 @@ if __name__ == "__main__":
     idyntree_model = idyntree_model_loader.model()
 
     planner_settings.root_link = "root_link"
+    planner_settings.desired_frame_quaternion_cost_frame_name = "chest"
 
     planner_settings.contact_points = hp_rp.FeetContactPointDescriptors()
     planner_settings.contact_points.left = (
@@ -96,6 +97,7 @@ if __name__ == "__main__":
     planner_settings.joint_regularization_cost_weights[11:] = 1.0  # legs
 
     planner_settings.base_quaternion_cost_multiplier = 50.0
+    planner_settings.desired_frame_quaternion_cost_multiplier = 100.0
     planner_settings.joint_regularization_cost_multiplier = 0.1
     planner_settings.force_regularization_cost_multiplier = 0.2
     planner_settings.com_regularization_cost_multiplier = 10.0
@@ -107,7 +109,7 @@ if __name__ == "__main__":
 
     planner = pose_finder.Planner(settings=planner_settings)
 
-    references = hp_rp.HumanoidState(
+    references = pose_finder.References(
         contact_point_descriptors=planner_settings.contact_points,
         number_of_joints=number_of_joints,
     )
@@ -133,6 +135,8 @@ if __name__ == "__main__":
     references.kinematics.base.quaternion_xyzw = (
         liecasadi.SO3.Identity().as_quat().coeffs()
     )
+
+    references.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
 
     references.kinematics.joints.positions = np.deg2rad(
         [

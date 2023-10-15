@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import logging
 
 import adam.casadi
 import casadi as cs
@@ -15,6 +16,7 @@ class Settings:
     joints_name_list: list[str] = dataclasses.field(default=None)
     contact_points: hp_rp.FeetContactPointDescriptors = dataclasses.field(default=None)
     root_link: str = dataclasses.field(default=None)
+
     gravity: np.array = dataclasses.field(default=None)
     terrain: hp_rp.TerrainDescriptor = dataclasses.field(default=None)
     relaxed_complementarity_epsilon: float = dataclasses.field(default=None)
@@ -23,6 +25,10 @@ class Settings:
     minimum_joint_positions: np.ndarray = dataclasses.field(default=None)
 
     base_quaternion_cost_multiplier: float = dataclasses.field(default=None)
+
+    desired_frame_quaternion_cost_frame_name: str = dataclasses.field(default=None)
+
+    desired_frame_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
     com_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
@@ -52,25 +58,82 @@ class Settings:
         self.static_friction = 0.3
 
     def is_valid(self) -> bool:
-        return (
-            self.robot_urdf is not None
-            and self.joints_name_list is not None
-            and self.contact_points is not None
-            and self.root_link is not None
-            and self.gravity is not None
-            and self.terrain is not None
-            and self.relaxed_complementarity_epsilon is not None
-            and self.static_friction is not None
-            and self.maximum_joint_positions is not None
-            and self.minimum_joint_positions is not None
-            and self.com_regularization_cost_multiplier is not None
-            and self.base_quaternion_cost_multiplier is not None
-            and self.joint_regularization_cost_weights is not None
-            and self.joint_regularization_cost_multiplier is not None
-            and self.force_regularization_cost_multiplier is not None
-            and self.average_force_regularization_cost_multiplier is not None
-            and self.point_position_regularization_cost_multiplier is not None
+        ok = True
+        logger = logging.getLogger("[hippopt::HumanoidPoseFInder::Settings]")
+        if self.robot_urdf is None:
+            logger.error("robot_urdf is None")
+            ok = False
+        if self.joints_name_list is None:
+            logger.error("joints_name_list is None")
+            ok = False
+        if self.contact_points is None:
+            logger.error("contact_points is None")
+            ok = False
+        if self.root_link is None:
+            logger.error("root_link is None")
+            ok = False
+        if self.gravity is None:
+            logger.error("gravity is None")
+            ok = False
+        if self.terrain is None:
+            logger.error("terrain is None")
+            ok = False
+        if self.relaxed_complementarity_epsilon is None:
+            logger.error("relaxed_complementarity_epsilon is None")
+            ok = False
+        if self.static_friction is None:
+            logger.error("static_friction is None")
+            ok = False
+        if self.maximum_joint_positions is None:
+            logger.error("maximum_joint_positions is None")
+            ok = False
+        if self.minimum_joint_positions is None:
+            logger.error("minimum_joint_positions is None")
+            ok = False
+        if self.com_regularization_cost_multiplier is None:
+            logger.error("com_regularization_cost_multiplier is None")
+            ok = False
+        if self.base_quaternion_cost_multiplier is None:
+            logger.error("base_quaternion_cost_multiplier is None")
+            ok = False
+        if self.desired_frame_quaternion_cost_frame_name is None:
+            logger.error("desired_frame_quaternion_cost_frame_name is None")
+            ok = False
+        if self.desired_frame_quaternion_cost_multiplier is None:
+            logger.error("desired_frame_quaternion_cost_multiplier is None")
+            ok = False
+        if self.joint_regularization_cost_weights is None:
+            logger.error("joint_regularization_cost_weights is None")
+            ok = False
+        if self.joint_regularization_cost_multiplier is None:
+            logger.error("joint_regularization_cost_multiplier is None")
+            ok = False
+        if self.force_regularization_cost_multiplier is None:
+            logger.error("force_regularization_cost_multiplier is None")
+            ok = False
+        if self.average_force_regularization_cost_multiplier is None:
+            logger.error("average_force_regularization_cost_multiplier is None")
+            ok = False
+        if self.point_position_regularization_cost_multiplier is None:
+            logger.error("point_position_regularization_cost_multiplier is None")
+            ok = False
+        return ok
+
+
+@dataclasses.dataclass
+class References(hp_rp.HumanoidState):
+    frame_quaternion_xyzw: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    def __post_init__(
+        self,
+        contact_point_descriptors: hp_rp.FeetContactPointDescriptors,
+        number_of_joints: int,
+    ):
+        hp_rp.HumanoidState.__post_init__(
+            self, contact_point_descriptors, number_of_joints
         )
+        self.frame_quaternion_xyzw = np.zeros(4)
+        self.frame_quaternion_xyzw[3] = 1.0
 
 
 @dataclasses.dataclass
@@ -80,8 +143,8 @@ class Variables(hp.OptimizationObject):
     )
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
-    references: hp_rp.HumanoidState = hp.default_composite_field(
-        cls=hp.Parameter, factory=hp_rp.HumanoidState
+    references: References = hp.default_composite_field(
+        cls=hp.Parameter, factory=References
     )
 
     relaxed_complementarity_epsilon: hp.StorageType = hp.default_storage_field(
@@ -105,7 +168,7 @@ class Variables(hp.OptimizationObject):
             contact_point_descriptors=settings.contact_points,
             number_of_joints=len(settings.joints_name_list),
         )
-        self.references = hp_rp.HumanoidState(
+        self.references = References(
             contact_point_descriptors=settings.contact_points,
             number_of_joints=len(settings.joints_name_list),
         )
@@ -198,7 +261,9 @@ class Planner:
         self.add_kinematics_constraints(
             function_inputs, normalized_quaternion, all_contact_points
         )
-        self.add_kinematics_regularization(function_inputs=function_inputs)
+        self.add_kinematics_regularization(
+            function_inputs=function_inputs, normalized_quaternion=normalized_quaternion
+        )
 
         self.add_foot_regularization(
             points=variables.state.contact_points.left,
@@ -307,7 +372,9 @@ class Planner:
             name="joint_position_bounds",
         )
 
-    def add_kinematics_regularization(self, function_inputs: dict):
+    def add_kinematics_regularization(
+        self, function_inputs: dict, normalized_quaternion: cs.MX
+    ):
         problem = self.op.problem
         variables = self.op.variables  # type: Variables
 
@@ -321,6 +388,24 @@ class Planner:
             expression=cs.sumsqr(quaternion_error),
             name="base_quaternion_error",
             scaling=self.settings.base_quaternion_cost_multiplier,
+        )
+
+        # Desired frame orientation
+        rotation_error_kinematics_fun = hp_rp.rotation_error_from_kinematics(
+            kindyn_object=self.kin_dyn_object,
+            target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
+            **function_inputs,
+        )
+        rotation_error_kinematics = rotation_error_kinematics_fun(
+            pb=variables.state.kinematics.base.position,
+            qb=normalized_quaternion,
+            s=variables.state.kinematics.joints.positions,
+            qd=variables.references.frame_quaternion_xyzw,
+        )["rotation_error"]
+        problem.add_cost(
+            expression=cs.sumsqr(cs.DM.eye(3) - rotation_error_kinematics),
+            name="frame_rotation_error",
+            scaling=self.settings.desired_frame_quaternion_cost_multiplier,
         )
 
         # Desired center of mass position
@@ -472,7 +557,7 @@ class Planner:
     def get_initial_guess(self) -> Variables:
         return self.op.problem.get_initial_guess()
 
-    def set_references(self, references: hp_rp.HumanoidState) -> None:
+    def set_references(self, references: References) -> None:
         guess = self.get_initial_guess()
         guess.references = references
         self.set_initial_guess(guess)

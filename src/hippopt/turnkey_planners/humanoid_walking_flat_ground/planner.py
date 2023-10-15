@@ -445,7 +445,10 @@ class HumanoidWalkingFlatGround:
         self.add_kinematics_constraints(
             function_inputs, height_fun, normalized_quaternion
         )
-        self.add_kinematics_regularization(function_inputs=function_inputs)
+        self.add_kinematics_regularization(
+            function_inputs=function_inputs,
+            base_quaternion_normalized=normalized_quaternion,
+        )
 
         self.add_contact_centroids_expressions(function_inputs)
 
@@ -660,7 +663,9 @@ class HumanoidWalkingFlatGround:
             name="joint_velocity_bounds",
         )
 
-    def add_kinematics_regularization(self, function_inputs: dict):
+    def add_kinematics_regularization(
+        self, function_inputs: dict, base_quaternion_normalized: cs.MX
+    ):
         problem = self.ocp.problem
         sym = self.ocp.symbolic_structure
         # Desired com velocity
@@ -681,19 +686,19 @@ class HumanoidWalkingFlatGround:
         )
 
         # Desired frame orientation
-        quaternion_error_kinematics_fun = hp_rp.quaternion_error_from_kinematics(
+        rotation_error_kinematics_fun = hp_rp.rotation_error_from_kinematics(
             kindyn_object=self.kin_dyn_object,
             target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
             **function_inputs,
         )
-        quaternion_error_kinematics = quaternion_error_kinematics_fun(
+        rotation_error_kinematics = rotation_error_kinematics_fun(
             pb=sym.kinematics.base.position,
-            qb=sym.kinematics.base.quaternion_xyzw,
+            qb=base_quaternion_normalized,
             s=sym.kinematics.joints.positions,
             qd=sym.references.desired_frame_quaternion_xyzw,
-        )["quaternion_error"]
+        )["rotation_error"]
         problem.add_expression_to_horizon(
-            expression=cs.sumsqr(quaternion_error_kinematics),
+            expression=cs.sumsqr(cs.DM.eye(3) - rotation_error_kinematics),
             apply_to_first_elements=False,
             name="frame_quaternion_error",
             mode=hp.ExpressionType.minimize,
