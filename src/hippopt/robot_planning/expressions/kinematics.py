@@ -3,7 +3,6 @@ import liecasadi
 from adam.casadi import KinDynComputations
 
 from hippopt.robot_planning.expressions.quaternion import (
-    quaternion_xyzw_error,
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
 
