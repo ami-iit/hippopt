@@ -1,50 +1,60 @@
 import abc
 import dataclasses
-from typing import Generic, List, Tuple, TypeVar
+from typing import TypeVar
 
 import casadi as cs
+import numpy as np
 
 from hippopt.base.optimization_object import TOptimizationObject
+from hippopt.base.problem import Problem
 
 TOptimizationSolver = TypeVar("TOptimizationSolver", bound="OptimizationSolver")
-TGenericOptimizationObject = TypeVar("TGenericOptimizationObject")
 
 
-@dataclasses.dataclass
-class SolverOutput(Generic[TGenericOptimizationObject]):
-    values: TGenericOptimizationObject = dataclasses.field(default=None)
-    cost_value: float = None
+class SolutionNotAvailableException(Exception):
+    def __init__(self):
+        super().__init__("No solution is available. Was solve() called successfully?")
 
-    _values: dataclasses.InitVar[TGenericOptimizationObject] = dataclasses.field(
-        default=None
-    )
-    _cost_value: dataclasses.InitVar[float] = dataclasses.field(default=None)
 
-    def __post_init__(self, _values: TGenericOptimizationObject, _cost_value: float):
-        self.values = _values
-        self.cost_value = _cost_value
+class ProblemNotRegisteredException(Exception):
+    def __init__(self):
+        super().__init__("No problem has been registered.")
 
 
 @dataclasses.dataclass
 class OptimizationSolver(abc.ABC):
     @abc.abstractmethod
     def generate_optimization_objects(
-        self, input_structure: TOptimizationObject | List[TOptimizationObject], **kwargs
-    ) -> TOptimizationObject | List[TOptimizationObject]:
+        self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
+    def get_optimization_objects(
+        self,
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
+    def register_problem(self, problem: Problem) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_problem(self) -> Problem:
         pass
 
     @abc.abstractmethod
     def set_initial_guess(
-        self, initial_guess: TOptimizationObject | List[TOptimizationObject]
+        self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
         pass
 
     @abc.abstractmethod
-    def solve(self) -> SolverOutput:
+    def solve(self) -> None:
         pass
 
     @abc.abstractmethod
-    def get_solution(self) -> TOptimizationObject | List[TOptimizationObject]:
+    def get_values(self) -> TOptimizationObject | list[TOptimizationObject]:
         pass
 
     @abc.abstractmethod
@@ -52,9 +62,25 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_cost(self, input_cost: cs.MX) -> None:
+    def add_cost(self, input_cost: cs.MX, name: str = None) -> None:
         pass
 
     @abc.abstractmethod
-    def add_constraint(self, input_constraint: cs.MX) -> None:
+    def add_constraint(self, input_constraint: cs.MX, name: str = None) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_cost_expressions(self) -> dict[str, cs.MX]:
+        pass
+
+    @abc.abstractmethod
+    def get_constraint_expressions(self) -> dict[str, cs.MX]:
+        pass
+
+    @abc.abstractmethod
+    def get_cost_values(self) -> dict[str, float]:
+        pass
+
+    @abc.abstractmethod
+    def get_constraint_multipliers(self) -> dict[str, np.ndarray]:
         pass

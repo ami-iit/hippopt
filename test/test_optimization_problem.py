@@ -5,19 +5,20 @@ import numpy as np
 import pytest
 
 from hippopt import (
-    ContinuousVariable,
     ExpressionType,
+    OptiFailure,
     OptimizationObject,
     OptimizationProblem,
     Parameter,
     StorageType,
+    Variable,
     default_storage_field,
 )
 
 
 @dataclasses.dataclass
 class MyTestVar(OptimizationObject):
-    variable: StorageType = default_storage_field(ContinuousVariable)
+    variable: StorageType = default_storage_field(Variable)
     size: dataclasses.InitVar[int] = dataclasses.field(default=3)
 
     def __post_init__(self, size: int = 3):
@@ -26,8 +27,7 @@ class MyTestVar(OptimizationObject):
 
 def test_opti_solver():
     size = 4
-    problem = OptimizationProblem()
-    var = problem.generate_optimization_objects(input_structure=MyTestVar(size=size))
+    problem, var = OptimizationProblem.create(input_structure=MyTestVar(size=size))
     np.random.seed(123)
     a = 10.0 * np.random.rand(size) + 0.01
     b = 20.0 * np.random.rand(size) - 10.0
@@ -46,7 +46,7 @@ def test_opti_solver():
         expression=(var.variable[k] >= c[k] for k in range(size)),  # noqa
     )
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(size)
     expected_cost = 0
@@ -62,7 +62,7 @@ def test_opti_solver():
     assert output.values.variable == pytest.approx(expected_x)
     assert output.cost_value == pytest.approx(expected_cost)
 
-    assert problem.solver().get_solution().variable == pytest.approx(expected_x)
+    assert problem.solver().get_values().variable == pytest.approx(expected_x)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
@@ -76,9 +76,8 @@ class MyTestVarAndPar(OptimizationObject):
 
 
 def test_opti_solver_with_parameters():
-    problem = OptimizationProblem()
+    problem, var = OptimizationProblem.create(input_structure=MyTestVarAndPar())
     initial_guess = MyTestVarAndPar()
-    var = problem.generate_optimization_objects(input_structure=MyTestVarAndPar())
     np.random.seed(123)
     a = 10.0 * np.random.rand(3) + 0.01
     b = 20.0 * np.random.rand(3) - 10.0
@@ -104,7 +103,7 @@ def test_opti_solver_with_parameters():
 
     problem.solver().set_initial_guess(initial_guess=initial_guess)
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(3)
     expected_cost = 0
@@ -121,19 +120,17 @@ def test_opti_solver_with_parameters():
     assert output.cost_value == pytest.approx(expected_cost)
     assert output.values.parameter == pytest.approx(c)
 
-    assert problem.solver().get_solution().composite.variable == pytest.approx(
-        expected_x
-    )
+    assert problem.solver().get_values().composite.variable == pytest.approx(expected_x)
     assert problem.solver().get_cost_value() == pytest.approx(expected_cost)
 
 
 def test_opti_solver_with_parameters_and_lists():
-    problem = OptimizationProblem()
     initial_guess = []
     for _ in range(3):
         initial_guess.append(MyTestVarAndPar())
 
-    var = problem.generate_optimization_objects(input_structure=initial_guess)
+    problem, var = OptimizationProblem.create(input_structure=initial_guess)
+
     np.random.seed(123)
 
     a = []
@@ -161,7 +158,7 @@ def test_opti_solver_with_parameters_and_lists():
 
     problem.solver().set_initial_guess(initial_guess=initial_guess)
 
-    output = problem.solver().solve()
+    output = problem.solve()
 
     expected_x = np.zeros(3)
     expected_cost = 0
@@ -184,8 +181,8 @@ def test_opti_solver_with_parameters_and_lists():
 
 @dataclasses.dataclass
 class SwitchVar(OptimizationObject):
-    x: StorageType = default_storage_field(ContinuousVariable)
-    y: StorageType = default_storage_field(ContinuousVariable)
+    x: StorageType = default_storage_field(Variable)
+    y: StorageType = default_storage_field(Variable)
 
     def __post_init__(self):
         self.x = np.zeros(1)
@@ -193,8 +190,7 @@ class SwitchVar(OptimizationObject):
 
 
 def test_switch_costs():
-    initial_problem = OptimizationProblem()
-    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    initial_problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
     a = 10
     initial_problem.add_expression(ExpressionType.minimize, variables.x * variables.x)
     initial_problem.add_expression(
@@ -203,13 +199,12 @@ def test_switch_costs():
     initial_problem.add_expression(
         ExpressionType.subject_to, variables.x + variables.y == a - 1
     )  # noqa
-    output = initial_problem.solver().solve()
+    output = initial_problem.solve()
     expected_cost = a + (a - 2) ** 2
     assert output.cost_value == pytest.approx(expected=expected_cost, rel=0.1)
     assert output.values.x == pytest.approx(a - 2, rel=0.1)
 
-    new_problem = OptimizationProblem()
-    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem, new_variables = OptimizationProblem.create(input_structure=SwitchVar())
     new_problem.add_expression(
         ExpressionType.minimize, a * new_variables.y * new_variables.y
     )
@@ -221,15 +216,14 @@ def test_switch_costs():
         new_variables.x * new_variables.x + 1,
         expected_value=1,
     )
-    output = new_problem.solver().solve()
+    output = new_problem.solve()
     expected_cost = a * (a - 1) ** 2
     assert output.cost_value == pytest.approx(expected=expected_cost, rel=0.1)
     assert output.values.x == pytest.approx(0, abs=1e-4)
 
 
 def test_switch_constraints():
-    initial_problem = OptimizationProblem()
-    variables = initial_problem.generate_optimization_objects(SwitchVar())
+    initial_problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
     a = 10
     initial_problem.add_expression(ExpressionType.minimize, (variables.x - 5) ** 2)
     initial_problem.add_expression(
@@ -238,10 +232,9 @@ def test_switch_constraints():
     initial_problem.add_expression(
         ExpressionType.subject_to, variables.x + variables.y == a - 1
     )  # noqa
-    initial_output = initial_problem.solver().solve()
+    initial_output = initial_problem.solve()
 
-    new_problem = OptimizationProblem()
-    new_variables = new_problem.generate_optimization_objects(SwitchVar())
+    new_problem, new_variables = OptimizationProblem.create(input_structure=SwitchVar())
     new_problem.add_expression(
         ExpressionType.minimize, a * new_variables.y * new_variables.y
     )
@@ -249,10 +242,24 @@ def test_switch_constraints():
         ExpressionType.subject_to, new_variables.x + new_variables.y == a - 1
     )  # noqa
     new_problem.add_expression(
-        ExpressionType.minimize, new_variables.x == 5, scaling=1.0
+        ExpressionType.minimize, new_variables.x == 5, scaling=1.0, name="new_cost"
     )
-    output = new_problem.solver().solve()
+    output = new_problem.solve()
     assert output.cost_value == pytest.approx(
         expected=initial_output.cost_value, rel=0.1
     )
     assert output.values.x == pytest.approx(initial_output.values.x)
+    assert output.cost_values["new_cost"] == pytest.approx((output.values.x - 5) ** 2)
+
+
+def test_opti_failure():
+    problem, variables = OptimizationProblem.create(input_structure=SwitchVar())
+    problem.add_constraint(variables.x == 1)
+    problem.add_constraint(variables.x == 10)
+
+    try:
+        problem.solve()
+    except OptiFailure as err:
+        print("Received error: ", err)
+    else:
+        assert False

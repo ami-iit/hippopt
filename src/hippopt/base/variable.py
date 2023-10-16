@@ -1,31 +1,40 @@
 import copy
 import dataclasses
+from enum import Enum
 from typing import Any, ClassVar, TypeVar
 
 from hippopt.base.optimization_object import OptimizationObject, TimeExpansion
 
-TParameter = TypeVar("TParameter", bound="Parameter")
+TVariable = TypeVar("TVariable", bound="Variable")
+
+
+class VariableType(Enum):
+    continuous = 0
 
 
 @dataclasses.dataclass
-class Parameter(OptimizationObject):
+class Variable(OptimizationObject):
     """"""
 
-    StorageTypeValue: ClassVar[str] = "parameter"
+    StorageTypeValue: ClassVar[str] = "variable"
+    VariableTypeField: ClassVar[str] = "VariableType"
     StorageTypeMetadata: ClassVar[dict[str, Any]] = dict(
         StorageType=StorageTypeValue,
-        TimeDependent=False,
+        TimeDependent=True,
         TimeExpansion=TimeExpansion.List,
+        VariableType=VariableType.continuous,
     )
 
     @classmethod
     def default_storage_metadata(
         cls,
-        time_dependent: bool = False,
+        time_dependent: bool = True,
         time_expansion: TimeExpansion = TimeExpansion.List,
-    ):
+        variable_type: VariableType = VariableType.continuous,
+    ) -> dict:
         cls_dict = copy.deepcopy(cls.StorageTypeMetadata)
         cls_dict[OptimizationObject.TimeDependentField] = time_dependent
         cls_dict[OptimizationObject.TimeExpansionField] = time_expansion
+        cls_dict[cls.VariableTypeField] = variable_type
 
         return cls_dict
