@@ -698,7 +698,7 @@ class HumanoidWalkingFlatGround:
             qd=sym.references.desired_frame_quaternion_xyzw,
         )["rotation_error"]
         problem.add_expression_to_horizon(
-            expression=cs.sumsqr(cs.DM.eye(3) - rotation_error_kinematics),
+            expression=cs.sumsqr(cs.trace(rotation_error_kinematics) - 3),
             apply_to_first_elements=False,
             name="frame_quaternion_error",
             mode=hp.ExpressionType.minimize,

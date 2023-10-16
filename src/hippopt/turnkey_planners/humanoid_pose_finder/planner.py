@@ -403,7 +403,7 @@ class Planner:
             qd=variables.references.frame_quaternion_xyzw,
         )["rotation_error"]
         problem.add_cost(
-            expression=cs.sumsqr(cs.DM.eye(3) - rotation_error_kinematics),
+            expression=cs.sumsqr(cs.trace(rotation_error_kinematics) - 3),
             name="frame_rotation_error",
             scaling=self.settings.desired_frame_quaternion_cost_multiplier,
         )
