@@ -121,4 +121,4 @@ if __name__ == "__main__":
     planner_settings.casadi_opti_options = {}
     planner_settings.casadi_solver_options = {}
 
-    planner = walking_planner.HumanoidWalkingFlatGround(settings=planner_settings)
+    planner = walking_planner.Planner(settings=planner_settings)

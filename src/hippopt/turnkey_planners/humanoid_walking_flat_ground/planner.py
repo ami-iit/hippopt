@@ -345,7 +345,7 @@ class Variables(hp.OptimizationObject):
         )
 
 
-class HumanoidWalkingFlatGround:
+class Planner:
     def __init__(self, settings: Settings) -> None:
         if not settings.is_valid():
             raise ValueError("Settings are not valid")
