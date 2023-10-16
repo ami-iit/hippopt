@@ -178,8 +178,33 @@ if __name__ == "__main__":
     visualizer_settings.working_folder = "./"
 
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    output_var = output.values  # type: pose_finder.Variables # noqa
-    visualizer.visualize(output_var.state)
+    visualizer.visualize(output.values.state)  # noqa
+
+    print("Press [Enter] to move to the compute the next pose.")
+    input()
+
+    references.com = np.array([0.15, 0.0, 0.7])
+    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.3, 0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    references.contact_points.left = hp_rp.FootContactState.from_parent_frame_transform(
+        descriptor=planner_settings.contact_points.left,
+        transform=desired_left_foot_pose,
+    )
+    references.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=planner_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+
+    planner.set_references(references)
+
+    output = planner.solve()
+    visualizer.visualize(output.values.state)  # noqa
 
     print("Press [Enter] to close.")
     input()
