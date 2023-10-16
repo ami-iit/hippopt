@@ -12,25 +12,6 @@ import hippopt.robot_planning as hp_rp
 
 
 @dataclasses.dataclass
-class ExtendedContactPoint(
-    hp_rp.ContactPointState,
-    hp_rp.ContactPointStateDerivative,
-):
-    u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
-
-    def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
-        hp_rp.ContactPointState.__post_init__(self, input_descriptor)
-        hp_rp.ContactPointStateDerivative.__post_init__(self)
-        self.u_v = np.zeros(3)
-
-
-@dataclasses.dataclass
-class FeetContactPointsExtended(hp.OptimizationObject):
-    left: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
-    right: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
-
-
-@dataclasses.dataclass
 class Settings:
     robot_urdf: str = dataclasses.field(default=None)
     joints_name_list: list[str] = dataclasses.field(default=None)
@@ -249,17 +230,77 @@ class References(hp.OptimizationObject):
 
 
 @dataclasses.dataclass
-class Variables(hp.OptimizationObject):
+class ExtendedContactPoint(
+    hp_rp.ContactPointState,
+    hp_rp.ContactPointStateDerivative,
+):
+    u_v: hp.StorageType = hp.default_storage_field(hp.Variable)
+
+    def __post_init__(self, input_descriptor: hp_rp.ContactPointDescriptor) -> None:
+        hp_rp.ContactPointState.__post_init__(self, input_descriptor)
+        hp_rp.ContactPointStateDerivative.__post_init__(self)
+        self.u_v = np.zeros(3)
+
+
+@dataclasses.dataclass
+class FeetContactPointsExtended(hp.OptimizationObject):
+    left: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
+    right: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
+
+
+@dataclasses.dataclass
+class ExtendedHumanoid(hp.OptimizationObject):
     contact_points: hp.CompositeType[
         FeetContactPointsExtended
     ] = hp.default_composite_field(factory=FeetContactPointsExtended)
 
-    com: hp.StorageType = hp.default_storage_field(hp.Variable)
-    centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
-    mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
     kinematics: hp.CompositeType[hp_rp.FloatingBaseSystem] = hp.default_composite_field(
         cls=hp.Variable, factory=hp_rp.FloatingBaseSystem
     )
+
+    com: hp.StorageType = hp.default_storage_field(hp.Variable)
+    centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
+
+    contact_point_descriptors: dataclasses.InitVar[
+        hp_rp.FeetContactPointDescriptors
+    ] = dataclasses.field(default=None)
+    number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
+
+    def __post_init__(
+        self,
+        contact_point_descriptors: hp_rp.FeetContactPointDescriptors,
+        number_of_joints: int,
+    ) -> None:
+        if contact_point_descriptors is not None:
+            self.contact_points.left = [
+                ExtendedContactPoint(input_descriptor=point)
+                for point in contact_point_descriptors.left
+            ]
+            self.contact_points.right = [
+                ExtendedContactPoint(input_descriptor=point)
+                for point in contact_point_descriptors.right
+            ]
+
+        self.com = np.zeros(3)
+        self.centroidal_momentum = np.zeros(6)
+        self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=number_of_joints)
+
+    def to_humanoid_state(self):
+        return hp_rp.HumanoidState(
+            contact_points=self.contact_points,
+            kinematics=self.kinematics,
+            com=self.com,
+            centroidal_momentum=self.centroidal_momentum,
+        )
+
+
+@dataclasses.dataclass
+class Variables(hp.OptimizationObject):
+    system: hp.CompositeType[ExtendedHumanoid] = hp.default_composite_field(
+        cls=hp.Variable, factory=ExtendedHumanoid
+    )
+
+    mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     initial_state: hp.CompositeType[hp_rp.HumanoidState] = hp.default_composite_field(
         cls=hp.Parameter, factory=hp_rp.HumanoidState, time_varying=False
@@ -302,18 +343,10 @@ class Variables(hp.OptimizationObject):
         settings: Settings,
         kin_dyn_object: adam.casadi.KinDynComputations,
     ) -> None:
-        self.contact_points.left = [
-            ExtendedContactPoint(input_descriptor=point)
-            for point in settings.contact_points.left
-        ]
-        self.contact_points.right = [
-            ExtendedContactPoint(input_descriptor=point)
-            for point in settings.contact_points.right
-        ]
-
-        self.com = np.zeros(3)
-        self.centroidal_momentum = np.zeros(6)
-        self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=kin_dyn_object.NDoF)
+        self.system = ExtendedHumanoid(
+            contact_point_descriptors=settings.contact_points,
+            number_of_joints=kin_dyn_object.NDoF,
+        )
 
         self.initial_state = hp_rp.HumanoidState(
             contact_point_descriptors=settings.contact_points,
@@ -385,7 +418,7 @@ class Planner:
             **function_inputs
         )
         normalized_quaternion = normalized_quaternion_fun(
-            q=sym.kinematics.base.quaternion_xyzw
+            q=sym.system.kinematics.base.quaternion_xyzw
         )["quaternion_normalized"]
 
         # Align names used in the terrain function with those in function_inputs
@@ -409,7 +442,9 @@ class Planner:
         )
 
         point_kinematics_functions = {}
-        all_contact_points = sym.contact_points.left + sym.contact_points.right
+        all_contact_points = (
+            sym.system.contact_points.left + sym.system.contact_points.right
+        )
         all_contact_initial_state = (
             sym.initial_state.contact_points.left
             + sym.initial_state.contact_points.right
@@ -453,14 +488,14 @@ class Planner:
         self.add_contact_centroids_expressions(function_inputs)
 
         self.add_foot_regularization(
-            points=sym.contact_points.left,
+            points=sym.system.contact_points.left,
             descriptors=self.settings.contact_points.left,
             references=sym.references.feet.left,
             function_inputs=function_inputs,
             foot_name="left",
         )
         self.add_foot_regularization(
-            points=sym.contact_points.right,
+            points=sym.system.contact_points.right,
             descriptors=self.settings.contact_points.right,
             references=sym.references.feet.right,
             function_inputs=function_inputs,
@@ -471,8 +506,8 @@ class Planner:
         sym = self.ocp.symbolic_structure
         function_inputs = {
             "mass_name": sym.mass.name(),
-            "momentum_name": sym.centroidal_momentum.name(),
-            "com_name": sym.com.name(),
+            "momentum_name": sym.system.centroidal_momentum.name(),
+            "com_name": sym.system.com.name(),
             "quaternion_xyzw_name": "q",
             "gravity_name": sym.gravity.name(),
             "point_position_names": [],
@@ -504,7 +539,7 @@ class Planner:
 
     def add_contact_centroids_expressions(self, function_inputs):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         # Maximum feet relative height
         def get_centroid(
@@ -521,10 +556,10 @@ class Planner:
             return centroid_fun(**point_position_dict)["centroid"]
 
         left_centroid = get_centroid(
-            points=sym.contact_points.left, function_inputs_dict=function_inputs
+            points=sym.system.contact_points.left, function_inputs_dict=function_inputs
         )
         right_centroid = get_centroid(
-            points=sym.contact_points.right, function_inputs_dict=function_inputs
+            points=sym.system.contact_points.right, function_inputs_dict=function_inputs
         )
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
@@ -560,11 +595,13 @@ class Planner:
         normalized_quaternion: cs.MX,
     ):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         # Unitary quaternion
         problem.add_expression_to_horizon(
-            expression=cs.MX(cs.sumsqr(sym.kinematics.base.quaternion_xyzw) == 1),
+            expression=cs.MX(
+                cs.sumsqr(sym.system.kinematics.base.quaternion_xyzw) == 1
+            ),
             apply_to_first_elements=False,
             name="unitary_quaternion",
         )
@@ -574,12 +611,12 @@ class Planner:
             kindyn_object=self.kin_dyn_object, **function_inputs
         )
         com_kinematics = com_kinematics_fun(
-            pb=sym.kinematics.base.position,
+            pb=sym.system.kinematics.base.position,
             qb=normalized_quaternion,
-            s=sym.kinematics.joints.positions,
+            s=sym.system.kinematics.joints.positions,
         )["com_position"]
         problem.add_expression_to_horizon(
-            expression=cs.MX(sym.com == com_kinematics),
+            expression=cs.MX(sym.system.com == com_kinematics),
             apply_to_first_elements=False,
             name="com_kinematics_consistency",
         )
@@ -589,15 +626,17 @@ class Planner:
             kindyn_object=self.kin_dyn_object, **function_inputs
         )
         centroidal_kinematics = centroidal_kinematics_fun(
-            pb=sym.kinematics.base.position,
+            pb=sym.system.kinematics.base.position,
             qb=normalized_quaternion,
-            s=sym.kinematics.joints.positions,
-            pb_dot=sym.kinematics.base.linear_velocity,
-            qb_dot=sym.kinematics.base.quaternion_velocity_xyzw,
-            s_dot=sym.kinematics.joints.velocities,
+            s=sym.system.kinematics.joints.positions,
+            pb_dot=sym.system.kinematics.base.linear_velocity,
+            qb_dot=sym.system.kinematics.base.quaternion_velocity_xyzw,
+            s_dot=sym.system.kinematics.joints.velocities,
         )["h_g"]
         problem.add_expression_to_horizon(
-            expression=cs.MX(sym.centroidal_momentum[3:] == centroidal_kinematics[3:]),
+            expression=cs.MX(
+                sym.system.centroidal_momentum[3:] == centroidal_kinematics[3:]
+            ),
             apply_to_first_elements=True,
             name="centroidal_momentum_kinematics_consistency",
         )
@@ -606,7 +645,7 @@ class Planner:
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
                 -sym.maximum_angular_momentum,
-                sym.centroidal_momentum[3:],
+                sym.system.centroidal_momentum[3:],
                 sym.maximum_angular_momentum,
             ),
             apply_to_first_elements=True,
@@ -614,7 +653,7 @@ class Planner:
         )
 
         # Minimum com height
-        com_height = height_fun(p=sym.com)["point_height"]
+        com_height = height_fun(p=sym.system.com)["point_height"]
         problem.add_expression_to_horizon(
             expression=cs.MX(com_height >= sym.minimum_com_height),
             apply_to_first_elements=False,
@@ -622,17 +661,17 @@ class Planner:
         )
 
         # Minimum feet lateral distance
-        left_frame = sym.contact_points.left[0].descriptor.foot_frame
-        right_frame = sym.contact_points.right[0].descriptor.foot_frame
+        left_frame = sym.system.contact_points.left[0].descriptor.foot_frame
+        right_frame = sym.system.contact_points.right[0].descriptor.foot_frame
         relative_position_fun = hp_rp.frames_relative_position(
             kindyn_object=self.kin_dyn_object,
             reference_frame=right_frame,
             target_frame=left_frame,
             **function_inputs,
         )
-        relative_position = relative_position_fun(s=sym.kinematics.joints.positions)[
-            "relative_position"
-        ]
+        relative_position = relative_position_fun(
+            s=sym.system.kinematics.joints.positions
+        )["relative_position"]
         problem.add_expression_to_horizon(
             expression=cs.MX(
                 relative_position[:2] >= sym.minimum_feet_lateral_distance
@@ -645,7 +684,7 @@ class Planner:
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
                 sym.minimum_joint_positions,
-                sym.kinematics.joints.positions,
+                sym.system.kinematics.joints.positions,
                 sym.maximum_joint_positions,
             ),
             apply_to_first_elements=False,
@@ -656,7 +695,7 @@ class Planner:
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
                 sym.minimum_joint_velocities,
-                sym.kinematics.joints.velocities,
+                sym.system.kinematics.joints.velocities,
                 sym.maximum_joint_velocities,
             ),
             apply_to_first_elements=True,
@@ -667,10 +706,11 @@ class Planner:
         self, function_inputs: dict, base_quaternion_normalized: cs.MX
     ):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
         # Desired com velocity
         com_velocity_error = (
-            sym.centroidal_momentum[:3] - sym.references.com_linear_velocity * sym.mass
+            sym.system.centroidal_momentum[:3]
+            - sym.references.com_linear_velocity * sym.mass
         )
         com_velocity_weighted_error = (
             com_velocity_error.T
@@ -692,9 +732,9 @@ class Planner:
             **function_inputs,
         )
         rotation_error_kinematics = rotation_error_kinematics_fun(
-            pb=sym.kinematics.base.position,
+            pb=sym.system.kinematics.base.position,
             qb=base_quaternion_normalized,
-            s=sym.kinematics.joints.positions,
+            s=sym.system.kinematics.joints.positions,
             qd=sym.references.desired_frame_quaternion_xyzw,
         )["rotation_error"]
         problem.add_expression_to_horizon(
@@ -708,7 +748,7 @@ class Planner:
         # Desired base orientation
         quaternion_error_fun = hp_rp.quaternion_xyzw_error(**function_inputs)
         quaternion_error = quaternion_error_fun(
-            q=sym.kinematics.base.quaternion_xyzw,
+            q=sym.system.kinematics.base.quaternion_xyzw,
             qd=sym.references.base_quaternion_xyzw,
         )["quaternion_error"]
         problem.add_expression_to_horizon(
@@ -722,7 +762,7 @@ class Planner:
         # Desired base angular velocity
         problem.add_expression_to_horizon(
             expression=cs.sumsqr(
-                sym.kinematics.base.quaternion_velocity_xyzw
+                sym.system.kinematics.base.quaternion_velocity_xyzw
                 - sym.references.base_quaternion_xyzw_velocity
             ),
             apply_to_first_elements=True,
@@ -733,10 +773,10 @@ class Planner:
 
         # Desired joint positions
         joint_positions_error = (
-            sym.kinematics.joints.positions - sym.references.joint_regularization
+            sym.system.kinematics.joints.positions - sym.references.joint_regularization
         )
         joint_velocity_error = (
-            sym.kinematics.joints.velocities
+            sym.system.kinematics.joints.velocities
             + cs.diag(cs.DM(self.settings.joint_regularization_cost_weights))
             * joint_positions_error
         )
@@ -755,7 +795,8 @@ class Planner:
 
         # dot(pb) = pb_dot (base position dynamics)
         problem.add_dynamics(
-            hp.dot(sym.kinematics.base.position) == sym.kinematics.base.linear_velocity,
+            hp.dot(sym.system.kinematics.base.position)
+            == sym.system.kinematics.base.linear_velocity,
             x0=problem.initial(sym.initial_state.kinematics.base.position),
             dt=sym.dt,
             integrator=default_integrator,
@@ -764,8 +805,8 @@ class Planner:
 
         # dot(q) = q_dot (base quaternion dynamics)
         problem.add_dynamics(
-            hp.dot(sym.kinematics.base.quaternion_xyzw)
-            == sym.kinematics.base.quaternion_velocity_xyzw,
+            hp.dot(sym.system.kinematics.base.quaternion_xyzw)
+            == sym.system.kinematics.base.quaternion_velocity_xyzw,
             x0=problem.initial(sym.initial_state.kinematics.base.quaternion_xyzw),
             dt=sym.dt,
             integrator=default_integrator,
@@ -774,7 +815,8 @@ class Planner:
 
         # dot(s) = s_dot (joint position dynamics)
         problem.add_dynamics(
-            hp.dot(sym.kinematics.joints.positions) == sym.kinematics.joints.velocities,
+            hp.dot(sym.system.kinematics.joints.positions)
+            == sym.system.kinematics.joints.velocities,
             x0=problem.initial(sym.initial_state.kinematics.joints.positions),
             dt=sym.dt,
             integrator=default_integrator,
@@ -784,7 +826,7 @@ class Planner:
         # dot(com) = h_g[:3]/m (center of mass dynamics)
         com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
         problem.add_dynamics(
-            hp.dot(sym.com) == com_dynamics,  # noqa
+            hp.dot(sym.system.com) == com_dynamics,  # noqa
             x0=problem.initial(sym.initial_state.com),  # noqa
             dt=sym.dt,
             integrator=default_integrator,
@@ -803,7 +845,7 @@ class Planner:
             **function_inputs,
         )
         problem.add_dynamics(
-            hp.dot(sym.centroidal_momentum) == centroidal_dynamics,  # noqa
+            hp.dot(sym.system.centroidal_momentum) == centroidal_dynamics,  # noqa
             x0=problem.initial(sym.initial_state.centroidal_momentum),  # noqa
             dt=sym.dt,
             integrator=default_integrator,
@@ -818,7 +860,7 @@ class Planner:
         point_kinematics_functions: dict,
     ):
         problem = self.ocp.problem
-        sym = self.ocp.symbolic_structure
+        sym = self.ocp.symbolic_structure  # type: Variables
 
         # Creation of contact kinematics consistency functions
         descriptor = point.descriptor
@@ -833,9 +875,9 @@ class Planner:
 
         # Consistency between the contact position and the kinematics
         point_kinematics = point_kinematics_functions[descriptor.foot_frame](
-            pb=sym.kinematics.base.position,
+            pb=sym.system.kinematics.base.position,
             qb=normalized_quaternion,
-            s=sym.kinematics.joints.positions,
+            s=sym.system.kinematics.joints.positions,
             p_parent=descriptor.position_in_foot_frame,
         )["point_position"]
         problem.add_expression_to_horizon(
