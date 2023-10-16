@@ -431,6 +431,9 @@ class OptiSolver(OptimizationSolver):
                         + " is neither an numpy nor a DM array."
                     )
 
+                if len(guess.shape) == 0:
+                    continue
+
                 input_shape = (
                     guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
                 )
