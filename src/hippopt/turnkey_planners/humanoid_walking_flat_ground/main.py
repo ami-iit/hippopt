@@ -155,14 +155,14 @@ def get_pose_finder_settings(
 def get_visualizer_settings(
     input_settings: walking_planner.Settings,
 ) -> hp_rp.HumanoidStateVisualizerSettings:
-    visualizer_settings = hp_rp.HumanoidStateVisualizerSettings()
-    visualizer_settings.robot_model = input_settings.robot_urdf
-    visualizer_settings.considered_joints = input_settings.joints_name_list
-    visualizer_settings.contact_points = input_settings.contact_points
-    visualizer_settings.terrain = input_settings.terrain
-    visualizer_settings.working_folder = "./"
+    output_viz_settings = hp_rp.HumanoidStateVisualizerSettings()
+    output_viz_settings.robot_model = input_settings.robot_urdf
+    output_viz_settings.considered_joints = input_settings.joints_name_list
+    output_viz_settings.contact_points = input_settings.contact_points
+    output_viz_settings.terrain = input_settings.terrain
+    output_viz_settings.working_folder = "./"
 
-    return visualizer_settings
+    return output_viz_settings
 
 
 def compute_initial_state(
@@ -238,6 +238,94 @@ def compute_initial_state(
     return output_pf.values.state
 
 
+def compute_final_state(
+    input_settings: walking_planner.Settings,
+    pf_input: pose_finder.Planner,
+) -> hp_rp.HumanoidState:
+    desired_joints = np.deg2rad(
+        [
+            7,
+            0.12,
+            -0.01,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+        ]
+    )
+    assert len(input_settings.joints_name_list) == len(desired_joints)
+
+    pf_ref = pose_finder.References(
+        contact_point_descriptors=pf_settings.contact_points,
+        number_of_joints=len(desired_joints),
+    )
+
+    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
+    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    pf_ref.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
+    )
+    pf_ref.state.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+
+    pf_ref.state.kinematics.base.quaternion_xyzw = (
+        liecasadi.SO3.Identity().as_quat().coeffs()
+    )
+
+    pf_ref.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
+
+    pf_ref.state.kinematics.joints.positions = desired_joints
+
+    pf_input.set_references(pf_ref)
+
+    output_pf = pf_input.solve()
+    return output_pf.values.state
+
+
+def compute_references(
+    input_settings: walking_planner.Settings, desired_state: hp_rp.HumanoidState
+) -> walking_planner.References:
+    output_reference = walking_planner.References(
+        number_of_joints=len(input_settings.joints_name_list),
+        number_of_points_left=len(input_settings.contact_points.left),
+        number_of_points_right=len(input_settings.contact_points.right),
+    )
+
+    output_reference.contacts_centroid_cost_weights = [100, 100, 10]
+    output_reference.contacts_centroid = [0.15, 0.0, 0.0]
+    output_reference.joint_regularization = desired_state.kinematics.joints.positions
+
+    return output_reference
+
+
 if __name__ == "__main__":
     planner_settings = get_planner_settings()
     planner = walking_planner.Planner(settings=planner_settings)
@@ -255,5 +343,22 @@ if __name__ == "__main__":
     visualizer.visualize(initial_state)
 
     planner.set_initial_state(initial_state)
+
+    final_state = compute_final_state(
+        input_settings=planner_settings,
+        pf_input=pf,
+    )
+
+    print("Press [Enter] to visualize the final desired state.")
+    input()
+
+    visualizer.visualize(final_state)
+
+    references = compute_references(
+        input_settings=planner_settings,
+        desired_state=final_state,
+    )
+
+    planner.set_references(references)
 
     planner.solve()
