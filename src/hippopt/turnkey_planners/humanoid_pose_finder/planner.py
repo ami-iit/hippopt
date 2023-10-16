@@ -121,16 +121,25 @@ class Settings:
 
 
 @dataclasses.dataclass
-class References(hp_rp.HumanoidState):
+class References(hp.OptimizationObject):
+    state: hp_rp.HumanoidState = hp.default_composite_field(
+        cls=hp.Parameter, factory=hp_rp.HumanoidState
+    )
     frame_quaternion_xyzw: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    contact_point_descriptors: dataclasses.InitVar[
+        hp_rp.FeetContactPointDescriptors
+    ] = dataclasses.field(default=None)
+    number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
         contact_point_descriptors: hp_rp.FeetContactPointDescriptors,
         number_of_joints: int,
     ):
-        hp_rp.HumanoidState.__post_init__(
-            self, contact_point_descriptors, number_of_joints
+        self.state = hp_rp.HumanoidState(
+            contact_point_descriptors=contact_point_descriptors,
+            number_of_joints=number_of_joints,
         )
         self.frame_quaternion_xyzw = np.zeros(4)
         self.frame_quaternion_xyzw[3] = 1.0
@@ -267,11 +276,11 @@ class Planner:
 
         self.add_foot_regularization(
             points=variables.state.contact_points.left,
-            references=variables.references.contact_points.left,
+            references=variables.references.state.contact_points.left,
         )
         self.add_foot_regularization(
             points=variables.state.contact_points.right,
-            references=variables.references.contact_points.right,
+            references=variables.references.state.contact_points.right,
         )
 
     def get_function_inputs_dict(self):
@@ -382,7 +391,7 @@ class Planner:
         quaternion_error_fun = hp_rp.quaternion_xyzw_error(**function_inputs)
         quaternion_error = quaternion_error_fun(
             q=variables.state.kinematics.base.quaternion_xyzw,
-            qd=variables.references.kinematics.base.quaternion_xyzw,
+            qd=variables.references.state.kinematics.base.quaternion_xyzw,
         )["quaternion_error"]
         problem.add_cost(
             expression=cs.sumsqr(quaternion_error),
@@ -409,7 +418,7 @@ class Planner:
         )
 
         # Desired center of mass position
-        com_position_error = variables.state.com - variables.references.com
+        com_position_error = variables.state.com - variables.references.state.com
         problem.add_cost(
             expression=cs.sumsqr(com_position_error),
             name="com_position_error",
@@ -419,7 +428,7 @@ class Planner:
         # Desired joint positions
         joint_positions_error = (
             variables.state.kinematics.joints.positions
-            - variables.references.kinematics.joints.positions
+            - variables.references.state.kinematics.joints.positions
         )
 
         weighted_error = (

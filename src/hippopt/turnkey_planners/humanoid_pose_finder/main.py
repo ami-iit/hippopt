@@ -114,31 +114,33 @@ if __name__ == "__main__":
         number_of_joints=number_of_joints,
     )
 
-    references.com = np.array([0.0, 0.0, 0.7])
+    references.state.com = np.array([0.0, 0.0, 0.7])
     desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
     )
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
-    references.contact_points.left = hp_rp.FootContactState.from_parent_frame_transform(
-        descriptor=planner_settings.contact_points.left,
-        transform=desired_left_foot_pose,
+    references.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=planner_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
     )
-    references.contact_points.right = (
+    references.state.contact_points.right = (
         hp_rp.FootContactState.from_parent_frame_transform(
             descriptor=planner_settings.contact_points.right,
             transform=desired_right_foot_pose,
         )
     )
 
-    references.kinematics.base.quaternion_xyzw = (
+    references.state.kinematics.base.quaternion_xyzw = (
         liecasadi.SO3.Identity().as_quat().coeffs()
     )
 
     references.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
 
-    references.kinematics.joints.positions = np.deg2rad(
+    references.state.kinematics.joints.positions = np.deg2rad(
         [
             7,
             0.12,
@@ -190,11 +192,13 @@ if __name__ == "__main__":
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
-    references.contact_points.left = hp_rp.FootContactState.from_parent_frame_transform(
-        descriptor=planner_settings.contact_points.left,
-        transform=desired_left_foot_pose,
+    references.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=planner_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
     )
-    references.contact_points.right = (
+    references.state.contact_points.right = (
         hp_rp.FootContactState.from_parent_frame_transform(
             descriptor=planner_settings.contact_points.right,
             transform=desired_right_foot_pose,
