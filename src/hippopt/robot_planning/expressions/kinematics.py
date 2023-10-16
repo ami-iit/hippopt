@@ -180,15 +180,17 @@ def frames_relative_position(
     reference_fk_function = kindyn_object.forward_kinematics_fun(frame=reference_frame)
     target_fk_function = kindyn_object.forward_kinematics_fun(frame=target_frame)
 
-    reference_pose = liecasadi.SE3.from_matrix(
-        reference_fk_function(base_pose, joint_positions)
+    reference_pose = reference_fk_function(base_pose, joint_positions)
+    reference_pose_inverse_rotation = reference_pose[:3, :3].T
+    reference_pose_inverse_translation = (
+        -reference_pose_inverse_rotation @ reference_pose[:3, 3]
     )
-    reference_pose_inverse = reference_pose.inverse()
+
     target_pose = target_fk_function(base_pose, joint_positions)
 
     relative_position = (
-        reference_pose_inverse.rotation().act(target_pose[:3, 3])
-        + reference_pose_inverse.translation()
+        reference_pose_inverse_rotation @ target_pose[:3, 3]
+        + reference_pose_inverse_translation
     )
 
     return cs.Function(
