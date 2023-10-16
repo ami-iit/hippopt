@@ -182,7 +182,7 @@ if __name__ == "__main__":
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     visualizer.visualize(output.values.state)  # noqa
 
-    print("Press [Enter] to move to the compute the next pose.")
+    print("Press [Enter] to move to the next pose.")
     input()
 
     references.com = np.array([0.15, 0.0, 0.7])
