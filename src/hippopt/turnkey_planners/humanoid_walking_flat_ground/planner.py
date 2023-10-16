@@ -1117,14 +1117,13 @@ class Planner:
         guess = self.get_initial_guess()
 
         assert isinstance(guess.references, list)
-        if isinstance(references, list):
-            assert len(references) == len(guess.references)
-            for i in range(len(guess.references)):
-                guess.references[i] = references[i]
-        else:
-            for i in range(len(guess.references)):
-                guess.references[i] = references
-        self.set_initial_guess(guess)
+        assert not isinstance(references, list) or len(references) == len(
+            guess.references
+        )
+        for i in range(len(guess.references)):
+            guess.references[i] = (
+                references[i] if isinstance(references, list) else references
+            )
 
     def set_initial_state(self, initial_state: hp_rp.HumanoidState) -> None:
         guess = self.get_initial_guess()
