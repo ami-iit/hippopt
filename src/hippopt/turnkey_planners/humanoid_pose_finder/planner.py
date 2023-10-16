@@ -571,5 +571,5 @@ class Planner:
         guess.references = references
         self.set_initial_guess(guess)
 
-    def solve(self) -> hp.Output[hp_rp.HumanoidState]:
+    def solve(self) -> hp.Output[Variables]:
         return self.op.problem.solve()

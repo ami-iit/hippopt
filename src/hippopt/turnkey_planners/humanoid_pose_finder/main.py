@@ -208,7 +208,7 @@ if __name__ == "__main__":
     planner.set_references(references)
 
     output = planner.solve()
-    visualizer.visualize(output.values.state)  # noqa
+    visualizer.visualize(output.values.state)
 
     print("Press [Enter] to close.")
     input()
