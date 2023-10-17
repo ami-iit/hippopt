@@ -1165,11 +1165,12 @@ class Planner:
             guess.references[i] = (
                 references[i] if isinstance(references, list) else references
             )
+        self.ocp.problem.set_initial_guess(guess)
 
     def set_initial_state(self, initial_state: hp_rp.HumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.initial_state = initial_state
-        self.set_initial_guess(guess)
+        self.ocp.problem.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
         return self.ocp.problem.solve()
