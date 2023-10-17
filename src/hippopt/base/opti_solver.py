@@ -419,7 +419,7 @@ class OptiSolver(OptimizationSolver):
                     guess = guess * np.ones((1, 1))
 
                 if isinstance(guess, list) and all(
-                    isinstance(elem, float) for elem in guess
+                    isinstance(elem, float) or isinstance(elem, int) for elem in guess
                 ):
                     guess = np.array(guess)
 
