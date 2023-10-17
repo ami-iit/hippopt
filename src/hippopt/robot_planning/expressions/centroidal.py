@@ -3,6 +3,7 @@ import casadi as cs
 
 def centroidal_dynamics_with_point_forces(
     number_of_points: int,
+    assume_unitary_mass: bool = False,
     mass_name: str = "m",
     gravity_name: str = "g",
     com_name: str = "com",
@@ -29,8 +30,11 @@ def centroidal_dynamics_with_point_forces(
 
     input_vars = []
 
-    m = cs.MX.sym(mass_name, 1)
-    input_vars.append(m)
+    if assume_unitary_mass:
+        m = 1.0
+    else:
+        m = cs.MX.sym(mass_name, 1)
+        input_vars.append(m)
 
     g = cs.MX.sym(gravity_name, 6)
     input_vars.append(g)
