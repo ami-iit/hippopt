@@ -255,13 +255,16 @@ class HumanoidStateVisualizer:
             self._viz.viewer[f"f_{i}"].set_transform(transform)
 
     def _visualize_multiple_states(
-        self, states: list[HumanoidState], timestep_ms: float | list[float] = None
+        self,
+        states: list[HumanoidState],
+        timestep_s: float | list[float] | np.ndarray = None,
+        time_multiplier: float = 1.0,
     ):
-        if timestep_ms is None or isinstance(timestep_ms, float):
-            single_step = timestep_ms if timestep_ms is not None else 0.0
-            timestep_ms = [single_step] * len(states)
+        if timestep_s is None or isinstance(timestep_s, float) or timestep_s.size == 1:
+            single_step = timestep_s if timestep_s is not None else 0.0
+            timestep_s = [single_step] * len(states)
 
-        if len(timestep_ms) != len(states):
+        if len(timestep_s) != len(states):
             raise ValueError("timestep and states have different lengths.")
 
         for i, state in enumerate(states):
@@ -269,15 +272,18 @@ class HumanoidStateVisualizer:
             self._visualize_single_state(state)
             end = time.time()
             elapsed_s = end - start
-            sleep_time = timestep_ms[i] * 1000 - elapsed_s
+            sleep_time = timestep_s[i] * time_multiplier - elapsed_s
             time.sleep(max(0.0, sleep_time))
 
     def visualize(
         self,
         state: HumanoidState | list[HumanoidState],
-        timestep_ms: float | list[float] = None,
+        timestep_s: float | list[float] | np.ndarray = None,
+        time_multiplier: float = 1.0,
     ):
         if isinstance(state, list):
-            self._visualize_multiple_states(state, timestep_ms=timestep_ms)
+            self._visualize_multiple_states(
+                state, timestep_s=timestep_s, time_multiplier=time_multiplier
+            )
         else:
             self._visualize_single_state(state)
