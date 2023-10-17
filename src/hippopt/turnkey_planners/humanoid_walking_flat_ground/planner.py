@@ -286,12 +286,13 @@ class ExtendedHumanoid(hp.OptimizationObject):
         self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=number_of_joints)
 
     def to_humanoid_state(self):
-        return hp_rp.HumanoidState(
-            contact_points=self.contact_points,
-            kinematics=self.kinematics,
-            com=self.com,
-            centroidal_momentum=self.centroidal_momentum,
-        )
+        output = hp_rp.HumanoidState()
+        output.kinematics.base = self.kinematics.base
+        output.kinematics.joints = self.kinematics.joints
+        output.contact_points = self.contact_points
+        output.com = self.com
+        output.centroidal_momentum = self.centroidal_momentum
+        return output
 
 
 @dataclasses.dataclass
