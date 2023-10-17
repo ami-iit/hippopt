@@ -72,7 +72,7 @@ class Settings:
         if self.root_link is None:
             logger.error("root_link is None")
             ok = False
-        if self.gravity is None:
+        if self.gravity is None or len(self.gravity) != 6:
             logger.error("gravity is None")
             ok = False
         if self.terrain is None:
