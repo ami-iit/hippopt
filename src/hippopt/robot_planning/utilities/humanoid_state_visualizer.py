@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import os
+import time
 
 import idyntree.bindings
 import liecasadi
@@ -113,8 +114,8 @@ class HumanoidStateVisualizer:
         if not settings.is_valid():
             raise ValueError("Settings are not valid.")
         self._settings = settings
-        self.create_ground_urdf()
-        self.create_ground_mesh()
+        self._create_ground_urdf()
+        self._create_ground_mesh()
         self._viz = MeshcatVisualizer()
         self._viz.load_model_from_file(
             model_path=settings.robot_model,
@@ -145,7 +146,7 @@ class HumanoidStateVisualizer:
                 color=settings.contact_forces_color,
             )
 
-    def create_ground_urdf(self):
+    def _create_ground_urdf(self):
         with open(os.path.join(self._settings.working_folder, "ground.urdf"), "w") as f:
             f.write(
                 """<?xml version="1.0"?>
@@ -183,7 +184,7 @@ class HumanoidStateVisualizer:
                 """
             )
 
-    def create_ground_mesh(self):
+    def _create_ground_mesh(self):
         x_step = (
             self._settings.ground_x_limits[1] - self._settings.ground_x_limits[0]
         ) / self._settings.ground_mesh_axis_points
@@ -209,7 +210,7 @@ class HumanoidStateVisualizer:
             os.path.join(self._settings.working_folder, "ground.stl"), x, y, z
         )
 
-    def visualize(self, state: HumanoidState):
+    def _visualize_single_state(self, state: HumanoidState):
         self._viz.set_multibody_system_state(
             state.kinematics.base.position,
             liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
@@ -252,3 +253,31 @@ class HumanoidStateVisualizer:
             )
             transform[0:3, 0:3] = rotation @ scaling
             self._viz.viewer[f"f_{i}"].set_transform(transform)
+
+    def _visualize_multiple_states(
+        self, states: list[HumanoidState], timestep_ms: float | list[float] = None
+    ):
+        if timestep_ms is None or isinstance(timestep_ms, float):
+            single_step = timestep_ms if timestep_ms is not None else 0.0
+            timestep_ms = [single_step] * len(states)
+
+        if len(timestep_ms) != len(states):
+            raise ValueError("timestep and states have different lengths.")
+
+        for i, state in enumerate(states):
+            start = time.time()
+            self._visualize_single_state(state)
+            end = time.time()
+            elapsed_s = end - start
+            sleep_time = timestep_ms[i] * 1000 - elapsed_s
+            time.sleep(max(0.0, sleep_time))
+
+    def visualize(
+        self,
+        state: HumanoidState | list[HumanoidState],
+        timestep_ms: float | list[float] = None,
+    ):
+        if isinstance(state, list):
+            self._visualize_multiple_states(state, timestep_ms=timestep_ms)
+        else:
+            self._visualize_single_state(state)
