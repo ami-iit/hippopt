@@ -285,11 +285,13 @@ class ExtendedHumanoid(hp.OptimizationObject):
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=number_of_joints)
 
-    def to_humanoid_state(self):
+    def to_humanoid_state(self, mass: float = 1.0) -> hp_rp.HumanoidState:
         output = hp_rp.HumanoidState()
         output.kinematics.base = self.kinematics.base
         output.kinematics.joints = self.kinematics.joints
         output.contact_points = self.contact_points
+        for point in output.contact_points.left + output.contact_points.right:
+            point.f *= mass
         output.com = self.com
         output.centroidal_momentum = self.centroidal_momentum
         return output
@@ -391,6 +393,7 @@ class Planner:
             gravity=self.settings.gravity,
             f_opts=self.settings.casadi_function_options,
         )
+        self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
         self.variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
@@ -636,7 +639,8 @@ class Planner:
         )["h_g"]
         problem.add_expression_to_horizon(
             expression=cs.MX(
-                sym.system.centroidal_momentum[3:] == centroidal_kinematics[3:]
+                sym.system.centroidal_momentum[3:]
+                == centroidal_kinematics[3:] / sym.mass
             ),
             apply_to_first_elements=True,
             name="centroidal_momentum_kinematics_consistency",
@@ -708,8 +712,7 @@ class Planner:
         sym = self.ocp.symbolic_structure  # type: Variables
         # Desired com velocity
         com_velocity_error = (
-            sym.system.centroidal_momentum[:3]
-            - sym.references.com_linear_velocity * sym.mass
+            sym.system.centroidal_momentum[:3] - sym.references.com_linear_velocity
         )
         com_velocity_weighted_error = (
             com_velocity_error.T
@@ -822,17 +825,16 @@ class Planner:
             name="joint_position_dynamics",
         )
 
-        # dot(com) = h_g[:3]/m (center of mass dynamics)
-        com_dynamics = hp_rp.com_dynamics_from_momentum(**function_inputs)
+        # dot(com) = h_g[:3] (center of mass dynamics, regularized by the mass)
         problem.add_dynamics(
-            hp.dot(sym.system.com) == com_dynamics,  # noqa
+            hp.dot(sym.system.com) == sym.system.centroidal_momentum[:3],  # noqa
             x0=problem.initial(sym.initial_state.com),  # noqa
             dt=sym.dt,
             integrator=default_integrator,
             name="com_dynamics",
         )
 
-        # dot(h) = sum_i (p_i x f_i) + mg (centroidal momentum dynamics)
+        # dot(h) = sum_i (p_i x f_i) + g (centroidal momentum dynamics,mass regularized)
         function_inputs["point_position_names"] = [
             point.p.name() for point in all_contact_points
         ]
@@ -841,6 +843,7 @@ class Planner:
         ]
         centroidal_dynamics = hp_rp.centroidal_dynamics_with_point_forces(
             number_of_points=len(function_inputs["point_position_names"]),
+            assume_unitary_mass=True,
             **function_inputs,
         )
         problem.add_dynamics(
@@ -1170,6 +1173,12 @@ class Planner:
     def set_initial_state(self, initial_state: hp_rp.HumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.initial_state = initial_state
+        guess.initial_state.centroidal_momentum /= self.numeric_mass
+        for point in (
+            guess.initial_state.contact_points.left
+            + guess.initial_state.contact_points.right
+        ):
+            point.f /= self.numeric_mass
         self.ocp.problem.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
