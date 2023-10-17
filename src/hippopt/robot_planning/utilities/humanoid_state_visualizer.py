@@ -3,7 +3,6 @@ import logging
 import os
 import time
 
-import idyntree.bindings
 import liecasadi
 import numpy as np
 from idyntree.visualize import MeshcatVisualizer
@@ -113,6 +112,7 @@ class HumanoidStateVisualizer:
     def __init__(self, settings: HumanoidStateVisualizerSettings) -> None:
         if not settings.is_valid():
             raise ValueError("Settings are not valid.")
+        self._logger = logging.getLogger("[hippopt::HumanoidStateVisualizer]")
         self._settings = settings
         self._create_ground_urdf()
         self._create_ground_mesh()
@@ -210,6 +210,16 @@ class HumanoidStateVisualizer:
             os.path.join(self._settings.working_folder, "ground.stl"), x, y, z
         )
 
+    @staticmethod
+    def _skew(x: np.ndarray) -> np.ndarray:
+        return np.array(
+            [
+                [0, -x[2], x[1]],
+                [x[2], 0, -x[0]],
+                [-x[1], x[0], 0],
+            ]
+        )
+
     def _visualize_single_state(self, state: HumanoidState):
         self._viz.set_multibody_system_state(
             state.kinematics.base.position,
@@ -224,6 +234,7 @@ class HumanoidStateVisualizer:
             np.eye(3),
             "CoM",
         )
+
         for i, point in enumerate(
             (state.contact_points.left + state.contact_points.right)
         ):
@@ -232,25 +243,30 @@ class HumanoidStateVisualizer:
                 np.eye(3),
                 f"p_{i}",
             )
+
             force_norm = np.linalg.norm(point.f)
-            force_direction = (
-                point.f / force_norm if force_norm > 0 else np.array([0, 0, 1])
-            )
-            direction = idyntree.bindings.Direction()
-            direction.FromPython(force_direction)
-            angle = np.arccos(np.dot(np.array([0, 0, 1]), force_direction))
-            rotation = idyntree.bindings.Rotation.RotAxis(direction, angle).toNumPy()
+
+            if force_norm < 1e-6:
+                rotation = np.eye(3)
+            else:
+                force_direction = point.f / force_norm
+                cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
+                rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
+                skew_symmetric_matrix = self._skew(rotation_axis)
+                rotation = (
+                    np.eye(3)
+                    + skew_symmetric_matrix
+                    + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
+                    * ((1 - cos_angle) / (force_norm**2))
+                )
+
             scaling = np.diag([1, 1, self._settings.contact_force_scaling * force_norm])
             position = (
-                point.p + scaling @ force_direction / 2
+                point.p + point.f * self._settings.contact_force_scaling / 2
             )  # the origin is in the cylinder center
-            transform = (
-                liecasadi.SE3.from_translation_and_rotation(
-                    position, liecasadi.SO3.from_matrix(rotation)
-                )
-                .as_matrix()
-                .full()
-            )
+            transform = np.zeros((4, 4))
+            transform[0:3, 3] = position
+            transform[3, 3] = 1
             transform[0:3, 0:3] = rotation @ scaling
             self._viz.viewer[f"f_{i}"].set_transform(transform)
 
@@ -268,6 +284,7 @@ class HumanoidStateVisualizer:
             raise ValueError("timestep and states have different lengths.")
 
         for i, state in enumerate(states):
+            self._logger.info(f"Visualizing state {i + 1}/{len(states)}")
             start = time.time()
             self._visualize_single_state(state)
             end = time.time()
