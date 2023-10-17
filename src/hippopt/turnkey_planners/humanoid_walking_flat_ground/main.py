@@ -105,9 +105,32 @@ def get_planner_settings() -> walking_planner.Settings:
     settings.swing_foot_height_cost_multiplier = 1000.0
     settings.contact_velocity_control_cost_multiplier = 5.0
     settings.contact_force_control_cost_multiplier = 0.0001
-    settings.casadi_function_options = {}
-    settings.casadi_opti_options = {}
-    settings.casadi_solver_options = {}
+    settings.casadi_function_options = {"cse": True}
+    settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": True}
+    settings.casadi_solver_options = {
+        "max_iter": 4000,
+        "linear_solver": "mumps",
+        "alpha_for_y": "dual-and-full",
+        "fast_step_computation": "yes",
+        "hessian_approximation": "limited-memory",
+        "tol": 1e-3,
+        "dual_inf_tol": 1000.0,
+        "compl_inf_tol": 1e-2,
+        "constr_viol_tol": 1e-4,
+        "acceptable_tol": 1e0,
+        "acceptable_iter": 2,
+        "acceptable_compl_inf_tol": 1.0,
+        "warm_start_bound_frac": 1e-2,
+        "warm_start_bound_push": 1e-2,
+        "warm_start_mult_bound_push": 1e-2,
+        "warm_start_slack_bound_frac": 1e-2,
+        "warm_start_slack_bound_push": 1e-2,
+        "warm_start_init_point": "yes",
+        "required_infeasibility_reduction": 0.8,
+        "perturb_dec_fact": 0.1,
+        "max_hessian_perturbation": 100.0,
+        "acceptable_obj_change_tol": 1e0,
+    }
 
     return settings
 
@@ -147,7 +170,7 @@ def get_pose_finder_settings(
     settings.point_position_regularization_cost_multiplier = 100.0
     settings.casadi_function_options = input_settings.casadi_function_options
     settings.casadi_opti_options = input_settings.casadi_opti_options
-    settings.casadi_solver_options = input_settings.casadi_solver_options
+    settings.casadi_solver_options = {}
 
     return settings
 
@@ -276,12 +299,12 @@ def compute_final_state(
         number_of_joints=len(desired_joints),
     )
 
-    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
+    pf_ref.state.com = np.array([0.0, 0.0, 0.7])
     desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
     )
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+        np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
     pf_ref.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(
@@ -310,7 +333,7 @@ def compute_final_state(
     return output_pf.values.state
 
 
-def compute_references(
+def get_references(
     input_settings: walking_planner.Settings, desired_state: hp_rp.HumanoidState
 ) -> walking_planner.References:
     output_reference = walking_planner.References(
@@ -320,7 +343,7 @@ def compute_references(
     )
 
     output_reference.contacts_centroid_cost_weights = [100, 100, 10]
-    output_reference.contacts_centroid = [0.15, 0.0, 0.0]
+    output_reference.contacts_centroid = [0.0, 0.0, 0.0]
     output_reference.joint_regularization = desired_state.kinematics.joints.positions
 
     return output_reference
@@ -354,11 +377,22 @@ if __name__ == "__main__":
 
     visualizer.visualize(final_state)
 
-    references = compute_references(
+    references = get_references(
         input_settings=planner_settings,
         desired_state=final_state,
     )
 
     planner.set_references(references)
 
-    planner.solve()
+    output = planner.solve()
+
+    humanoid_states = [s.to_humanoid_state() for s in output.values.system]
+
+    print("Press [Enter] to visualize the solution.")
+    input()
+
+    visualizer.visualize(
+        state=humanoid_states, timestep_s=output.values.dt, time_multiplier=10.0
+    )
+
+    # TODO: Move to mass normalization
