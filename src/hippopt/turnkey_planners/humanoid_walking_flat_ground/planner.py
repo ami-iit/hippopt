@@ -674,9 +674,7 @@ class Planner:
             s=sym.system.kinematics.joints.positions
         )["relative_position"]
         problem.add_expression_to_horizon(
-            expression=cs.MX(
-                relative_position[:2] >= sym.minimum_feet_lateral_distance
-            ),
+            expression=cs.MX(relative_position[1] >= sym.minimum_feet_lateral_distance),
             apply_to_first_elements=False,
             name="minimum_feet_distance",
         )
