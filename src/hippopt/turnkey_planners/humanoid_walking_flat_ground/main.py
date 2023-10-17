@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 import casadi as cs
 import idyntree.bindings as idyntree
@@ -258,6 +259,8 @@ def compute_initial_state(
 
     output_pf = pf_input.solve()
 
+    output_pf.values.state.centroidal_momentum = np.zeros((6, 1))
+
     return output_pf.values.state
 
 
@@ -299,12 +302,12 @@ def compute_final_state(
         number_of_joints=len(desired_joints),
     )
 
-    pf_ref.state.com = np.array([0.0, 0.0, 0.7])
+    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
     desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
     )
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
+        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
     pf_ref.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(
@@ -343,13 +346,16 @@ def get_references(
     )
 
     output_reference.contacts_centroid_cost_weights = [100, 100, 10]
-    output_reference.contacts_centroid = [0.0, 0.0, 0.0]
+    output_reference.contacts_centroid = [0.3, 0.0, 0.0]
     output_reference.joint_regularization = desired_state.kinematics.joints.positions
+    output_reference.com_linear_velocity = [0.1, 0.0, 0.0]
 
     return output_reference
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+
     planner_settings = get_planner_settings()
     planner = walking_planner.Planner(settings=planner_settings)
 
@@ -386,13 +392,13 @@ if __name__ == "__main__":
 
     output = planner.solve()
 
-    humanoid_states = [s.to_humanoid_state() for s in output.values.system]
+    humanoid_states = [
+        s.to_humanoid_state(output.values.mass) for s in output.values.system
+    ]
 
     print("Press [Enter] to visualize the solution.")
     input()
 
     visualizer.visualize(
-        state=humanoid_states, timestep_s=output.values.dt, time_multiplier=10.0
+        state=humanoid_states, timestep_s=output.values.dt, time_multiplier=2.0
     )
-
-    # TODO: Move to mass normalization
