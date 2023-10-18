@@ -75,8 +75,8 @@ def get_planner_settings() -> walking_planner.Settings:
     settings.dcc_epsilon = 0.05
     settings.static_friction = 0.3
     settings.maximum_velocity_control = [2.0, 2.0, 5.0]
-    settings.maximum_force_derivative = [100.0, 100.0, 100.0]
-    settings.maximum_angular_momentum = 10.0
+    settings.maximum_force_derivative = [1.0, 1.0, 1.0]
+    settings.maximum_angular_momentum = 1.0
     settings.minimum_com_height = 0.3
     settings.minimum_feet_lateral_distance = 0.1
     settings.maximum_feet_relative_height = 0.05
@@ -383,6 +383,8 @@ if __name__ == "__main__":
 
     visualizer.visualize(final_state)
 
+    print("Starting the planner...")
+
     references = get_references(
         input_settings=planner_settings,
         desired_state=final_state,
@@ -401,4 +403,12 @@ if __name__ == "__main__":
 
     visualizer.visualize(
         state=humanoid_states, timestep_s=output.values.dt, time_multiplier=2.0
+    )
+
+    visualizer.visualize(
+        state=humanoid_states,
+        timestep_s=output.values.dt,
+        time_multiplier=1.0,
+        save=True,
+        file_name_stem="humanoid_walking",
     )
