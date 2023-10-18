@@ -1,8 +1,11 @@
+import copy
 import dataclasses
 import logging
 import os
+import pathlib
 import time
 
+import ffmpeg
 import liecasadi
 import numpy as np
 from idyntree.visualize import MeshcatVisualizer
@@ -220,7 +223,9 @@ class HumanoidStateVisualizer:
             ]
         )
 
-    def _visualize_single_state(self, state: HumanoidState):
+    def _visualize_single_state(
+        self, state: HumanoidState, save: bool, file_name_stem: str
+    ):
         self._viz.set_multibody_system_state(
             state.kinematics.base.position,
             liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
@@ -243,6 +248,9 @@ class HumanoidStateVisualizer:
                 np.eye(3),
                 f"p_{i}",
             )
+
+            # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
+            # available in conda
 
             force_norm = np.linalg.norm(point.f)
 
@@ -270,37 +278,101 @@ class HumanoidStateVisualizer:
             transform[0:3, 0:3] = rotation @ scaling
             self._viz.viewer[f"f_{i}"].set_transform(transform)
 
+        if save:
+            image = self._viz.viewer.get_image()
+            image.save(file_name_stem + ".png")
+
     def _visualize_multiple_states(
         self,
         states: list[HumanoidState],
-        timestep_s: float | list[float] | np.ndarray = None,
-        time_multiplier: float = 1.0,
+        timestep_s: float | list[float] | np.ndarray,
+        time_multiplier: float,
+        save: bool,
+        file_name_stem: str,
     ):
-        if timestep_s is None or isinstance(timestep_s, float) or timestep_s.size == 1:
-            single_step = timestep_s if timestep_s is not None else 0.0
-            timestep_s = [single_step] * len(states)
+        _timestep_s = copy.deepcopy(timestep_s)
+        if (
+            _timestep_s is None
+            or isinstance(_timestep_s, float)
+            or _timestep_s.size == 1
+        ):
+            single_step = _timestep_s if _timestep_s is not None else 0.0
+            _timestep_s = [single_step] * len(states)
 
-        if len(timestep_s) != len(states):
-            raise ValueError("timestep and states have different lengths.")
+        if len(_timestep_s) != len(states):
+            raise ValueError("timestep_s and states have different lengths.")
+
+        folder_name = f"{self._settings.working_folder}/{file_name_stem}_frames"
+        pathlib.Path(folder_name).mkdir(parents=True, exist_ok=True)
 
         for i, state in enumerate(states):
             self._logger.info(f"Visualizing state {i + 1}/{len(states)}")
             start = time.time()
-            self._visualize_single_state(state)
+            self._visualize_single_state(
+                state,
+                save=save,
+                file_name_stem=f"{folder_name}/frame_{i:03}",
+            )
             end = time.time()
             elapsed_s = end - start
-            sleep_time = timestep_s[i] * time_multiplier - elapsed_s
+            sleep_time = _timestep_s[i] * time_multiplier - elapsed_s
             time.sleep(max(0.0, sleep_time))
+
+        if save:
+            if timestep_s is None:
+                self._logger.warning("timestep_s is None. Saving video with 1.0 fps.")
+                fps = 1.0
+            elif isinstance(timestep_s, list):
+                if len(timestep_s) > 1:
+                    self._logger.warning(
+                        "The input timestep is a list. "
+                        "Using the average to compute the fps."
+                    )
+                    fps = 1.0 / (sum(timestep_s) / len(timestep_s))
+                else:
+                    fps = 1.0 / timestep_s[0]
+            elif isinstance(timestep_s, np.ndarray):
+                if timestep_s.size > 1:
+                    self._logger.warning(
+                        "The input timestep is a list. "
+                        "Using the average to compute the fps."
+                    )
+                    fps = 1.0 / (sum(timestep_s) / len(timestep_s))
+                else:
+                    fps = 1.0 / timestep_s
+            elif isinstance(timestep_s, float):
+                fps = 1.0 / timestep_s
+            else:
+                self._logger.warning("Using the fps=1.0")
+                fps = 1.0
+
+            frames = ffmpeg.input(
+                f"{folder_name}/frame_*.png", pattern_type="glob", framerate=fps
+            )
+            video = ffmpeg.output(
+                frames,
+                f"{self._settings.working_folder}/{file_name_stem}.mp4",
+                video_bitrate="20M",
+            )
+            ffmpeg.run(video)
 
     def visualize(
         self,
         state: HumanoidState | list[HumanoidState],
         timestep_s: float | list[float] | np.ndarray = None,
         time_multiplier: float = 1.0,
+        save: bool = False,
+        file_name_stem: str = "humanoid_state_visualization",
     ):
         if isinstance(state, list):
             self._visualize_multiple_states(
-                state, timestep_s=timestep_s, time_multiplier=time_multiplier
+                state,
+                timestep_s=timestep_s,
+                time_multiplier=time_multiplier,
+                save=save,
+                file_name_stem=file_name_stem,
             )
         else:
-            self._visualize_single_state(state)
+            self._visualize_single_state(
+                state, save=save, file_name_stem=file_name_stem
+            )
