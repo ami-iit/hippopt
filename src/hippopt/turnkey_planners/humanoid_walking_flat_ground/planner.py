@@ -285,13 +285,11 @@ class ExtendedHumanoid(hp.OptimizationObject):
         self.centroidal_momentum = np.zeros(6)
         self.kinematics = hp_rp.FloatingBaseSystem(number_of_joints=number_of_joints)
 
-    def to_humanoid_state(self, mass: float = 1.0) -> hp_rp.HumanoidState:
+    def to_humanoid_state(self) -> hp_rp.HumanoidState:
         output = hp_rp.HumanoidState()
         output.kinematics.base = self.kinematics.base
         output.kinematics.joints = self.kinematics.joints
         output.contact_points = self.contact_points
-        for point in output.contact_points.left + output.contact_points.right:
-            point.f *= mass
         output.com = self.com
         output.centroidal_momentum = self.centroidal_momentum
         return output
@@ -1182,4 +1180,12 @@ class Planner:
         self.ocp.problem.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
-        return self.ocp.problem.solve()
+        output = self.ocp.problem.solve()
+
+        values = output.values
+
+        for s in values.system:
+            for point in s.contact_points.left + s.contact_points.right:
+                point.f *= values.mass
+
+        return output

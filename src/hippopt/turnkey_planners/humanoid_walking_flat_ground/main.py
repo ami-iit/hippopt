@@ -394,9 +394,7 @@ if __name__ == "__main__":
 
     output = planner.solve()
 
-    humanoid_states = [
-        s.to_humanoid_state(output.values.mass) for s in output.values.system
-    ]
+    humanoid_states = [s.to_humanoid_state() for s in output.values.system]
 
     print("Press [Enter] to visualize the solution.")
     input()
