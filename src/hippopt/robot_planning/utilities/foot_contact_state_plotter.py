@@ -1,6 +1,9 @@
 import copy
 import dataclasses
+import logging
 import math
+import multiprocessing
+from typing import TypeVar
 
 import matplotlib.axes
 import matplotlib.pyplot as plt
@@ -70,8 +73,8 @@ class ContactPointStatePlotter:
         height_function = self.settings.terrain.height_function()
         normal_direction_fun = self.settings.terrain.normal_direction_function()
 
-        positions = [height_function(s.p) for s in states]
-        forces = [normal_direction_fun(s.p).T @ s.f for s in states]
+        positions = np.array([height_function(s.p) for s in states]).flatten()
+        forces = np.array([normal_direction_fun(s.p).T @ s.f for s in states]).flatten()
         self._axes.plot(_time_s, positions)
         self._axes.set_ylabel("Height [m]", color="C0")
         self._axes.tick_params(axis="y", color="C0", labelcolor="C0")
@@ -86,6 +89,7 @@ class ContactPointStatePlotter:
             self._fig.suptitle(title)
             plt.draw()
             plt.pause(0.001)
+            plt.show()
 
 
 @dataclasses.dataclass
@@ -94,64 +98,101 @@ class FootContactStatePlotterSettings:
     terrain: TerrainDescriptor = dataclasses.field(default=None)
 
 
+TFootContactStatePlotter = TypeVar(
+    "TFootContactStatePlotter", bound="FootContactStatePlotter"
+)
+
+
 class FootContactStatePlotter:
     def __init__(
         self,
         settings: FootContactStatePlotterSettings = FootContactStatePlotterSettings(),
     ):
-        self.settings = settings
-        self.number_of_rows = -1
-        self.fig = None
-        self.point_plotters = []
+        self._settings = settings
+        self._ext_process = None
+        self._logger = logging.getLogger("[hippopt::FootContactStatePlotter]")
 
     def plot_complementarity(
         self,
         states: list[FootContactState],
         time_s: float | list[float] | np.ndarray = None,
         title: str = "Foot Contact Complementarity",
+        blocking: bool = False,
     ):
+        if self._ext_process is not None:
+            self._logger.warning(
+                "A plot is already running. "
+                "Make sure to close the previous plot first."
+            )
+            self._ext_process.join()
+            self._ext_process = None
         _time_s = copy.deepcopy(time_s)
+        _states = copy.deepcopy(states)
+        _terrain = copy.deepcopy(self._settings.terrain)
         if _time_s is None or isinstance(_time_s, float) or _time_s.size == 1:
             single_step = _time_s if _time_s is not None else 0.0
             _time_s = np.linspace(0, len(states) * single_step, len(states))
 
-        if len(_time_s) != len(states):
+        if len(_time_s) != len(_states):
             raise ValueError(
                 "timestep_s and foot_contact_states have different lengths."
             )
 
-        if len(states) == 0:
+        if len(_states) == 0:
             return
 
-        number_of_plots = len(states[0])
-        if self.settings.number_of_columns < 1:
-            self.settings.number_of_columns = math.ceil(math.sqrt(number_of_plots))
-        number_of_rows = math.ceil(number_of_plots / self.settings.number_of_columns)
+        self._ext_process = multiprocessing.Process(
+            target=FootContactStatePlotter._create_complementarity_plot,
+            args=(
+                _states,
+                _time_s,
+                title,
+                self._settings.number_of_columns,
+                _terrain,
+            ),
+        )
+        self._ext_process.start()
 
-        if self.number_of_rows != number_of_rows:
-            self.fig, axes_list = plt.subplots(
-                nrows=number_of_rows,
-                ncols=self.settings.number_of_columns,
-                squeeze=False,
+        if blocking:
+            self._ext_process.join()
+
+    @staticmethod
+    def _create_complementarity_plot(
+        states: list[FootContactState],
+        time_s: np.ndarray,
+        title: str,
+        number_of_columns: int,
+        terrain: TerrainDescriptor,
+    ):
+        number_of_plots = len(states[0])
+        _number_of_columns = (
+            math.ceil(math.sqrt(number_of_plots))
+            if number_of_columns < 1
+            else number_of_columns
+        )
+        number_of_rows = math.ceil(number_of_plots / _number_of_columns)
+
+        _fig, axes_list = plt.subplots(
+            nrows=number_of_rows,
+            ncols=_number_of_columns,
+            squeeze=False,
+        )
+        _point_plotters = [
+            ContactPointStatePlotter(
+                ContactPointStatePlotterSettings(input_axes=el, terrain=terrain)
             )
-            self.number_of_rows = number_of_rows
-            self.point_plotters = [
-                ContactPointStatePlotter(
-                    ContactPointStatePlotterSettings(
-                        input_axes=el, terrain=self.settings.terrain
-                    )
-                )
-                for row in axes_list
-                for el in row
-            ]
-            assert len(self.point_plotters) == number_of_plots
+            for row in axes_list
+            for el in row
+        ]
+        assert len(_point_plotters) == number_of_plots
 
         for p in range(number_of_plots):
             contact_states = [state[p] for state in states]
-            self.point_plotters[p].plot_complementarity(
-                states=contact_states, time_s=_time_s
+            _point_plotters[p].plot_complementarity(
+                states=contact_states, time_s=time_s
             )
 
-        self.fig.suptitle(title)
+        _fig.suptitle(title)
         plt.draw()
         plt.pause(0.001)
+        plt.show()

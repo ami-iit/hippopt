@@ -27,6 +27,12 @@ from .expressions.quaternion import (
     quaternion_xyzw_normalization,
     quaternion_xyzw_velocity_to_right_trivialized_angular_velocity,
 )
+from .utilities.foot_contact_state_plotter import (
+    ContactPointStatePlotter,
+    ContactPointStatePlotterSettings,
+    FootContactStatePlotter,
+    FootContactStatePlotterSettings,
+)
 from .utilities.humanoid_state_visualizer import (
     HumanoidStateVisualizer,
     HumanoidStateVisualizerSettings,
