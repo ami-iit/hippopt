@@ -428,3 +428,8 @@ if __name__ == "__main__":
         save=True,
         file_name_stem="humanoid_walking",
     )
+
+    print("Press [Enter] to exit.")
+    input()
+    left_complementarity_plotter.close()
+    right_complementarity_plotter.close()
