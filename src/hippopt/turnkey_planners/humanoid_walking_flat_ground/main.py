@@ -395,9 +395,27 @@ if __name__ == "__main__":
     output = planner.solve()
 
     humanoid_states = [s.to_humanoid_state() for s in output.values.system]
-
+    left_contact_points = [s.contact_points.left for s in humanoid_states]
+    right_contact_points = [s.contact_points.right for s in humanoid_states]
     print("Press [Enter] to visualize the solution.")
     input()
+
+    plotter_settings = hp_rp.FootContactStatePlotterSettings()
+    plotter_settings.terrain = planner_settings.terrain
+    left_complementarity_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+    left_complementarity_plotter.plot_complementarity(
+        states=left_contact_points,
+        time_s=output.values.dt,
+        title="Left Foot Complementarity",
+        blocking=False,
+    )
+    right_complementarity_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+    right_complementarity_plotter.plot_complementarity(
+        states=right_contact_points,
+        time_s=output.values.dt,
+        title="Right Foot Complementarity",
+        blocking=False,
+    )
 
     visualizer.visualize(
         state=humanoid_states, timestep_s=output.values.dt, time_multiplier=2.0
