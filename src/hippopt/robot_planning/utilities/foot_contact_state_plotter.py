@@ -215,3 +215,9 @@ class FootContactStatePlotter:
         plt.draw()
         plt.pause(0.001)
         plt.show()
+
+    def close(self):
+        if self._ext_process is not None:
+            self._ext_process.terminate()
+            self._ext_process = None
+        plt.close("all")
