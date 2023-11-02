@@ -303,9 +303,9 @@ class HumanoidStateVisualizer:
             raise ValueError("timestep_s and states have different lengths.")
 
         folder_name = f"{self._settings.working_folder}/{file_name_stem}_frames"
-        pathlib.Path(folder_name).mkdir(parents=True, exist_ok=True)
 
         if save:
+            pathlib.Path(folder_name).mkdir(parents=True, exist_ok=True)
             self._logger.info(
                 f"Saving visualization frames in {folder_name}. "
                 "Make sure to have the visualizer open, "
