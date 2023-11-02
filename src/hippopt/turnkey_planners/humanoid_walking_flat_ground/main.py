@@ -402,18 +402,32 @@ if __name__ == "__main__":
 
     plotter_settings = hp_rp.FootContactStatePlotterSettings()
     plotter_settings.terrain = planner_settings.terrain
-    left_complementarity_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
-    left_complementarity_plotter.plot_complementarity(
+    left_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+    right_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+
+    left_foot_plotter.plot_complementarity(
         states=left_contact_points,
         time_s=output.values.dt,
         title="Left Foot Complementarity",
         blocking=False,
     )
-    right_complementarity_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
-    right_complementarity_plotter.plot_complementarity(
+    right_foot_plotter.plot_complementarity(
         states=right_contact_points,
         time_s=output.values.dt,
         title="Right Foot Complementarity",
+        blocking=False,
+    )
+
+    left_foot_plotter.plot_forces(
+        states=left_contact_points,
+        time_s=output.values.dt,
+        title="Left Foot Forces",
+        blocking=False,
+    )
+    right_foot_plotter.plot_forces(
+        states=right_contact_points,
+        time_s=output.values.dt,
+        title="Right Foot Forces",
         blocking=False,
     )
 
@@ -431,5 +445,5 @@ if __name__ == "__main__":
 
     print("Press [Enter] to exit.")
     input()
-    left_complementarity_plotter.close()
-    right_complementarity_plotter.close()
+    left_foot_plotter.close()
+    right_foot_plotter.close()
