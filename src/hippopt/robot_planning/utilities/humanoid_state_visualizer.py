@@ -37,6 +37,7 @@ class HumanoidStateVisualizerSettings:
     ground_mesh_axis_points: int = dataclasses.field(default=None)
     ground_x_limits: list[float] = dataclasses.field(default=None)
     ground_y_limits: list[float] = dataclasses.field(default=None)
+    overwrite_ground_files: bool = dataclasses.field(default=False)
 
     def __post_init__(self):
         self.robot_color = [1, 1, 1, 0.25]
@@ -53,7 +54,7 @@ class HumanoidStateVisualizerSettings:
         self.ground_mesh_axis_points = 200
         self.working_folder = "./"
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         ok = True
         logger = logging.getLogger("[hippopt::HumanoidStateVisualizerSettings]")
         if self.robot_model is None:
@@ -127,7 +128,10 @@ class HumanoidStateVisualizer:
             color=settings.robot_color,
         )
         self._viz.load_model_from_file(
-            model_path=os.path.join(self._settings.working_folder, "ground.urdf"),
+            model_path=os.path.join(
+                self._settings.working_folder,
+                self._settings.terrain.get_name() + ".urdf",
+            ),
             model_name="ground",
             color=settings.ground_color,
         )
@@ -149,8 +153,17 @@ class HumanoidStateVisualizer:
                 color=settings.contact_forces_color,
             )
 
-    def _create_ground_urdf(self):
-        with open(os.path.join(self._settings.working_folder, "ground.urdf"), "w") as f:
+    def _create_ground_urdf(self) -> None:
+        filename = self._settings.terrain.get_name() + ".urdf"
+        full_filename = os.path.join(self._settings.working_folder, filename)
+        if os.path.exists(full_filename):
+            if self._settings.overwrite_ground_files:
+                self._logger.info(f"Overwriting {filename}")
+            else:
+                self._logger.info(f"{filename} already exists. Skipping creation.")
+                return
+
+        with open(full_filename, "w") as f:
             f.write(
                 """<?xml version="1.0"?>
                 <robot name="ground">
@@ -187,7 +200,15 @@ class HumanoidStateVisualizer:
                 """
             )
 
-    def _create_ground_mesh(self):
+    def _create_ground_mesh(self) -> None:
+        filename = self._settings.terrain.get_name() + ".stl"
+        full_filename = os.path.join(self._settings.working_folder, filename)
+        if os.path.exists(full_filename):
+            if self._settings.overwrite_ground_files:
+                self._logger.info(f"Overwriting {filename}")
+            else:
+                self._logger.info(f"{filename} already exists. Skipping creation.")
+                return
         x_step = (
             self._settings.ground_x_limits[1] - self._settings.ground_x_limits[0]
         ) / self._settings.ground_mesh_axis_points
@@ -209,9 +230,7 @@ class HumanoidStateVisualizer:
         points = np.array([x.flatten(), y.flatten(), np.zeros(x.size)])
         height_function_map = self._settings.terrain.height_function().map(x.size)
         z = -np.array(height_function_map(points).full()).reshape(x.shape)
-        surf2stl.write(
-            os.path.join(self._settings.working_folder, "ground.stl"), x, y, z
-        )
+        surf2stl.write(full_filename, x, y, z)
 
     @staticmethod
     def _skew(x: np.ndarray) -> np.ndarray:
@@ -225,7 +244,7 @@ class HumanoidStateVisualizer:
 
     def _visualize_single_state(
         self, state: HumanoidState, save: bool, file_name_stem: str
-    ):
+    ) -> None:
         self._viz.set_multibody_system_state(
             state.kinematics.base.position,
             liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
@@ -295,7 +314,7 @@ class HumanoidStateVisualizer:
         time_multiplier: float,
         save: bool,
         file_name_stem: str,
-    ):
+    ) -> None:
         _timestep_s = copy.deepcopy(timestep_s)
         if (
             _timestep_s is None
@@ -376,7 +395,7 @@ class HumanoidStateVisualizer:
         time_multiplier: float = 1.0,
         save: bool = False,
         file_name_stem: str = "humanoid_state_visualization",
-    ):
+    ) -> None:
         if isinstance(state, list):
             self._visualize_multiple_states(
                 state,
