@@ -440,7 +440,7 @@ if __name__ == "__main__":
         timestep_s=output.values.dt,
         time_multiplier=1.0,
         save=True,
-        file_name_stem="humanoid_walking",
+        file_name_stem="humanoid_walking_single_step",
     )
 
     print("Press [Enter] to exit.")
