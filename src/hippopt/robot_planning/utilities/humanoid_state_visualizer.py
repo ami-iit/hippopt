@@ -249,38 +249,44 @@ class HumanoidStateVisualizer:
                 f"p_{i}",
             )
 
+            point_force = point.f * self._settings.contact_force_scaling
+
             # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
             # available in conda
 
-            force_norm = np.linalg.norm(point.f)
-
-            if force_norm < 1e-6:
-                rotation = np.eye(3)
-            else:
-                force_direction = point.f / force_norm
-                cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
-                rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
-                skew_symmetric_matrix = self._skew(rotation_axis)
-                rotation = (
-                    np.eye(3)
-                    + skew_symmetric_matrix
-                    + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
-                    * ((1 - cos_angle) / (force_norm**2))
-                )
-
-            scaling = np.diag([1, 1, self._settings.contact_force_scaling * force_norm])
-            position = (
-                point.p + point.f * self._settings.contact_force_scaling / 2
-            )  # the origin is in the cylinder center
+            position = point.p + point_force / 2  # the origin is in the cylinder center
             transform = np.zeros((4, 4))
             transform[0:3, 3] = position
             transform[3, 3] = 1
-            transform[0:3, 0:3] = rotation @ scaling
+            transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
             self._viz.viewer[f"f_{i}"].set_transform(transform)
 
         if save:
             image = self._viz.viewer.get_image()
             image.save(file_name_stem + ".png")
+
+    def _get_force_scaled_rotation(self, point_force: np.ndarray) -> np.ndarray:
+        force_norm = np.linalg.norm(point_force)
+        scaling = np.diag([1, 1, force_norm])
+
+        if force_norm < 1e-6:
+            return scaling
+
+        force_direction = point_force / force_norm
+        cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
+        rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
+
+        if np.linalg.norm(rotation_axis) < 1e-6:
+            return scaling
+
+        skew_symmetric_matrix = self._skew(rotation_axis)
+        rotation = (
+            np.eye(3)
+            + skew_symmetric_matrix
+            + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
+            * ((1 - cos_angle) / (np.linalg.norm(rotation_axis) ** 2))
+        )
+        return rotation @ scaling
 
     def _visualize_multiple_states(
         self,
