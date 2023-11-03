@@ -31,3 +31,8 @@ def test_planar_terrain():
     output = orientation_fun(dummy_point).full()
 
     assert (expected_orientation == output).all()  # noqa
+
+    assert planar_terrain.get_name() == "PlanarTerrain"
+
+    other = hippopt.robot_planning.PlanarTerrain(name="other")
+    assert other.get_name() == "other"
