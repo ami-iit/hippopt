@@ -337,13 +337,15 @@ class HumanoidStateVisualizer:
                 "otherwise the process will hang."
             )
 
+        frame_prefix = "frame_"
+
         for i, state in enumerate(states):
             self._logger.info(f"Visualizing state {i + 1}/{len(states)}")
             start = time.time()
             self._visualize_single_state(
                 state,
                 save=save,
-                file_name_stem=f"{folder_name}/frame_{i:03}",
+                file_name_stem=f"{folder_name}/{frame_prefix}{i:03}",
             )
             end = time.time()
             elapsed_s = end - start
@@ -378,15 +380,25 @@ class HumanoidStateVisualizer:
                 self._logger.warning("Using the fps=1.0")
                 fps = 1.0
 
-            frames = ffmpeg.input(
-                f"{folder_name}/frame_*.png", pattern_type="glob", framerate=fps
+            self.generate_video_from_frames(
+                file_name_stem=file_name_stem,
+                frames_folder=folder_name,
+                frames_prefix=frame_prefix,
+                fps=fps,
             )
-            video = ffmpeg.output(
-                frames,
-                f"{self._settings.working_folder}/{file_name_stem}.mp4",
-                video_bitrate="20M",
-            )
-            ffmpeg.run(video)
+
+    def generate_video_from_frames(
+        self, file_name_stem: str, frames_folder: str, frames_prefix: str, fps: float
+    ) -> None:
+        frames = ffmpeg.input(
+            f"{frames_folder}/{frames_prefix}*.png", pattern_type="glob", framerate=fps
+        )
+        video = ffmpeg.output(
+            frames,
+            f"{self._settings.working_folder}/{file_name_stem}.mp4",
+            video_bitrate="20M",
+        )
+        ffmpeg.run(video)
 
     def visualize(
         self,
