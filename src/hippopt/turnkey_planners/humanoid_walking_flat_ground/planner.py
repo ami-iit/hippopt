@@ -648,7 +648,7 @@ class Planner:
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
                 -sym.maximum_angular_momentum,
-                sym.system.centroidal_momentum[3:],
+                sym.system.centroidal_momentum[3:] * sym.mass,
                 sym.maximum_angular_momentum,
             ),
             apply_to_first_elements=True,
@@ -966,7 +966,7 @@ class Planner:
         problem.add_expression_to_horizon(
             expression=cs.Opti_bounded(
                 -sym.maximum_force_derivative,
-                point.f_dot,
+                point.f_dot * sym.mass,
                 sym.maximum_force_derivative,
             ),
             apply_to_first_elements=True,
