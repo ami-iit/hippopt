@@ -37,7 +37,8 @@ class HumanoidStateVisualizerSettings:
     ground_mesh_axis_points: int = dataclasses.field(default=None)
     ground_x_limits: list[float] = dataclasses.field(default=None)
     ground_y_limits: list[float] = dataclasses.field(default=None)
-    overwrite_ground_files: bool = dataclasses.field(default=False)
+    overwrite_ground_files: bool = dataclasses.field(default=None)
+    pre_allocated_clones: int = dataclasses.field(default=None)
 
     def __post_init__(self):
         self.robot_color = [1, 1, 1, 0.25]
@@ -53,6 +54,8 @@ class HumanoidStateVisualizerSettings:
         self.ground_y_limits = [-1.5, 1.5]
         self.ground_mesh_axis_points = 200
         self.working_folder = "./"
+        self.overwrite_ground_files = False
+        self.pre_allocated_clones = 1
 
     def is_valid(self) -> bool:
         ok = True
@@ -109,6 +112,12 @@ class HumanoidStateVisualizerSettings:
         ):
             logger.error("ground_y_limits are not specified correctly.")
             ok = False
+        if self.contact_force_scaling <= 0:
+            logger.error("contact_force_scaling is not specified correctly.")
+            ok = False
+        if self.pre_allocated_clones <= 0:
+            logger.error("pre_allocated_clones is not specified correctly.")
+            ok = False
         return ok
 
 
@@ -120,38 +129,129 @@ class HumanoidStateVisualizer:
         self._settings = settings
         self._create_ground_urdf()
         self._create_ground_mesh()
+        self._number_of_clones = self._settings.pre_allocated_clones
         self._viz = MeshcatVisualizer()
-        self._viz.load_model_from_file(
-            model_path=settings.robot_model,
-            model_name="robot",
-            considered_joints=settings.considered_joints,
-            color=settings.robot_color,
-        )
         self._viz.load_model_from_file(
             model_path=os.path.join(
                 self._settings.working_folder,
                 self._settings.terrain.get_name() + ".urdf",
             ),
             model_name="ground",
-            color=settings.ground_color,
+            color=self._settings.ground_color,
+        )
+        for i in range(self._number_of_clones):
+            self._allocate_clone(i)
+            if i != 0:
+                self._set_clone_visibility(i, False)
+
+    def _allocate_clone(self, index: int) -> None:
+        self._viz.load_model_from_file(
+            model_path=self._settings.robot_model,
+            model_name=f"[{index}]robot",
+            considered_joints=self._settings.considered_joints,
+            color=self._settings.robot_color,
         )
         self._viz.load_sphere(
-            radius=settings.com_radius, shape_name="CoM", color=settings.com_color
+            radius=self._settings.com_radius,
+            shape_name=f"[{index}]CoM",
+            color=self._settings.com_color,
         )
         for i, point in enumerate(
-            (settings.contact_points.left + settings.contact_points.right)
+            (self._settings.contact_points.left + self._settings.contact_points.right)
         ):
             self._viz.load_sphere(
-                radius=settings.contact_points_radius,
-                shape_name=f"p_{i}",
-                color=settings.contact_points_color,
+                radius=self._settings.contact_points_radius,
+                shape_name=f"[{index}]p_{i}",
+                color=self._settings.contact_points_color,
             )
             self._viz.load_cylinder(
-                radius=settings.contact_force_radius,
+                radius=self._settings.contact_force_radius,
                 length=1.0,
-                shape_name=f"f_{i}",
-                color=settings.contact_forces_color,
+                shape_name=f"[{index}]f_{i}",
+                color=self._settings.contact_forces_color,
             )
+
+    def _set_clone_visibility(self, index: int, visible: bool) -> None:
+        self._viz.viewer[f"[{index}]robot"].set_property(key="visible", value=visible)
+        self._viz.viewer[f"[{index}]CoM"].set_property(key="visible", value=visible)
+        for i, point in enumerate(
+            (self._settings.contact_points.left + self._settings.contact_points.right)
+        ):
+            self._viz.viewer[f"[{index}]p_{i}"].set_property(
+                key="visible", value=visible
+            )
+            self._viz.viewer[f"[{index}]f_{i}"].set_property(
+                key="visible", value=visible
+            )
+
+    @staticmethod
+    def _skew(x: np.ndarray) -> np.ndarray:
+        return np.array(
+            [
+                [0, -x[2], x[1]],
+                [x[2], 0, -x[0]],
+                [-x[1], x[0], 0],
+            ]
+        )
+
+    def _get_force_scaled_rotation(self, point_force: np.ndarray) -> np.ndarray:
+        force_norm = np.linalg.norm(point_force)
+        scaling = np.diag([1, 1, force_norm])
+
+        if force_norm < 1e-6:
+            return scaling
+
+        force_direction = point_force / force_norm
+        cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
+        rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
+
+        if np.linalg.norm(rotation_axis) < 1e-6:
+            return scaling
+
+        skew_symmetric_matrix = self._skew(rotation_axis)
+        rotation = (
+            np.eye(3)
+            + skew_symmetric_matrix
+            + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
+            * ((1 - cos_angle) / (np.linalg.norm(rotation_axis) ** 2))
+        )
+        return rotation @ scaling
+
+    def _update_clone(self, index: int, state: HumanoidState) -> None:
+        self._viz.set_multibody_system_state(
+            state.kinematics.base.position,
+            liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
+            .as_matrix()
+            .full(),
+            state.kinematics.joints.positions,
+            f"[{index}]robot",
+        )
+        self._viz.set_primitive_geometry_transform(
+            state.com,
+            np.eye(3),
+            f"[{index}]CoM",
+        )
+
+        for i, point in enumerate(
+            (state.contact_points.left + state.contact_points.right)
+        ):
+            self._viz.set_primitive_geometry_transform(
+                point.p,
+                np.eye(3),
+                f"[{index}]p_{i}",
+            )
+
+            point_force = point.f * self._settings.contact_force_scaling
+
+            # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
+            # available in conda
+
+            position = point.p + point_force / 2  # the origin is in the cylinder center
+            transform = np.zeros((4, 4))
+            transform[0:3, 3] = position
+            transform[3, 3] = 1
+            transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
+            self._viz.viewer[f"[{index}]f_{i}"].set_transform(transform)
 
     def _create_ground_urdf(self) -> None:
         filename = self._settings.terrain.get_name() + ".urdf"
@@ -232,86 +332,40 @@ class HumanoidStateVisualizer:
         z = -np.array(height_function_map(points).full()).reshape(x.shape)
         surf2stl.write(full_filename, x, y, z)
 
-    @staticmethod
-    def _skew(x: np.ndarray) -> np.ndarray:
-        return np.array(
-            [
-                [0, -x[2], x[1]],
-                [x[2], 0, -x[0]],
-                [-x[1], x[0], 0],
-            ]
-        )
-
     def _visualize_single_state(
-        self, state: HumanoidState, save: bool, file_name_stem: str
+        self,
+        states: list[HumanoidState],
+        save: bool,
+        file_name_stem: str,
     ) -> None:
-        self._viz.set_multibody_system_state(
-            state.kinematics.base.position,
-            liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
-            .as_matrix()
-            .full(),
-            state.kinematics.joints.positions,
-            "robot",
-        )
-        self._viz.set_primitive_geometry_transform(
-            state.com,
-            np.eye(3),
-            "CoM",
-        )
-
-        for i, point in enumerate(
-            (state.contact_points.left + state.contact_points.right)
-        ):
-            self._viz.set_primitive_geometry_transform(
-                point.p,
-                np.eye(3),
-                f"p_{i}",
+        if len(states) > self._number_of_clones:
+            self._logger.warning(
+                f"Number of states ({len(states)}) is greater than the number of "
+                f"allocated clones ({self._number_of_clones}). "
+                "Creating new clones."
             )
+        for i in range(self._number_of_clones, len(states)):
+            self._allocate_clone(i)
+            self._set_clone_visibility(i, False)
+            self._number_of_clones += 1
 
-            point_force = point.f * self._settings.contact_force_scaling
+        for i in range(len(states)):
+            self._update_clone(i, states[i])
+            self._set_clone_visibility(i, True)
 
-            # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
-            # available in conda
-
-            position = point.p + point_force / 2  # the origin is in the cylinder center
-            transform = np.zeros((4, 4))
-            transform[0:3, 3] = position
-            transform[3, 3] = 1
-            transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
-            self._viz.viewer[f"f_{i}"].set_transform(transform)
+        for i in range(len(states), self._number_of_clones):
+            self._set_clone_visibility(i, False)
 
         if save:
             image = self._viz.viewer.get_image()
             image.save(file_name_stem + ".png")
-
-    def _get_force_scaled_rotation(self, point_force: np.ndarray) -> np.ndarray:
-        force_norm = np.linalg.norm(point_force)
-        scaling = np.diag([1, 1, force_norm])
-
-        if force_norm < 1e-6:
-            return scaling
-
-        force_direction = point_force / force_norm
-        cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
-        rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
-
-        if np.linalg.norm(rotation_axis) < 1e-6:
-            return scaling
-
-        skew_symmetric_matrix = self._skew(rotation_axis)
-        rotation = (
-            np.eye(3)
-            + skew_symmetric_matrix
-            + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
-            * ((1 - cos_angle) / (np.linalg.norm(rotation_axis) ** 2))
-        )
-        return rotation @ scaling
 
     def _visualize_multiple_states(
         self,
         states: list[HumanoidState],
         timestep_s: float | list[float] | np.ndarray,
         time_multiplier: float,
+        number_of_clones: int,
         save: bool,
         file_name_stem: str,
     ) -> None:
@@ -339,11 +393,19 @@ class HumanoidStateVisualizer:
 
         frame_prefix = "frame_"
 
-        for i, state in enumerate(states):
-            self._logger.info(f"Visualizing state {i + 1}/{len(states)}")
+        for i in range(number_of_clones, len(states)):
+            initial_index = i - number_of_clones
+            visualized_states = states[initial_index:i]
+            if number_of_clones > 1:
+                self._logger.info(
+                    f"Visualizing states [{i-number_of_clones + 1},{i + 1}]"
+                    f" of {len(states)}."
+                )
+            else:
+                self._logger.info(f"Visualizing state {i}/{len(states)}")
             start = time.time()
             self._visualize_single_state(
-                state,
+                visualized_states,
                 save=save,
                 file_name_stem=f"{folder_name}/{frame_prefix}{i:03}",
             )
@@ -384,14 +446,16 @@ class HumanoidStateVisualizer:
                 file_name_stem=file_name_stem,
                 frames_folder=folder_name,
                 frames_prefix=frame_prefix,
-                fps=fps,
+                fps=fps / time_multiplier,
             )
 
     def generate_video_from_frames(
         self, file_name_stem: str, frames_folder: str, frames_prefix: str, fps: float
     ) -> None:
         frames = ffmpeg.input(
-            f"{frames_folder}/{frames_prefix}*.png", pattern_type="glob", framerate=fps
+            filename=f"{frames_folder}/{frames_prefix}*.png",
+            pattern_type="glob",
+            framerate=fps,
         )
         video = ffmpeg.output(
             frames,
@@ -402,21 +466,29 @@ class HumanoidStateVisualizer:
 
     def visualize(
         self,
-        state: HumanoidState | list[HumanoidState],
+        states: HumanoidState | list[HumanoidState],
         timestep_s: float | list[float] | np.ndarray = None,
         time_multiplier: float = 1.0,
+        number_of_clones: int = 1,
         save: bool = False,
         file_name_stem: str = "humanoid_state_visualization",
     ) -> None:
-        if isinstance(state, list):
+        if number_of_clones < 1:
+            raise ValueError("number_of_clones must be greater than 0.")
+
+        if not isinstance(states, list):
+            states = [states]
+
+        if number_of_clones < len(states):
             self._visualize_multiple_states(
-                state,
+                states=states,
                 timestep_s=timestep_s,
                 time_multiplier=time_multiplier,
+                number_of_clones=number_of_clones,
                 save=save,
                 file_name_stem=file_name_stem,
             )
         else:
             self._visualize_single_state(
-                state, save=save, file_name_stem=file_name_stem
+                states=states, save=save, file_name_stem=file_name_stem
             )
