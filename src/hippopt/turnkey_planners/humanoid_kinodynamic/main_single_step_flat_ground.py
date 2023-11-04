@@ -432,11 +432,13 @@ if __name__ == "__main__":
     )
 
     visualizer.visualize(
-        state=humanoid_states, timestep_s=output.values.dt, time_multiplier=2.0
+        states=humanoid_states,
+        timestep_s=output.values.dt,
+        time_multiplier=2.0,
     )
 
     visualizer.visualize(
-        state=humanoid_states,
+        states=humanoid_states,
         timestep_s=output.values.dt,
         time_multiplier=1.0,
         save=True,
