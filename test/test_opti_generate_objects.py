@@ -49,6 +49,10 @@ class AggregateClass(OptimizationObject):
 
 def test_generate_objects():
     test_var = AggregateClass()
+    test_var_as_list = test_var.to_list()
+    assert (
+        len(test_var_as_list) == 3 + 3 * 3 + 1
+    )  # 3 for aggregated, 3*3 for aggregated_list, 1 for other_parameter
     solver = OptiSolver()
     opti_var = solver.generate_optimization_objects(test_var)
     assert isinstance(opti_var.aggregated.parameter, cs.MX)
@@ -70,6 +74,9 @@ def test_generate_objects():
     assert opti_var.other == "untouched"
     assert solver.get_optimization_objects() is opti_var
     assert len(solver.get_free_parameters_names()) == 0
+    assert (len(opti_var.to_list())) == len(test_var_as_list)
+    expected_len = 7 + 3 * 7 + 3
+    assert opti_var.to_mx().shape == (expected_len, 1)
 
 
 def test_generate_objects_list():

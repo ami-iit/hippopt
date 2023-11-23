@@ -32,6 +32,42 @@ class OptimizationObject(abc.ABC):
         OverrideIfComposite=False,
     )
 
+    def to_list(self) -> list:
+        output_list = []
+        for field in dataclasses.fields(self):
+            composite_value = self.__getattribute__(field.name)
+
+            is_list = isinstance(composite_value, list)
+            list_of_optimization_objects = is_list and all(
+                isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                for elem in composite_value
+            )
+            list_of_float = is_list and all(
+                isinstance(elem, float) for elem in composite_value
+            )
+            if list_of_float:
+                is_list = False
+
+            if list_of_optimization_objects:
+                for elem in composite_value:
+                    output_list += elem.to_list()
+                continue
+
+            if isinstance(composite_value, OptimizationObject):
+                output_list += composite_value.to_list()
+                continue
+
+            if OptimizationObject.StorageTypeField in field.metadata:
+                value_list = composite_value if is_list else [composite_value]
+                for value in value_list:
+                    output_list.append(value)
+                continue
+
+        return output_list
+
+    def to_mx(self) -> cs.MX:
+        return cs.vertcat(*self.to_list())
+
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
         pass
