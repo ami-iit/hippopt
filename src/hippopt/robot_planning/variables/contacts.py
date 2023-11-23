@@ -1,4 +1,5 @@
 import dataclasses
+from typing import TypeVar
 
 import liecasadi
 import numpy as np
@@ -90,6 +91,9 @@ class ContactPointStateDerivative(OptimizationObject):
         self.f_dot = np.zeros(3)
 
 
+TFootContactState = TypeVar("TFootContactState", bound="FootContactState")
+
+
 class FootContactState(list[ContactPointState]):
     def set_from_parent_frame_transform(self, transform: liecasadi.SE3):
         for contact_point in self:
@@ -98,9 +102,16 @@ class FootContactState(list[ContactPointState]):
             )
 
     @staticmethod
+    def from_list(input_list: list[ContactPointState]) -> TFootContactState:
+        output = FootContactState()
+        for contact_point in input_list:
+            output.append(contact_point)
+        return output
+
+    @staticmethod
     def from_parent_frame_transform(
         descriptor: list[ContactPointDescriptor], transform: liecasadi.SE3
-    ):
+    ) -> TFootContactState:
         foot_contact_state = FootContactState()
         for contact_point_descriptor in descriptor:
             foot_contact_state.append(
