@@ -94,7 +94,8 @@ class ContactPointStateDerivative(OptimizationObject):
 TFootContactState = TypeVar("TFootContactState", bound="FootContactState")
 
 
-class FootContactState(list[ContactPointState]):
+@dataclasses.dataclass
+class FootContactState(list[ContactPointState], OptimizationObject):
     def set_from_parent_frame_transform(self, transform: liecasadi.SE3):
         for contact_point in self:
             contact_point.p = transform.translation() + transform.rotation().act(
