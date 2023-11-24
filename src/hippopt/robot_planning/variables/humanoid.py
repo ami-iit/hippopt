@@ -29,7 +29,6 @@ class HumanoidState(OptimizationObject):
     )
 
     com: StorageType = default_storage_field(OverridableVariable)
-    centroidal_momentum: StorageType = default_storage_field(OverridableVariable)
 
     contact_point_descriptors: dataclasses.InitVar[
         FeetContactPointDescriptors
@@ -55,4 +54,3 @@ class HumanoidState(OptimizationObject):
             number_of_joints_state=number_of_joints
         )
         self.com = np.zeros(3)
-        self.centroidal_momentum = np.zeros(6)
