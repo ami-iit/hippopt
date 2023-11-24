@@ -241,11 +241,28 @@ class ExtendedContactPoint(
         hp_rp.ContactPointStateDerivative.__post_init__(self)
         self.u_v = np.zeros(3)
 
+    def to_contact_point_state(self) -> hp_rp.ContactPointState:
+        output = hp_rp.ContactPointState()
+        output.p = self.p
+        output.f = self.f
+        output.descriptor = self.descriptor
+        return output
+
 
 @dataclasses.dataclass
 class FeetContactPointsExtended(hp.OptimizationObject):
     left: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
     right: list[ExtendedContactPoint] = hp.default_composite_field(factory=list)
+
+    def to_feet_contact_points(self) -> hp_rp.FeetContactPoints:
+        output = hp_rp.FeetContactPoints()
+        output.left = hp_rp.FootContactState.from_list(
+            [point.to_contact_point_state() for point in self.left]
+        )
+        output.right = hp_rp.FootContactState.from_list(
+            [point.to_contact_point_state() for point in self.right]
+        )
+        return output
 
 
 @dataclasses.dataclass
@@ -287,9 +304,8 @@ class ExtendedHumanoid(hp.OptimizationObject):
 
     def to_humanoid_state(self) -> hp_rp.HumanoidState:
         output = hp_rp.HumanoidState()
-        output.kinematics.base = self.kinematics.base
-        output.kinematics.joints = self.kinematics.joints
-        output.contact_points = self.contact_points
+        output.kinematics = self.kinematics.to_floating_base_system_state()
+        output.contact_points = self.contact_points.to_feet_contact_points()
         output.com = self.com
         output.centroidal_momentum = self.centroidal_momentum
         return output
