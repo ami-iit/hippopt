@@ -138,3 +138,10 @@ class FloatingBaseSystem(OptimizationObject):
 
     def __post_init__(self, number_of_joints: int):
         self.joints = KinematicTree(number_of_joints_state=number_of_joints)
+
+    def to_floating_base_system_state(self):
+        output = FloatingBaseSystemState()
+        output.base.position = self.base.position
+        output.base.quaternion_xyzw = self.base.quaternion_xyzw
+        output.joints.positions = self.joints.positions
+        return output
