@@ -192,7 +192,7 @@ def get_visualizer_settings(
 def compute_initial_state(
     input_settings: walking_planner.Settings,
     pf_input: pose_finder.Planner,
-) -> hp_rp.HumanoidState:
+) -> walking_planner.ExtendedHumanoidState:
     desired_joints = np.deg2rad(
         [
             7,
@@ -259,9 +259,14 @@ def compute_initial_state(
 
     output_pf = pf_input.solve()
 
-    output_pf.values.state.centroidal_momentum = np.zeros((6, 1))
+    output_state = walking_planner.ExtendedHumanoidState()
+    output_state.contact_points = output_pf.values.state.contact_points
+    output_state.kinematics = output_pf.values.state.kinematics
+    output_state.com = output_pf.values.state.com
 
-    return output_pf.values.state
+    output_state.centroidal_momentum = np.zeros((6, 1))
+
+    return output_state
 
 
 def compute_final_state(

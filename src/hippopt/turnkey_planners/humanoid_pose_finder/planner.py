@@ -287,7 +287,6 @@ class Planner:
         variables = self.op.variables
         function_inputs = {
             "mass_name": variables.mass.name(),
-            "momentum_name": variables.state.centroidal_momentum.name(),
             "com_name": variables.state.com.name(),
             "quaternion_xyzw_name": "q",
             "gravity_name": variables.gravity.name(),

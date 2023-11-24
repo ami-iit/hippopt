@@ -307,8 +307,24 @@ class ExtendedHumanoid(hp.OptimizationObject):
         output.kinematics = self.kinematics.to_floating_base_system_state()
         output.contact_points = self.contact_points.to_feet_contact_points()
         output.com = self.com
-        output.centroidal_momentum = self.centroidal_momentum
         return output
+
+
+@dataclasses.dataclass
+class ExtendedHumanoidState(hp_rp.HumanoidState):
+    centroidal_momentum: hp.StorageType = hp.default_storage_field(hp.Variable)
+
+    def __post_init__(
+        self,
+        contact_point_descriptors: hp_rp.FeetContactPointDescriptors,
+        number_of_joints: int,
+    ) -> None:
+        hp_rp.HumanoidState.__post_init__(
+            self,
+            contact_point_descriptors=contact_point_descriptors,
+            number_of_joints=number_of_joints,
+        )
+        self.centroidal_momentum = np.zeros(6)
 
 
 @dataclasses.dataclass
@@ -319,8 +335,8 @@ class Variables(hp.OptimizationObject):
 
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
-    initial_state: hp.CompositeType[hp_rp.HumanoidState] = hp.default_composite_field(
-        cls=hp.Parameter, factory=hp_rp.HumanoidState, time_varying=False
+    initial_state: hp.CompositeType[ExtendedHumanoidState] = hp.default_composite_field(
+        cls=hp.Parameter, factory=ExtendedHumanoidState, time_varying=False
     )
 
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
@@ -365,7 +381,7 @@ class Variables(hp.OptimizationObject):
             number_of_joints=kin_dyn_object.NDoF,
         )
 
-        self.initial_state = hp_rp.HumanoidState(
+        self.initial_state = ExtendedHumanoidState(
             contact_point_descriptors=settings.contact_points,
             number_of_joints=kin_dyn_object.NDoF,
         )
@@ -1184,7 +1200,7 @@ class Planner:
             )
         self.ocp.problem.set_initial_guess(guess)
 
-    def set_initial_state(self, initial_state: hp_rp.HumanoidState) -> None:
+    def set_initial_state(self, initial_state: ExtendedHumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.initial_state = initial_state
         guess.initial_state.centroidal_momentum /= self.numeric_mass
