@@ -37,6 +37,10 @@ class Settings:
     maximum_joint_velocities: np.ndarray = dataclasses.field(default=None)
     minimum_joint_velocities: np.ndarray = dataclasses.field(default=None)
 
+    final_state_expression_type: hp.ExpressionType = dataclasses.field(default=None)
+
+    final_state_expression_weight: float = dataclasses.field(default=None)
+
     contacts_centroid_cost_multiplier: float = dataclasses.field(default=None)
 
     com_linear_velocity_cost_weights: np.ndarray = dataclasses.field(default=None)
@@ -85,6 +89,8 @@ class Settings:
         self.maximum_velocity_control = np.array([2.0, 2.0, 5.0])
         self.maximum_force_derivative = np.array([100.0, 100.0, 100.0])
         self.maximum_angular_momentum = 10.0
+        self.final_state_expression_type = hp.ExpressionType.skip
+        self.final_state_expression_weight = 1.0
 
     def is_valid(self) -> bool:
         number_of_joints = len(self.joints_name_list)
@@ -339,6 +345,10 @@ class Variables(hp.OptimizationObject):
         cls=hp.Parameter, factory=ExtendedHumanoidState, time_varying=False
     )
 
+    final_state: hp.CompositeType[hp_rp.HumanoidState] = hp.default_composite_field(
+        cls=hp.Parameter, factory=hp_rp.HumanoidState, time_varying=False
+    )
+
     dt: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
     planar_dcc_height_multiplier: hp.StorageType = hp.default_storage_field(
@@ -382,6 +392,11 @@ class Variables(hp.OptimizationObject):
         )
 
         self.initial_state = ExtendedHumanoidState(
+            contact_point_descriptors=settings.contact_points,
+            number_of_joints=kin_dyn_object.NDoF,
+        )
+
+        self.final_state = hp_rp.HumanoidState(
             contact_point_descriptors=settings.contact_points,
             number_of_joints=kin_dyn_object.NDoF,
         )
@@ -733,6 +748,26 @@ class Planner:
             ),
             apply_to_first_elements=True,
             name="joint_velocity_bounds",
+        )
+
+        # Final state
+        state_vectorized = sym.system.to_humanoid_state().to_list()
+        final_state_vectorized = (
+            problem.final(state_el) for state_el in state_vectorized
+        )
+        desired_final_state = sym.final_state.to_list()
+        desired_final_state_vectorized = (
+            problem.initial(state_el) for state_el in desired_final_state
+        )
+
+        problem.add_expression(
+            mode=self.settings.final_state_expression_type,
+            expression=cs.MX(
+                cs.vertcat(*final_state_vectorized)
+                == cs.vertcat(*desired_final_state_vectorized)
+            ),
+            name="final_state_expression",
+            scaling=self.settings.final_state_expression_weight,
         )
 
     def add_kinematics_regularization(
@@ -1207,6 +1242,16 @@ class Planner:
         for point in (
             guess.initial_state.contact_points.left
             + guess.initial_state.contact_points.right
+        ):
+            point.f /= self.numeric_mass
+        self.ocp.problem.set_initial_guess(guess)
+
+    def set_final_state(self, final_state: hp_rp.HumanoidState) -> None:
+        guess = self.get_initial_guess()
+        guess.final_state = final_state
+        for point in (
+            guess.final_state.contact_points.left
+            + guess.final_state.contact_points.right
         ):
             point.f /= self.numeric_mass
         self.ocp.problem.set_initial_guess(guess)
