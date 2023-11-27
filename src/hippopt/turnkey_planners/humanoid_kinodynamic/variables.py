@@ -1,4 +1,5 @@
 import dataclasses
+from typing import TypeVar
 
 import adam.casadi
 import numpy as np
@@ -113,6 +114,9 @@ class References(hp.OptimizationObject):
         self.joint_regularization = np.zeros((number_of_joints, 1))
 
 
+TExtendedContactPoint = TypeVar("TExtendedContactPoint", bound="ExtendedContactPoint")
+
+
 @dataclasses.dataclass
 class ExtendedContactPoint(
     hp_rp.ContactPointState,
@@ -132,6 +136,18 @@ class ExtendedContactPoint(
         output.descriptor = self.descriptor
         return output
 
+    @staticmethod
+    def from_contact_point_state(
+        input_state: hp_rp.ContactPointState,
+    ) -> TExtendedContactPoint:
+        output = ExtendedContactPoint(input_descriptor=input_state.descriptor)
+        output.p = input_state.p
+        output.f = input_state.f
+        output.u_v = None
+        output.f_dot = None
+        output.v = None
+        return output
+
 
 @dataclasses.dataclass
 class FeetContactPointsExtended(hp.OptimizationObject):
@@ -147,6 +163,16 @@ class FeetContactPointsExtended(hp.OptimizationObject):
             [point.to_contact_point_state() for point in self.right]
         )
         return output
+
+    def from_feet_contact_points(self, input_points: hp_rp.FeetContactPoints) -> None:
+        self.left = [
+            ExtendedContactPoint.from_contact_point_state(point)
+            for point in input_points.left
+        ]
+        self.right = [
+            ExtendedContactPoint.from_contact_point_state(point)
+            for point in input_points.right
+        ]
 
 
 @dataclasses.dataclass
@@ -192,6 +218,14 @@ class ExtendedHumanoid(hp.OptimizationObject):
         output.contact_points = self.contact_points.to_feet_contact_points()
         output.com = self.com
         return output
+
+    def from_humanoid_state(self, input_state: hp_rp.HumanoidState) -> None:
+        self.contact_points.from_feet_contact_points(input_state.contact_points)
+        self.kinematics = hp_rp.FloatingBaseSystem.from_floating_base_system_state(
+            input_state.kinematics
+        )
+        self.com = input_state.com
+        self.centroidal_momentum = None
 
 
 @dataclasses.dataclass
