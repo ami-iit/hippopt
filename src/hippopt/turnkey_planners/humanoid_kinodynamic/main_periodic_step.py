@@ -413,43 +413,6 @@ if __name__ == "__main__":
     print("Press [Enter] to visualize the solution.")
     input()
 
-    plotter_settings = hp_rp.FootContactStatePlotterSettings()
-    plotter_settings.terrain = planner_settings.terrain
-    left_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
-    right_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
-
-    left_foot_plotter.plot_complementarity(
-        states=left_contact_points,
-        time_s=output.values.dt,
-        title="Left Foot Complementarity",
-        blocking=False,
-    )
-    right_foot_plotter.plot_complementarity(
-        states=right_contact_points,
-        time_s=output.values.dt,
-        title="Right Foot Complementarity",
-        blocking=False,
-    )
-
-    left_foot_plotter.plot_forces(
-        states=left_contact_points,
-        time_s=output.values.dt,
-        title="Left Foot Forces",
-        blocking=False,
-    )
-    right_foot_plotter.plot_forces(
-        states=right_contact_points,
-        time_s=output.values.dt,
-        title="Right Foot Forces",
-        blocking=False,
-    )
-
-    visualizer.visualize(
-        states=humanoid_states,
-        timestep_s=output.values.dt,
-        time_multiplier=2.0,
-    )
-
     visualizer.visualize(
         states=humanoid_states,
         timestep_s=output.values.dt,
@@ -457,8 +420,3 @@ if __name__ == "__main__":
         save=True,
         file_name_stem="humanoid_walking_single_step",
     )
-
-    print("Press [Enter] to exit.")
-    input()
-    left_foot_plotter.close()
-    right_foot_plotter.close()
