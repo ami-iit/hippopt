@@ -1,4 +1,5 @@
 import dataclasses
+from typing import TypeVar
 
 import numpy as np
 
@@ -125,6 +126,9 @@ class FloatingBaseSystemStateDerivative(OptimizationObject):
         )
 
 
+TFloatingBaseSystem = TypeVar("TFloatingBaseSystem", bound="FloatingBaseSystem")
+
+
 @dataclasses.dataclass
 class FloatingBaseSystem(OptimizationObject):
     base: CompositeType[FreeFloatingObject] = default_composite_field(
@@ -144,4 +148,17 @@ class FloatingBaseSystem(OptimizationObject):
         output.base.position = self.base.position
         output.base.quaternion_xyzw = self.base.quaternion_xyzw
         output.joints.positions = self.joints.positions
+        return output
+
+    @staticmethod
+    def from_floating_base_system_state(
+        state: FloatingBaseSystemState,
+    ) -> TFloatingBaseSystem:
+        output = FloatingBaseSystem(number_of_joints=len(state.joints.positions))
+        output.base.position = state.base.position
+        output.base.quaternion_xyzw = state.base.quaternion_xyzw
+        output.base.linear_velocity = None
+        output.base.quaternion_velocity_xyzw = None
+        output.joints.positions = state.joints.positions
+        output.joints.velocities = None
         return output
