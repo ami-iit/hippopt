@@ -1,6 +1,7 @@
 import dataclasses
 from typing import TypeVar
 
+import casadi as cs
 import liecasadi
 import numpy as np
 
@@ -133,3 +134,22 @@ class FeetContactPointDescriptors:
 class FeetContactPoints(OptimizationObject):
     left: FootContactState = default_composite_field(factory=FootContactState)
     right: FootContactState = default_composite_field(factory=FootContactState)
+
+
+@dataclasses.dataclass
+class FootContactPhaseDescriptor:
+    transform: liecasadi.SE3 = dataclasses.field(default_factory=liecasadi.SE3)
+    mid_swing_transform: liecasadi.SE3 = dataclasses.field(
+        default_factory=liecasadi.SE3
+    )
+    force: float = dataclasses.field(default=100.0)
+    activation_time: float = dataclasses.field(default=None)
+    deactivation_time: float = dataclasses.field(default=None)
+
+    def __post_init__(self) -> None:
+        self.transform = liecasadi.SE3.from_translation_and_rotation(
+            cs.DM.zeros(3), liecasadi.SO3.Identity()
+        )
+        self.mid_swing_transform = liecasadi.SE3.from_translation_and_rotation(
+            cs.DM.zeros(3), liecasadi.SO3.Identity()
+        )
