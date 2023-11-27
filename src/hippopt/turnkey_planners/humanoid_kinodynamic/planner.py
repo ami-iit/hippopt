@@ -141,6 +141,8 @@ class Planner:
             foot_name="right",
         )
 
+        self.add_periodicity_expression(all_contact_points)
+
     def get_function_inputs_dict(self):
         sym = self.ocp.symbolic_structure
         function_inputs = {
@@ -503,7 +505,9 @@ class Planner:
         )
         problem.add_dynamics(
             hp.dot(sym.system.centroidal_momentum) == centroidal_dynamics,  # noqa
-            x0=problem.initial(sym.initial_state.centroidal_momentum),  # noqa
+            x0=problem.initial(sym.initial_state.centroidal_momentum)
+            if self.settings.periodicity_expression_type is hp.ExpressionType.skip
+            else None,  # noqa
             dt=sym.dt,
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
@@ -804,6 +808,41 @@ class Planner:
             name=point.f_dot.name() + "_regularization",  # noqa
             mode=hp.ExpressionType.minimize,
             scaling=self.settings.contact_force_control_cost_multiplier,
+        )
+
+    def add_periodicity_expression(self, all_contact_points):
+        problem = self.ocp.problem
+        sym = self.ocp.symbolic_structure  # type: Variables
+        initial_controls = []
+        final_controls = []
+        for point in all_contact_points:
+            initial_controls.append(problem.initial(point.u_v))
+            initial_controls.append(problem.initial(point.f_dot))
+            final_controls.append(problem.final(point.u_v))
+            final_controls.append(problem.final(point.f_dot))
+        initial_controls.append(problem.initial(sym.system.centroidal_momentum))
+        final_controls.append(problem.final(sym.system.centroidal_momentum))
+        initial_controls.append(
+            problem.initial(sym.system.kinematics.base.linear_velocity)
+        )
+        initial_controls.append(
+            problem.initial(sym.system.kinematics.base.quaternion_velocity_xyzw)
+        )
+        initial_controls.append(
+            problem.initial(sym.system.kinematics.joints.velocities)
+        )
+        final_controls.append(problem.final(sym.system.kinematics.base.linear_velocity))
+        final_controls.append(
+            problem.final(sym.system.kinematics.base.quaternion_velocity_xyzw)
+        )
+        final_controls.append(problem.final(sym.system.kinematics.joints.velocities))
+        problem.add_expression(
+            mode=self.settings.periodicity_expression_type,
+            expression=cs.MX(
+                cs.vertcat(*initial_controls) == cs.vertcat(*final_controls)
+            ),
+            name="periodicity_expression",
+            scaling=self.settings.periodicity_expression_weight,
         )
 
     def set_initial_guess(self, initial_guess: Variables) -> None:

@@ -110,6 +110,7 @@ def get_planner_settings() -> walking_settings.Settings:
     settings.contact_velocity_control_cost_multiplier = 5.0
     settings.contact_force_control_cost_multiplier = 0.0001
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
+    settings.periodicity_expression_type = hippopt.ExpressionType.subject_to
     settings.casadi_function_options = {"cse": True}
     settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": True}
     settings.casadi_solver_options = {
@@ -231,12 +232,12 @@ def compute_initial_state(
         number_of_joints=len(desired_joints),
     )
 
-    pf_ref.state.com = np.array([0.0, 0.0, 0.7])
+    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
     desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
         np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
     )
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
+        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
     pf_ref.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(
@@ -311,12 +312,12 @@ def compute_final_state(
         number_of_joints=len(desired_joints),
     )
 
-    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
+    pf_ref.state.com = np.array([0.75, 0.0, 0.7])
     desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+        np.array([0.60, 0.1, 0.0]), liecasadi.SO3.Identity()
     )
     desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+        np.array([0.90, -0.1, 0.0]), liecasadi.SO3.Identity()
     )
     pf_ref.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(

@@ -35,8 +35,10 @@ class Settings:
     minimum_joint_velocities: np.ndarray = dataclasses.field(default=None)
 
     final_state_expression_type: hp.ExpressionType = dataclasses.field(default=None)
-
     final_state_expression_weight: float = dataclasses.field(default=None)
+
+    periodicity_expression_type: hp.ExpressionType = dataclasses.field(default=None)
+    periodicity_expression_weight: float = dataclasses.field(default=None)
 
     contacts_centroid_cost_multiplier: float = dataclasses.field(default=None)
 
@@ -88,6 +90,8 @@ class Settings:
         self.maximum_angular_momentum = 10.0
         self.final_state_expression_type = hp.ExpressionType.skip
         self.final_state_expression_weight = 1.0
+        self.periodicity_expression_type = hp.ExpressionType.skip
+        self.periodicity_expression_weight = 1.0
 
     def is_valid(self) -> bool:
         number_of_joints = len(self.joints_name_list)
