@@ -9,6 +9,7 @@ import numpy as np
 import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_kinodynamic.planner as walking_planner
 import hippopt.turnkey_planners.humanoid_kinodynamic.settings as walking_settings
+import hippopt.turnkey_planners.humanoid_kinodynamic.variables as walking_variables
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
 
@@ -193,7 +194,7 @@ def get_visualizer_settings(
 def compute_initial_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
-) -> walking_planner.ExtendedHumanoidState:
+) -> walking_variables.ExtendedHumanoidState:
     desired_joints = np.deg2rad(
         [
             7,
@@ -260,7 +261,7 @@ def compute_initial_state(
 
     output_pf = pf_input.solve()
 
-    output_state = walking_planner.ExtendedHumanoidState()
+    output_state = walking_variables.ExtendedHumanoidState()
     output_state.contact_points = output_pf.values.state.contact_points
     output_state.kinematics = output_pf.values.state.kinematics
     output_state.com = output_pf.values.state.com
@@ -345,8 +346,8 @@ def compute_final_state(
 def get_references(
     input_settings: walking_settings.Settings,
     desired_state: hp_rp.HumanoidState,
-) -> walking_planner.References:
-    output_reference = walking_planner.References(
+) -> walking_variables.References:
+    output_reference = walking_variables.References(
         number_of_joints=len(input_settings.joints_name_list),
         number_of_points_left=len(input_settings.contact_points.left),
         number_of_points_right=len(input_settings.contact_points.right),
