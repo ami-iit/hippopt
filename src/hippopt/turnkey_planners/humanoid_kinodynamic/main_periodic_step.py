@@ -9,10 +9,11 @@ import numpy as np
 import hippopt
 import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_kinodynamic.planner as walking_planner
+import hippopt.turnkey_planners.humanoid_kinodynamic.settings as walking_settings
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
 
-def get_planner_settings() -> walking_planner.Settings:
+def get_planner_settings() -> walking_settings.Settings:
     parser = argparse.ArgumentParser(
         description="Trajectory Optimization of a forward walking motion on ergoCub.",
     )
@@ -22,7 +23,7 @@ def get_planner_settings() -> walking_planner.Settings:
         required=True,
         help="Path to the ergoCubGazeboV1_minContacts URDF file.",
     )
-    settings = walking_planner.Settings()
+    settings = walking_settings.Settings()
     settings.robot_urdf = parser.parse_args().urdf
     settings.joints_name_list = [
         "torso_pitch",
@@ -139,7 +140,7 @@ def get_planner_settings() -> walking_planner.Settings:
 
 
 def get_pose_finder_settings(
-    input_settings: walking_planner.Settings,
+    input_settings: walking_settings.Settings,
 ) -> pose_finder.Settings:
     number_of_joints = len(input_settings.joints_name_list)
     settings = pose_finder.Settings()
@@ -179,7 +180,7 @@ def get_pose_finder_settings(
 
 
 def get_visualizer_settings(
-    input_settings: walking_planner.Settings,
+    input_settings: walking_settings.Settings,
 ) -> hp_rp.HumanoidStateVisualizerSettings:
     output_viz_settings = hp_rp.HumanoidStateVisualizerSettings()
     output_viz_settings.robot_model = input_settings.robot_urdf
@@ -192,7 +193,7 @@ def get_visualizer_settings(
 
 
 def compute_initial_state(
-    input_settings: walking_planner.Settings,
+    input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
 ) -> walking_planner.ExtendedHumanoidState:
     desired_joints = np.deg2rad(
@@ -272,7 +273,7 @@ def compute_initial_state(
 
 
 def compute_final_state(
-    input_settings: walking_planner.Settings,
+    input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
 ) -> hp_rp.HumanoidState:
     desired_joints = np.deg2rad(
@@ -344,7 +345,8 @@ def compute_final_state(
 
 
 def get_references(
-    input_settings: walking_planner.Settings, desired_state: hp_rp.HumanoidState
+    input_settings: walking_settings.Settings,
+    desired_state: hp_rp.HumanoidState,
 ) -> walking_planner.References:
     output_reference = walking_planner.References(
         number_of_joints=len(input_settings.joints_name_list),
