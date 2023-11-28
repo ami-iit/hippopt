@@ -462,7 +462,18 @@ class HumanoidStateVisualizer:
             f"{self._settings.working_folder}/{file_name_stem}.mp4",
             video_bitrate="20M",
         )
-        ffmpeg.run(video)
+        try:
+            ffmpeg.run(video)
+        except ffmpeg.Error as e:
+            self._logger.error(
+                "ffmpeg failed to generate the video. "
+                "The following output might contain additional information: "
+                + str(e)
+                + " stderr: "
+                + str(e.stderr)
+                + " stdout: "
+                + str(e.stdout)
+            )
 
     def visualize(
         self,
