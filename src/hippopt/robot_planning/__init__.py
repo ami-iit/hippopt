@@ -37,13 +37,26 @@ from .utilities.humanoid_state_visualizer import (
     HumanoidStateVisualizer,
     HumanoidStateVisualizerSettings,
 )
+from .utilities.interpolators import (
+    feet_contact_points_interpolator,
+    floating_base_system_state_interpolator,
+    foot_contact_state_interpolator,
+    free_floating_object_state_interpolator,
+    humanoid_state_interpolator,
+    kinematic_tree_state_interpolator,
+    linear_interpolator,
+    quaternion_slerp,
+    transform_interpolator,
+)
 from .utilities.terrain_descriptor import PlanarTerrain, TerrainDescriptor
 from .variables.contacts import (
     ContactPointDescriptor,
     ContactPointState,
     ContactPointStateDerivative,
+    FeetContactPhasesDescriptor,
     FeetContactPointDescriptors,
     FeetContactPoints,
+    FootContactPhaseDescriptor,
     FootContactState,
 )
 from .variables.floating_base import (

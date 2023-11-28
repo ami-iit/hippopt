@@ -5,9 +5,18 @@ import numpy as np
 from hippopt import StorageType
 from hippopt.robot_planning.variables.contacts import (
     ContactPointDescriptor,
+    FeetContactPhasesDescriptor,
+    FeetContactPointDescriptors,
+    FeetContactPoints,
     FootContactPhaseDescriptor,
     FootContactState,
 )
+from hippopt.robot_planning.variables.floating_base import (
+    FloatingBaseSystemState,
+    FreeFloatingObjectState,
+    KinematicTreeState,
+)
+from hippopt.robot_planning.variables.humanoid import HumanoidState
 
 
 def linear_interpolator(
@@ -193,4 +202,167 @@ def foot_contact_state_interpolator(
 
     last_phase = phases[len(phases) - 1]
     append_stance_phase(last_phase, remaining_points)
+    return output
+
+
+def feet_contact_points_interpolator(
+    phases: FeetContactPhasesDescriptor,
+    descriptor: FeetContactPointDescriptors,
+    number_of_points: int,
+    dt: float,
+    t0: float = 0.0,
+) -> list[FeetContactPoints]:
+    left_output = foot_contact_state_interpolator(
+        phases=phases.left,
+        descriptor=descriptor.left,
+        number_of_points=number_of_points,
+        dt=dt,
+        t0=t0,
+    )
+    right_output = foot_contact_state_interpolator(
+        phases=phases.right,
+        descriptor=descriptor.right,
+        number_of_points=number_of_points,
+        dt=dt,
+        t0=t0,
+    )
+
+    assert len(left_output) == len(right_output) == number_of_points
+
+    output = []
+    for i in range(number_of_points):
+        output_state = FeetContactPoints()
+        output_state.left = left_output[i]
+        output_state.right = right_output[i]
+        output.append(output_state)
+
+    return output
+
+
+def free_floating_object_state_interpolator(
+    initial_state: FreeFloatingObjectState,
+    final_state: FreeFloatingObjectState,
+    number_of_points: int,
+) -> list[FreeFloatingObjectState]:
+    position_interpolation = linear_interpolator(
+        initial=initial_state.position,
+        final=final_state.position,
+        number_of_points=number_of_points,
+    )
+    quaternion_interpolation = quaternion_slerp(
+        initial=initial_state.quaternion_xyzw,
+        final=final_state.quaternion_xyzw,
+        number_of_points=number_of_points,
+    )
+    assert (
+        len(position_interpolation) == len(quaternion_interpolation) == number_of_points
+    )
+    output = []
+    for i in range(number_of_points):
+        output_state = FreeFloatingObjectState()
+        output_state.position = position_interpolation[i]
+        output_state.quaternion_xyzw = quaternion_interpolation[i]
+        output.append(output_state)
+    return output
+
+
+def kinematic_tree_state_interpolator(
+    initial_state: KinematicTreeState,
+    final_state: KinematicTreeState,
+    number_of_points: int,
+) -> list[KinematicTreeState]:
+    if len(initial_state.positions) != len(final_state.positions):
+        raise ValueError(
+            f"Initial state has {len(initial_state.positions)} joints, "
+            f"but final state has {len(final_state.positions)} joints."
+        )
+
+    positions_interpolation = linear_interpolator(
+        initial=initial_state.positions,
+        final=final_state.positions,
+        number_of_points=number_of_points,
+    )
+    output = []
+    for i in range(number_of_points):
+        output_state = KinematicTreeState(
+            number_of_joints_state=len(initial_state.positions)
+        )
+        output_state.positions = positions_interpolation[i]
+        output.append(output_state)
+    return output
+
+
+def floating_base_system_state_interpolator(
+    initial_state: FloatingBaseSystemState,
+    final_state: FloatingBaseSystemState,
+    number_of_points: int,
+) -> list[FloatingBaseSystemState]:
+    base_interpolation = free_floating_object_state_interpolator(
+        initial_state=initial_state.base,
+        final_state=final_state.base,
+        number_of_points=number_of_points,
+    )
+    joints_interpolation = kinematic_tree_state_interpolator(
+        initial_state=initial_state.joints,
+        final_state=final_state.joints,
+        number_of_points=number_of_points,
+    )
+
+    assert len(base_interpolation) == len(joints_interpolation) == number_of_points
+
+    output = []
+    for i in range(number_of_points):
+        output_state = FloatingBaseSystemState(
+            number_of_joints_state=len(initial_state.joints.positions)
+        )
+        output_state.base = base_interpolation[i]
+        output_state.joints = joints_interpolation[i]
+        output.append(output_state)
+    return output
+
+
+def humanoid_state_interpolator(
+    initial_state: HumanoidState,
+    final_state: HumanoidState,
+    contact_phases: FeetContactPhasesDescriptor,
+    contact_descriptor: FeetContactPointDescriptors,
+    number_of_points: int,
+    dt: float,
+    t0: float = 0.0,
+):
+    contact_points_interpolation = feet_contact_points_interpolator(
+        phases=contact_phases,
+        descriptor=contact_descriptor,
+        number_of_points=number_of_points,
+        dt=dt,
+        t0=t0,
+    )
+    kinematics_interpolation = floating_base_system_state_interpolator(
+        initial_state=initial_state.kinematics,
+        final_state=final_state.kinematics,
+        number_of_points=number_of_points,
+    )
+    com_interpolation = linear_interpolator(
+        initial=initial_state.com,
+        final=final_state.com,
+        number_of_points=number_of_points,
+    )
+
+    assert (
+        len(contact_points_interpolation)
+        == len(kinematics_interpolation)
+        == len(com_interpolation)
+        == number_of_points
+    )
+
+    output = []
+    for i in range(number_of_points):
+        output_state = HumanoidState(
+            contact_point_descriptors=contact_descriptor,
+            number_of_joints=len(initial_state.kinematics.joints.positions),
+        )
+        output_state.contact_points = contact_points_interpolation[i]
+        output_state.kinematics = kinematics_interpolation[i]
+        output_state.com = com_interpolation[i]
+        output.append(output_state)
     return output

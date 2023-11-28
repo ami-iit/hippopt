@@ -153,3 +153,9 @@ class FootContactPhaseDescriptor:
         self.mid_swing_transform = liecasadi.SE3.from_translation_and_rotation(
             cs.DM.zeros(3), liecasadi.SO3.Identity()
         )
+
+
+@dataclasses.dataclass
+class FeetContactPhasesDescriptor:
+    left: list[FootContactPhaseDescriptor] = dataclasses.field(default_factory=list)
+    right: list[FootContactPhaseDescriptor] = dataclasses.field(default_factory=list)
