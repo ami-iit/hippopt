@@ -845,14 +845,86 @@ class Planner:
             scaling=self.settings.periodicity_expression_weight,
         )
 
+    def _apply_mass_regularization(self, input_var: Variables) -> Variables:
+        assert self.numeric_mass > 0
+        output = input_var
+        if output.initial_state is not None:
+            if output.initial_state.centroidal_momentum is not None:
+                output.initial_state.centroidal_momentum /= self.numeric_mass
+            for point in (
+                output.initial_state.contact_points.left
+                + output.initial_state.contact_points.right
+            ):
+                point.f /= self.numeric_mass
+
+        if output.final_state is not None:
+            for point in (
+                output.final_state.contact_points.left
+                + output.final_state.contact_points.right
+            ):
+                point.f /= self.numeric_mass
+
+        if output.system is None:
+            return output
+
+        system_list = (
+            output.system if isinstance(output.system, list) else [output.system]
+        )
+
+        for system in system_list:
+            if system.centroidal_momentum is not None:
+                system.centroidal_momentum /= self.numeric_mass
+            for point in system.contact_points.left + system.contact_points.right:
+                point.f /= self.numeric_mass
+
+        return output
+
+    def _undo_mass_regularization(self, input_var: Variables) -> Variables:
+        assert self.numeric_mass > 0
+        output = input_var
+        if output.initial_state is not None:
+            if output.initial_state.centroidal_momentum is not None:
+                output.initial_state.centroidal_momentum *= self.numeric_mass
+            for point in (
+                output.initial_state.contact_points.left
+                + output.initial_state.contact_points.right
+            ):
+                point.f *= self.numeric_mass
+
+        if output.final_state is not None:
+            for point in (
+                output.final_state.contact_points.left
+                + output.final_state.contact_points.right
+            ):
+                point.f *= self.numeric_mass
+
+        if output.system is None:
+            return output
+
+        system_list = (
+            output.system if isinstance(output.system, list) else [output.system]
+        )
+
+        for system in system_list:
+            if system.centroidal_momentum is not None:
+                system.centroidal_momentum *= self.numeric_mass
+            for point in system.contact_points.left + system.contact_points.right:
+                point.f *= self.numeric_mass
+
+        return output
+
     def set_initial_guess(self, initial_guess: Variables) -> None:
-        self.ocp.problem.set_initial_guess(initial_guess)
+        self.ocp.problem.set_initial_guess(
+            self._apply_mass_regularization(initial_guess)
+        )
 
     def get_initial_guess(self) -> Variables:
-        return self.ocp.problem.get_initial_guess()
+        return self._undo_mass_regularization(self.ocp.problem.get_initial_guess())
 
     def set_references(self, references: References | list[References]) -> None:
-        guess = self.get_initial_guess()
+        guess = (
+            self.ocp.problem.get_initial_guess()
+        )  # Avoid the undo of the mass regularization
 
         assert isinstance(guess.references, list)
         assert not isinstance(references, list) or len(references) == len(
@@ -862,36 +934,19 @@ class Planner:
             guess.references[i] = (
                 references[i] if isinstance(references, list) else references
             )
-        self.ocp.problem.set_initial_guess(guess)
+        self.ocp.problem.set_initial_guess(guess)  # Avoid the mass regularization
 
     def set_initial_state(self, initial_state: ExtendedHumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.initial_state = initial_state
-        guess.initial_state.centroidal_momentum /= self.numeric_mass
-        for point in (
-            guess.initial_state.contact_points.left
-            + guess.initial_state.contact_points.right
-        ):
-            point.f /= self.numeric_mass
-        self.ocp.problem.set_initial_guess(guess)
+        self.set_initial_guess(guess)
 
     def set_final_state(self, final_state: hp_rp.HumanoidState) -> None:
         guess = self.get_initial_guess()
         guess.final_state = final_state
-        for point in (
-            guess.final_state.contact_points.left
-            + guess.final_state.contact_points.right
-        ):
-            point.f /= self.numeric_mass
-        self.ocp.problem.set_initial_guess(guess)
+        self.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
         output = self.ocp.problem.solve()
-
-        values = output.values
-
-        for s in values.system:
-            for point in s.contact_points.left + s.contact_points.right:
-                point.f *= values.mass
-
+        output.values = self._undo_mass_regularization(output.values)
         return output
