@@ -220,7 +220,7 @@ class Planner:
 
         variables = self.op.variables  # type: Variables
 
-        function_inputs = self.get_function_inputs_dict()
+        function_inputs = self._get_function_inputs_dict()
 
         # Normalized quaternion computation
         normalized_quaternion_fun = hp_rp.quaternion_xyzw_normalization(
@@ -252,7 +252,7 @@ class Planner:
         )
 
         for i, point in enumerate(all_contact_points):
-            self.add_contact_point_feasibility(
+            self._add_contact_point_feasibility(
                 relaxed_complementarity_fun,
                 friction_margin_fun,
                 height_fun,
@@ -260,30 +260,30 @@ class Planner:
                 point,
             )
 
-            self.add_contact_kinematic_consistency(
+            self._add_contact_kinematic_consistency(
                 function_inputs,
                 normalized_quaternion,
                 point,
                 point_kinematics_functions,
             )
 
-        self.add_kinematics_constraints(
+        self._add_kinematics_constraints(
             function_inputs, normalized_quaternion, all_contact_points
         )
-        self.add_kinematics_regularization(
+        self._add_kinematics_regularization(
             function_inputs=function_inputs, normalized_quaternion=normalized_quaternion
         )
 
-        self.add_foot_regularization(
+        self._add_foot_regularization(
             points=variables.state.contact_points.left,
             references=variables.references.state.contact_points.left,
         )
-        self.add_foot_regularization(
+        self._add_foot_regularization(
             points=variables.state.contact_points.right,
             references=variables.references.state.contact_points.right,
         )
 
-    def get_function_inputs_dict(self):
+    def _get_function_inputs_dict(self):
         variables = self.op.variables
         function_inputs = {
             "mass_name": variables.mass.name(),
@@ -310,7 +310,7 @@ class Planner:
         }
         return function_inputs
 
-    def add_kinematics_constraints(
+    def _add_kinematics_constraints(
         self,
         function_inputs: dict,
         normalized_quaternion: cs.MX,
@@ -380,7 +380,7 @@ class Planner:
             name="joint_position_bounds",
         )
 
-    def add_kinematics_regularization(
+    def _add_kinematics_regularization(
         self, function_inputs: dict, normalized_quaternion: cs.MX
     ):
         problem = self.op.problem
@@ -442,7 +442,7 @@ class Planner:
             scaling=self.settings.joint_regularization_cost_multiplier,
         )
 
-    def add_contact_kinematic_consistency(
+    def _add_contact_kinematic_consistency(
         self,
         function_inputs: dict,
         normalized_quaternion: cs.MX,
@@ -475,7 +475,7 @@ class Planner:
             name=point.p.name() + "_kinematics_consistency",
         )
 
-    def add_contact_point_feasibility(
+    def _add_contact_point_feasibility(
         self,
         complementarity_margin_fun: cs.Function,
         friction_margin_fun: cs.Function,
@@ -522,7 +522,7 @@ class Planner:
             name=point.f.name() + "_friction",
         )
 
-    def add_foot_regularization(
+    def _add_foot_regularization(
         self,
         points: list[hp_rp.ContactPointState],
         references: list[hp_rp.ContactPointState],
