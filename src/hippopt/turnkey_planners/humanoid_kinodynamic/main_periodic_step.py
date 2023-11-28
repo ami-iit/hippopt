@@ -194,89 +194,12 @@ def get_visualizer_settings(
     return output_viz_settings
 
 
-def compute_initial_state(
+def compute_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
-) -> walking_variables.ExtendedHumanoidState:
-    desired_joints = np.deg2rad(
-        [
-            7,
-            0.12,
-            -0.01,
-            12.0,
-            7.0,
-            -12.0,
-            40.769,
-            12.0,
-            7.0,
-            -12.0,
-            40.769,
-            5.76,
-            1.61,
-            -0.31,
-            -31.64,
-            -20.52,
-            -1.52,
-            5.76,
-            1.61,
-            -0.31,
-            -31.64,
-            -20.52,
-            -1.52,
-        ]
-    )
-    assert len(input_settings.joints_name_list) == len(desired_joints)
-
-    pf_ref = pose_finder.References(
-        contact_point_descriptors=pf_settings.contact_points,
-        number_of_joints=len(desired_joints),
-    )
-
-    pf_ref.state.com = np.array([0.15, 0.0, 0.7])
-    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-    pf_ref.state.contact_points.left = (
-        hp_rp.FootContactState.from_parent_frame_transform(
-            descriptor=input_settings.contact_points.left,
-            transform=desired_left_foot_pose,
-        )
-    )
-    pf_ref.state.contact_points.right = (
-        hp_rp.FootContactState.from_parent_frame_transform(
-            descriptor=input_settings.contact_points.right,
-            transform=desired_right_foot_pose,
-        )
-    )
-
-    pf_ref.state.kinematics.base.quaternion_xyzw = (
-        liecasadi.SO3.Identity().as_quat().coeffs()
-    )
-
-    pf_ref.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
-
-    pf_ref.state.kinematics.joints.positions = desired_joints
-
-    pf_input.set_references(pf_ref)
-
-    output_pf = pf_input.solve()
-
-    output_state = walking_variables.ExtendedHumanoidState()
-    output_state.contact_points = output_pf.values.state.contact_points
-    output_state.kinematics = output_pf.values.state.kinematics
-    output_state.com = output_pf.values.state.com
-
-    output_state.centroidal_momentum = np.zeros((6, 1))
-
-    return output_state
-
-
-def compute_final_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
+    desired_com_position: np.ndarray,
+    desired_left_foot_pose: liecasadi.SE3,
+    desired_right_foot_pose: liecasadi.SE3,
 ) -> hp_rp.HumanoidState:
     desired_joints = np.deg2rad(
         [
@@ -312,13 +235,7 @@ def compute_final_state(
         number_of_joints=len(desired_joints),
     )
 
-    pf_ref.state.com = np.array([0.75, 0.0, 0.7])
-    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.60, 0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.90, -0.1, 0.0]), liecasadi.SO3.Identity()
-    )
+    pf_ref.state.com = desired_com_position
     pf_ref.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(
             descriptor=input_settings.contact_points.left,
@@ -344,6 +261,55 @@ def compute_final_state(
 
     output_pf = pf_input.solve()
     return output_pf.values.state
+
+
+def compute_initial_state(
+    input_settings: walking_settings.Settings,
+    pf_input: pose_finder.Planner,
+) -> walking_variables.ExtendedHumanoidState:
+    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+
+    output_pf = compute_state(
+        input_settings=input_settings,
+        pf_input=pf_input,
+        desired_com_position=np.array([0.15, 0.0, 0.7]),
+        desired_left_foot_pose=desired_left_foot_pose,
+        desired_right_foot_pose=desired_right_foot_pose,
+    )
+
+    output_state = walking_variables.ExtendedHumanoidState()
+    output_state.contact_points = output_pf.contact_points
+    output_state.kinematics = output_pf.kinematics
+    output_state.com = output_pf.com
+
+    output_state.centroidal_momentum = np.zeros((6, 1))
+
+    return output_state
+
+
+def compute_final_state(
+    input_settings: walking_settings.Settings,
+    pf_input: pose_finder.Planner,
+) -> hp_rp.HumanoidState:
+    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.60, 0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
+        np.array([0.90, -0.1, 0.0]), liecasadi.SO3.Identity()
+    )
+
+    return compute_state(
+        input_settings=input_settings,
+        pf_input=pf_input,
+        desired_com_position=np.array([0.75, 0.0, 0.7]),
+        desired_left_foot_pose=desired_left_foot_pose,
+        desired_right_foot_pose=desired_right_foot_pose,
+    )
 
 
 def get_references(
