@@ -50,7 +50,7 @@ class Planner:
 
         sym = self.ocp.symbolic_structure  # type: Variables
 
-        function_inputs = self.get_function_inputs_dict()
+        function_inputs = self._get_function_inputs_dict()
 
         # Normalized quaternion computation
         normalized_quaternion_fun = hp_rp.quaternion_xyzw_normalization(
@@ -90,9 +90,9 @@ class Planner:
         )
 
         for i, point in enumerate(all_contact_points):
-            self.add_point_dynamics(point, initial_state=all_contact_initial_state[i])
+            self._add_point_dynamics(point, initial_state=all_contact_initial_state[i])
 
-            self.add_contact_point_feasibility(
+            self._add_contact_point_feasibility(
                 dcc_margin_fun,
                 dcc_planar_fun,
                 friction_margin_fun,
@@ -101,39 +101,39 @@ class Planner:
                 point,
             )
 
-            self.add_contact_kinematic_consistency(
+            self._add_contact_kinematic_consistency(
                 function_inputs,
                 normalized_quaternion,
                 point,
                 point_kinematics_functions,
             )
 
-            self.add_contact_point_regularization(
+            self._add_contact_point_regularization(
                 point=point,
                 desired_swing_height=sym.references.feet.desired_swing_height,
                 function_inputs=function_inputs,
             )
 
-        self.add_robot_dynamics(all_contact_points, function_inputs)
+        self._add_robot_dynamics(all_contact_points, function_inputs)
 
-        self.add_kinematics_constraints(
+        self._add_kinematics_constraints(
             function_inputs, height_fun, normalized_quaternion
         )
-        self.add_kinematics_regularization(
+        self._add_kinematics_regularization(
             function_inputs=function_inputs,
             base_quaternion_normalized=normalized_quaternion,
         )
 
-        self.add_contact_centroids_expressions(function_inputs)
+        self._add_contact_centroids_expressions(function_inputs)
 
-        self.add_foot_regularization(
+        self._add_foot_regularization(
             points=sym.system.contact_points.left,
             descriptors=self.settings.contact_points.left,
             references=sym.references.feet.left,
             function_inputs=function_inputs,
             foot_name="left",
         )
-        self.add_foot_regularization(
+        self._add_foot_regularization(
             points=sym.system.contact_points.right,
             descriptors=self.settings.contact_points.right,
             references=sym.references.feet.right,
@@ -141,9 +141,9 @@ class Planner:
             foot_name="right",
         )
 
-        self.add_periodicity_expression(all_contact_points)
+        self._add_periodicity_expression(all_contact_points)
 
-    def get_function_inputs_dict(self):
+    def _get_function_inputs_dict(self):
         sym = self.ocp.symbolic_structure
         function_inputs = {
             "mass_name": sym.mass.name(),
@@ -178,7 +178,7 @@ class Planner:
         }
         return function_inputs
 
-    def add_contact_centroids_expressions(self, function_inputs):
+    def _add_contact_centroids_expressions(self, function_inputs):
         problem = self.ocp.problem
         sym = self.ocp.symbolic_structure  # type: Variables
 
@@ -229,7 +229,7 @@ class Planner:
             scaling=self.settings.contacts_centroid_cost_multiplier,
         )
 
-    def add_kinematics_constraints(
+    def _add_kinematics_constraints(
         self,
         function_inputs: dict,
         height_fun: cs.Function,
@@ -362,7 +362,7 @@ class Planner:
             scaling=self.settings.final_state_expression_weight,
         )
 
-    def add_kinematics_regularization(
+    def _add_kinematics_regularization(
         self, function_inputs: dict, base_quaternion_normalized: cs.MX
     ):
         problem = self.ocp.problem
@@ -447,7 +447,7 @@ class Planner:
             scaling=self.settings.joint_regularization_cost_multiplier,
         )
 
-    def add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
+    def _add_robot_dynamics(self, all_contact_points: list, function_inputs: dict):
         problem = self.ocp.problem
         sym = self.ocp.symbolic_structure  # type: Variables
         default_integrator = self.settings.integrator
@@ -513,7 +513,7 @@ class Planner:
             name="centroidal_momentum_dynamics",
         )
 
-    def add_contact_kinematic_consistency(
+    def _add_contact_kinematic_consistency(
         self,
         function_inputs: dict,
         normalized_quaternion: cs.MX,
@@ -547,7 +547,7 @@ class Planner:
             name=point.p.name() + "_kinematics_consistency",
         )
 
-    def add_contact_point_feasibility(
+    def _add_contact_point_feasibility(
         self,
         dcc_margin_fun: cs.Function,
         dcc_planar_fun: cs.Function,
@@ -634,7 +634,7 @@ class Planner:
             name=point.f_dot.name() + "_bounds",  # noqa
         )
 
-    def add_point_dynamics(
+    def _add_point_dynamics(
         self, point: ExtendedContactPoint, initial_state: hp_rp.ContactPointState
     ) -> None:
         default_integrator = self.settings.integrator
@@ -659,7 +659,7 @@ class Planner:
             name=point.p.name() + "_dynamics",
         )
 
-    def add_foot_regularization(
+    def _add_foot_regularization(
         self,
         points: list[ExtendedContactPoint],
         descriptors: list[hp_rp.ContactPointDescriptor],
@@ -768,7 +768,7 @@ class Planner:
             scaling=self.settings.foot_yaw_regularization_cost_multiplier,
         )
 
-    def add_contact_point_regularization(
+    def _add_contact_point_regularization(
         self,
         point: ExtendedContactPoint,
         desired_swing_height: hp.StorageType,
@@ -810,7 +810,7 @@ class Planner:
             scaling=self.settings.contact_force_control_cost_multiplier,
         )
 
-    def add_periodicity_expression(self, all_contact_points):
+    def _add_periodicity_expression(self, all_contact_points):
         problem = self.ocp.problem
         sym = self.ocp.symbolic_structure  # type: Variables
         initial_controls = []
