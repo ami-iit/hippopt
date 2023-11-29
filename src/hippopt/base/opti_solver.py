@@ -440,11 +440,10 @@ class OptiSolver(OptimizationSolver):
 
                 if corresponding_value.shape != input_shape:
                     raise ValueError(
-                        "The guess has the field "
-                        + base_name
-                        + field.name
-                        + " but its dimension does not match with the corresponding"
-                        + " optimization variable"
+                        f"The guess has the field {base_name}{field.name} "
+                        f"but its dimension ({input_shape}) does not match with the"
+                        f" corresponding optimization variable "
+                        f"({corresponding_value.shape})."
                     )
 
                 self._set_opti_guess(
