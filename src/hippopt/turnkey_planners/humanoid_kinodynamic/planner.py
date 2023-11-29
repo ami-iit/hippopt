@@ -849,7 +849,11 @@ class Planner:
         assert self.numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
-            if output.initial_state.centroidal_momentum is not None:
+            if (
+                output.initial_state.centroidal_momentum is not None
+                and len(output.initial_state.centroidal_momentum.shape) > 0
+                and output.initial_state.centroidal_momentum.shape[0] == 6
+            ):
                 output.initial_state.centroidal_momentum /= self.numeric_mass
             for point in (
                 output.initial_state.contact_points.left
@@ -883,7 +887,11 @@ class Planner:
         assert self.numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
-            if output.initial_state.centroidal_momentum is not None:
+            if (
+                output.initial_state.centroidal_momentum is not None
+                and len(output.initial_state.centroidal_momentum.shape) > 0
+                and output.initial_state.centroidal_momentum.shape[0] == 6
+            ):
                 output.initial_state.centroidal_momentum *= self.numeric_mass
             for point in (
                 output.initial_state.contact_points.left
