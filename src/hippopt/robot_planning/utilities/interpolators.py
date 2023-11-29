@@ -1,3 +1,4 @@
+import copy
 import math
 
 import liecasadi
@@ -115,34 +116,43 @@ def foot_contact_state_interpolator(
 
     end_time = t0 + dt * number_of_points
 
-    if phases[0].activation_time is None:
+    phases_copy = copy.deepcopy(phases)
+
+    if phases_copy[0].activation_time is None:
         deactivation_time = (
-            phases[0].deactivation_time
-            if phases[0].deactivation_time is not None
+            phases_copy[0].deactivation_time
+            if phases_copy[0].deactivation_time is not None
             else t0
         )
-        phases[0].activation_time = min(deactivation_time, t0) - dt
+        phases_copy[0].activation_time = min(deactivation_time, t0) - dt
 
-    for i, phase in enumerate(phases):
+    if phases_copy[0].activation_time > t0:
+        raise ValueError(
+            f"The first phase activation time "
+            f"({phases_copy[0].activation_time}) is after "
+            f"the start time ({t0})."
+        )
+
+    for i, phase in enumerate(phases_copy):
         if phase.activation_time is None:
             raise ValueError(
                 f"Phase {i} has no activation time, but is not the first phase."
             )
 
-    last = len(phases) - 1
-    if phases[last].deactivation_time is None:
-        phases[last].deactivation_time = (
-            max(end_time, phases[last].activation_time) + dt
+    last = len(phases_copy) - 1
+    if phases_copy[last].deactivation_time is None:
+        phases_copy[last].deactivation_time = (
+            max(end_time, phases_copy[last].activation_time) + dt
         )
 
-    if phases[last].deactivation_time < end_time:
+    if phases_copy[last].deactivation_time < end_time:
         raise ValueError(
             f"The Last phase deactivation time "
-            f"({phases[len(phases) - 1].deactivation_time}) is before "
+            f"({phases_copy[len(phases_copy) - 1].deactivation_time}) is before "
             f"the end time ({end_time}, computed from the inputs)."
         )
 
-    for i, phase in enumerate(phases):
+    for i, phase in enumerate(phases_copy):
         if phase.deactivation_time is None:
             raise ValueError(
                 f"Phase {i} has no deactivation time, but is not the last phase."
@@ -154,11 +164,11 @@ def foot_contact_state_interpolator(
             )
 
         if i < last:
-            if phase.deactivation_time > phases[i + 1].activation_time:
+            if phase.deactivation_time > phases_copy[i + 1].activation_time:
                 raise ValueError(
                     f"Phase {i} has a deactivation time ({phase.deactivation_time}) "
                     f"greater than the activation time of the next phase "
-                    f"({phases[i + 1].activation_time})."
+                    f"({phases_copy[i + 1].activation_time})."
                 )
 
     output = []
@@ -205,7 +215,7 @@ def foot_contact_state_interpolator(
                 descriptor=descriptor, transform=transform
             )
             for point in foot_state:
-                point.f = 0.0
+                point.f = np.zeros((3, 1))
             output.append(foot_state)
         second_half_points = points - mid_swing_points
         if second_half_points == 0:
@@ -218,17 +228,35 @@ def foot_contact_state_interpolator(
                 descriptor=descriptor, transform=transform
             )
             for point in foot_state:
-                point.f = end_phase.force
+                point.f = np.zeros((3, 1))
             output.append(foot_state)
 
-    if len(phases) == 1 or phases[0].deactivation_time >= end_time:
-        append_stance_phase(phases[0], number_of_points)
+    if len(phases_copy) == 1 or phases_copy[0].deactivation_time >= end_time:
+        append_stance_phase(phases_copy[0], number_of_points)
         return output
 
+    i = 0
+    activation_time = phases_copy[0].activation_time
+    while activation_time < t0:
+        if phases_copy[i].deactivation_time > t0:
+            break
+        i += 1
+        activation_time = phases_copy[i].activation_time
+
+    if activation_time > t0:
+        # One possibility could be to call the interpolator recursively starting
+        # before in time (with more interpolation points) such that this is not an
+        # issue, and then keep only the last interpolation_points
+        raise ValueError(
+            f"There is no active contacts at t0 ({t0}). "
+            f"At the moment, starting the interpolation from a swing state"
+            f" is not supported."
+        )
+
     remaining_points = number_of_points
-    for i in range(len(phases) - 1):
-        phase = phases[i]
-        next_phase = phases[i + 1]
+    while i < len(phases_copy) - 1:
+        phase = phases_copy[i]
+        next_phase = phases_copy[i + 1]
 
         stance_points = int(
             np.ceil((phase.deactivation_time - phase.activation_time) / dt)
@@ -255,8 +283,9 @@ def foot_contact_state_interpolator(
 
         if remaining_points == 0:
             return output
+        i += 1
 
-    last_phase = phases[len(phases) - 1]
+    last_phase = phases_copy[len(phases_copy) - 1]
     append_stance_phase(last_phase, remaining_points)
     return output
 
