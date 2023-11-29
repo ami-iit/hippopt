@@ -138,21 +138,20 @@ class FeetContactPoints(OptimizationObject):
 
 @dataclasses.dataclass
 class FootContactPhaseDescriptor:
-    transform: liecasadi.SE3 = dataclasses.field(default_factory=liecasadi.SE3)
-    mid_swing_transform: liecasadi.SE3 = dataclasses.field(
-        default_factory=liecasadi.SE3
-    )
-    force: float = dataclasses.field(default=100.0)
-    activation_time: float = dataclasses.field(default=None)
-    deactivation_time: float = dataclasses.field(default=None)
+    transform: liecasadi.SE3 = dataclasses.field(default=None)
+    mid_swing_transform: liecasadi.SE3 | None = dataclasses.field(default=None)
+    force: np.ndarray = dataclasses.field(default=None)
+    activation_time: float | None = dataclasses.field(default=None)
+    deactivation_time: float | None = dataclasses.field(default=None)
 
     def __post_init__(self) -> None:
-        self.transform = liecasadi.SE3.from_translation_and_rotation(
-            cs.DM.zeros(3), liecasadi.SO3.Identity()
-        )
-        self.mid_swing_transform = liecasadi.SE3.from_translation_and_rotation(
-            cs.DM.zeros(3), liecasadi.SO3.Identity()
-        )
+        if self.transform is None:
+            self.transform = liecasadi.SE3.from_translation_and_rotation(
+                cs.DM.zeros(3), liecasadi.SO3.Identity()
+            )
+        if self.force is None:
+            self.force = np.zeros(3)
+            self.force[2] = 100
 
 
 @dataclasses.dataclass
