@@ -266,18 +266,17 @@ def compute_state(
 def compute_initial_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
+    contact_guess: hp_rp.FeetContactPhasesDescriptor,
 ) -> walking_variables.ExtendedHumanoidState:
-    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-
+    desired_left_foot_pose = contact_guess.left[0].transform
+    desired_right_foot_pose = contact_guess.right[0].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
     output_pf = compute_state(
         input_settings=input_settings,
         pf_input=pf_input,
-        desired_com_position=np.array([0.15, 0.0, 0.7]),
+        desired_com_position=desired_com_position,
         desired_left_foot_pose=desired_left_foot_pose,
         desired_right_foot_pose=desired_right_foot_pose,
     )
@@ -292,21 +291,41 @@ def compute_initial_state(
     return output_state
 
 
-def compute_final_state(
+def compute_middle_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
+    contact_guess: hp_rp.FeetContactPhasesDescriptor,
 ) -> hp_rp.HumanoidState:
-    desired_left_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.60, 0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-    desired_right_foot_pose = liecasadi.SE3.from_translation_and_rotation(
-        np.array([0.90, -0.1, 0.0]), liecasadi.SO3.Identity()
-    )
-
+    desired_left_foot_pose = contact_guess.left[1].transform
+    desired_right_foot_pose = contact_guess.right[0].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] = 0.7
     return compute_state(
         input_settings=input_settings,
         pf_input=pf_input,
-        desired_com_position=np.array([0.75, 0.0, 0.7]),
+        desired_com_position=desired_com_position,
+        desired_left_foot_pose=desired_left_foot_pose,
+        desired_right_foot_pose=desired_right_foot_pose,
+    )
+
+
+def compute_final_state(
+    input_settings: walking_settings.Settings,
+    pf_input: pose_finder.Planner,
+    contact_guess: hp_rp.FeetContactPhasesDescriptor,
+) -> hp_rp.HumanoidState:
+    desired_left_foot_pose = contact_guess.left[1].transform
+    desired_right_foot_pose = contact_guess.right[1].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] = 0.7
+    return compute_state(
+        input_settings=input_settings,
+        pf_input=pf_input,
+        desired_com_position=desired_com_position,
         desired_left_foot_pose=desired_left_foot_pose,
         desired_right_foot_pose=desired_right_foot_pose,
     )
@@ -339,27 +358,109 @@ if __name__ == "__main__":
     pf_settings = get_pose_finder_settings(input_settings=planner_settings)
     pf = pose_finder.Planner(settings=pf_settings)
 
-    visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    horizon = planner_settings.horizon_length * planner_settings.time_step
+
+    contact_phases_guess = hp_rp.FeetContactPhasesDescriptor()
+    contact_phases_guess.left = [
+        hp_rp.FootContactPhaseDescriptor(
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+            ),
+            mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.3, 0.1, 0.05]), liecasadi.SO3.Identity()
+            ),
+            force=np.array([0, 0, 100.0]),
+            activation_time=None,
+            deactivation_time=horizon / 6.0,
+        ),
+        hp_rp.FootContactPhaseDescriptor(
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.6, 0.1, 0.0]), liecasadi.SO3.Identity()
+            ),
+            mid_swing_transform=None,
+            force=np.array([0, 0, 100.0]),
+            activation_time=horizon / 3.0,
+            deactivation_time=None,
+        ),
+    ]
+
+    contact_phases_guess.right = [
+        hp_rp.FootContactPhaseDescriptor(
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+            ),
+            mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.60, -0.1, 0.05]), liecasadi.SO3.Identity()
+            ),
+            force=np.array([0, 0, 100.0]),
+            activation_time=None,
+            deactivation_time=horizon * 2.0 / 3.0,
+        ),
+        hp_rp.FootContactPhaseDescriptor(
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.9, -0.1, 0.0]), liecasadi.SO3.Identity()
+            ),
+            mid_swing_transform=None,
+            force=np.array([0, 0, 100.0]),
+            activation_time=horizon * 5.0 / 6.0,
+            deactivation_time=None,
+        ),
+    ]
 
     initial_state = compute_initial_state(
         input_settings=planner_settings,
         pf_input=pf,
+        contact_guess=contact_phases_guess,
     )
-    visualizer.visualize(initial_state)
-
-    planner.set_initial_state(initial_state)
 
     final_state = compute_final_state(
         input_settings=planner_settings,
         pf_input=pf,
+        contact_guess=contact_phases_guess,
     )
     final_state.centroidal_momentum = np.zeros((6, 1))
 
-    print("Press [Enter] to visualize the final desired state.")
+    middle_state = compute_middle_state(
+        input_settings=planner_settings,
+        pf_input=pf,
+        contact_guess=contact_phases_guess,
+    )
+
+    first_half_guess_length = planner_settings.horizon_length // 2
+    first_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=initial_state,
+        final_state=middle_state,
+        contact_phases=contact_phases_guess,
+        contact_descriptor=planner_settings.contact_points,
+        number_of_points=first_half_guess_length,
+        dt=planner_settings.time_step,
+    )
+
+    second_half_guess_length = planner_settings.horizon_length - first_half_guess_length
+    second_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=middle_state,
+        final_state=final_state,
+        contact_phases=contact_phases_guess,
+        contact_descriptor=planner_settings.contact_points,
+        number_of_points=second_half_guess_length,
+        dt=planner_settings.time_step,
+        t0=first_half_guess_length * planner_settings.time_step,
+    )
+
+    guess = first_half_guess + second_half_guess
+
+    visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    print("Press [Enter] to visualize the initial guess.")
     input()
 
-    visualizer.visualize(final_state)
+    visualizer.visualize(
+        states=guess,
+        timestep_s=planner_settings.time_step,
+        time_multiplier=1.0,
+        save=True,
+        file_name_stem="humanoid_walking_periodic_guess",
+    )
 
     print("Starting the planner...")
 
@@ -369,7 +470,13 @@ if __name__ == "__main__":
     )
 
     planner.set_references(references)
-    planner.set_final_state(final_state)
+    planner_guess = planner.get_initial_guess()
+    planner_guess.system = [
+        walking_variables.ExtendedHumanoid.from_humanoid_state(s) for s in guess
+    ]
+    planner_guess.initial_state = initial_state
+    planner_guess.final_state = final_state
+    planner.set_initial_guess(planner_guess)
 
     output = planner.solve()
 
@@ -384,5 +491,5 @@ if __name__ == "__main__":
         timestep_s=output.values.dt,
         time_multiplier=1.0,
         save=True,
-        file_name_stem="humanoid_walking_single_step",
+        file_name_stem="humanoid_walking_periodic",
     )
