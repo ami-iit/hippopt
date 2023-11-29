@@ -360,6 +360,8 @@ if __name__ == "__main__":
 
     horizon = planner_settings.horizon_length * planner_settings.time_step
 
+    step_length = 0.6
+
     contact_phases_guess = hp_rp.FeetContactPhasesDescriptor()
     contact_phases_guess.left = [
         hp_rp.FootContactPhaseDescriptor(
@@ -367,7 +369,7 @@ if __name__ == "__main__":
                 np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.3, 0.1, 0.05]), liecasadi.SO3.Identity()
+                np.array([step_length / 2, 0.1, 0.05]), liecasadi.SO3.Identity()
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
@@ -375,7 +377,7 @@ if __name__ == "__main__":
         ),
         hp_rp.FootContactPhaseDescriptor(
             transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.6, 0.1, 0.0]), liecasadi.SO3.Identity()
+                np.array([step_length, 0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
@@ -387,10 +389,10 @@ if __name__ == "__main__":
     contact_phases_guess.right = [
         hp_rp.FootContactPhaseDescriptor(
             transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.3, -0.1, 0.0]), liecasadi.SO3.Identity()
+                np.array([step_length / 2, -0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.60, -0.1, 0.05]), liecasadi.SO3.Identity()
+                np.array([step_length, -0.1, 0.05]), liecasadi.SO3.Identity()
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
@@ -398,7 +400,7 @@ if __name__ == "__main__":
         ),
         hp_rp.FootContactPhaseDescriptor(
             transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.9, -0.1, 0.0]), liecasadi.SO3.Identity()
+                np.array([1.5 * step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
