@@ -219,15 +219,15 @@ class HumanoidStateVisualizer:
 
     def _update_clone(self, index: int, state: HumanoidState) -> None:
         self._viz.set_multibody_system_state(
-            state.kinematics.base.position,
+            np.array(state.kinematics.base.position).flatten(),
             liecasadi.SO3.from_quat(state.kinematics.base.quaternion_xyzw)
             .as_matrix()
             .full(),
-            state.kinematics.joints.positions,
+            np.array(state.kinematics.joints.positions).flatten(),
             f"[{index}]robot",
         )
         self._viz.set_primitive_geometry_transform(
-            state.com,
+            np.array(state.com).flatten(),
             np.eye(3),
             f"[{index}]CoM",
         )
@@ -236,19 +236,21 @@ class HumanoidStateVisualizer:
             (state.contact_points.left + state.contact_points.right)
         ):
             self._viz.set_primitive_geometry_transform(
-                point.p,
+                np.array(point.p).flatten(),
                 np.eye(3),
                 f"[{index}]p_{i}",
             )
 
-            point_force = point.f * self._settings.contact_force_scaling
+            point_force = (
+                np.array(point.f).flatten() * self._settings.contact_force_scaling
+            )
 
             # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
             # available in conda
 
             position = point.p + point_force / 2  # the origin is in the cylinder center
             transform = np.zeros((4, 4))
-            transform[0:3, 3] = position
+            transform[0:3, 3] = np.array(position).flatten()
             transform[3, 3] = 1
             transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
             self._viz.viewer[f"[{index}]f_{i}"].set_transform(transform)
