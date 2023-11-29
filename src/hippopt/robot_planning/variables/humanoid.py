@@ -49,8 +49,9 @@ class HumanoidState(OptimizationObject):
                 ContactPointState(input_descriptor=point)
                 for point in contact_point_descriptors.right
             ]
-        number_of_joints = number_of_joints if number_of_joints is not None else 0
-        self.kinematics = FloatingBaseSystemState(
-            number_of_joints_state=number_of_joints
-        )
-        self.com = np.zeros(3)
+        if number_of_joints is not None:
+            self.kinematics = FloatingBaseSystemState(
+                number_of_joints_state=number_of_joints
+            )
+        if self.com is None:
+            self.com = np.zeros(3)

@@ -19,9 +19,11 @@ class FreeFloatingObjectState(OptimizationObject):
     quaternion_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
-        self.position = np.zeros(3)
-        self.quaternion_xyzw = np.zeros(4)
-        self.quaternion_xyzw[3] = 1.0
+        if self.position is None:
+            self.position = np.zeros(3)
+        if self.quaternion_xyzw is None:
+            self.quaternion_xyzw = np.zeros(4)
+            self.quaternion_xyzw[3] = 1.0
 
 
 @dataclasses.dataclass
@@ -30,8 +32,11 @@ class FreeFloatingObjectStateDerivative(OptimizationObject):
     quaternion_velocity_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
-        self.linear_velocity = np.zeros(3)
-        self.quaternion_velocity_xyzw = np.zeros(4)
+        if self.linear_velocity is None:
+            self.linear_velocity = np.zeros(3)
+
+        if self.quaternion_velocity_xyzw is None:
+            self.quaternion_velocity_xyzw = np.zeros(4)
 
 
 @dataclasses.dataclass
@@ -48,7 +53,8 @@ class KinematicTreeState(OptimizationObject):
     number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
     def __post_init__(self, number_of_joints_state: int):
-        self.positions = np.zeros(number_of_joints_state)
+        if number_of_joints_state is not None:
+            self.positions = np.zeros(number_of_joints_state)
 
 
 @dataclasses.dataclass
@@ -60,7 +66,8 @@ class KinematicTreeStateDerivative(OptimizationObject):
     )
 
     def __post_init__(self, number_of_joints_derivative: int):
-        self.velocities = np.zeros(number_of_joints_derivative)
+        if number_of_joints_derivative is not None:
+            self.velocities = np.zeros(number_of_joints_derivative)
 
 
 @dataclasses.dataclass
@@ -70,26 +77,26 @@ class KinematicTree(KinematicTreeState, KinematicTreeStateDerivative):
         number_of_joints_derivative: int = None,
         number_of_joints_state: int = None,
     ):
-        if number_of_joints_derivative is None and number_of_joints_state is None:
-            number_of_joints_state = 0
-            number_of_joints_derivative = 0
-
-        number_of_joints_state = (
-            number_of_joints_derivative
-            if number_of_joints_state is None
-            else number_of_joints_state
-        )
-        number_of_joints_derivative = (
-            number_of_joints_state
-            if number_of_joints_derivative is None
-            else number_of_joints_derivative
-        )
-        KinematicTreeState.__post_init__(
-            self, number_of_joints_state=number_of_joints_state
-        )
-        KinematicTreeStateDerivative.__post_init__(
-            self, number_of_joints_derivative=number_of_joints_derivative
-        )
+        if (
+            number_of_joints_derivative is not None
+            or number_of_joints_state is not None
+        ):
+            number_of_joints_state = (
+                number_of_joints_derivative
+                if number_of_joints_state is None
+                else number_of_joints_state
+            )
+            number_of_joints_derivative = (
+                number_of_joints_state
+                if number_of_joints_derivative is None
+                else number_of_joints_derivative
+            )
+            KinematicTreeState.__post_init__(
+                self, number_of_joints_state=number_of_joints_state
+            )
+            KinematicTreeStateDerivative.__post_init__(
+                self, number_of_joints_derivative=number_of_joints_derivative
+            )
 
 
 @dataclasses.dataclass
@@ -104,7 +111,10 @@ class FloatingBaseSystemState(OptimizationObject):
     number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(self, number_of_joints_state: int):
-        self.joints = KinematicTreeState(number_of_joints_state=number_of_joints_state)
+        if number_of_joints_state is not None:
+            self.joints = KinematicTreeState(
+                number_of_joints_state=number_of_joints_state
+            )
 
 
 @dataclasses.dataclass
@@ -121,9 +131,10 @@ class FloatingBaseSystemStateDerivative(OptimizationObject):
     )
 
     def __post_init__(self, number_of_joints_derivative: int):
-        self.joints = KinematicTreeStateDerivative(
-            number_of_joints_derivative=number_of_joints_derivative
-        )
+        if number_of_joints_derivative is not None:
+            self.joints = KinematicTreeStateDerivative(
+                number_of_joints_derivative=number_of_joints_derivative
+            )
 
 
 TFloatingBaseSystem = TypeVar("TFloatingBaseSystem", bound="FloatingBaseSystem")
@@ -141,7 +152,8 @@ class FloatingBaseSystem(OptimizationObject):
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(self, number_of_joints: int):
-        self.joints = KinematicTree(number_of_joints_state=number_of_joints)
+        if number_of_joints is not None:
+            self.joints = KinematicTree(number_of_joints_state=number_of_joints)
 
     def to_floating_base_system_state(self):
         output = FloatingBaseSystemState()

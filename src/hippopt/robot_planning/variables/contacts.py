@@ -29,8 +29,10 @@ class ContactPointDescriptor(OptimizationObject):
     def __post_init__(
         self, input_foot_frame: str, input_position_in_foot_frame: np.ndarray
     ) -> None:
-        self.foot_frame = input_foot_frame
-        self.position_in_foot_frame = input_position_in_foot_frame
+        if input_foot_frame is not None:
+            self.foot_frame = input_foot_frame
+        if input_position_in_foot_frame is not None:
+            self.position_in_foot_frame = input_position_in_foot_frame
 
     @staticmethod
     def rectangular_foot(
@@ -76,10 +78,14 @@ class ContactPointState(OptimizationObject):
     )
 
     def __post_init__(self, input_descriptor: ContactPointDescriptor) -> None:
-        self.p = np.zeros(3)
-        self.f = np.zeros(3)
+        if self.p is None:
+            self.p = np.zeros(3)
 
-        self.descriptor = input_descriptor
+        if self.f is None:
+            self.f = np.zeros(3)
+
+        if input_descriptor is not None:
+            self.descriptor = input_descriptor
 
 
 @dataclasses.dataclass
@@ -88,8 +94,11 @@ class ContactPointStateDerivative(OptimizationObject):
     f_dot: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self) -> None:
-        self.v = np.zeros(3)
-        self.f_dot = np.zeros(3)
+        if self.v is None:
+            self.v = np.zeros(3)
+
+        if self.f_dot is None:
+            self.f_dot = np.zeros(3)
 
 
 TFootContactState = TypeVar("TFootContactState", bound="FootContactState")
