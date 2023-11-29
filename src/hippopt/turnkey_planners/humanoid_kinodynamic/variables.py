@@ -175,6 +175,9 @@ class FeetContactPointsExtended(hp.OptimizationObject):
         ]
 
 
+TExtendedHumanoid = TypeVar("TExtendedHumanoid", bound="ExtendedHumanoid")
+
+
 @dataclasses.dataclass
 class ExtendedHumanoid(hp.OptimizationObject):
     contact_points: hp.CompositeType[
@@ -219,13 +222,16 @@ class ExtendedHumanoid(hp.OptimizationObject):
         output.com = self.com
         return output
 
-    def from_humanoid_state(self, input_state: hp_rp.HumanoidState) -> None:
-        self.contact_points.from_feet_contact_points(input_state.contact_points)
-        self.kinematics = hp_rp.FloatingBaseSystem.from_floating_base_system_state(
+    @staticmethod
+    def from_humanoid_state(input_state: hp_rp.HumanoidState) -> TExtendedHumanoid:
+        output = ExtendedHumanoid()
+        output.contact_points.from_feet_contact_points(input_state.contact_points)
+        output.kinematics = hp_rp.FloatingBaseSystem.from_floating_base_system_state(
             input_state.kinematics
         )
-        self.com = input_state.com
-        self.centroidal_momentum = None
+        output.com = input_state.com
+        output.centroidal_momentum = None
+        return output
 
 
 @dataclasses.dataclass
