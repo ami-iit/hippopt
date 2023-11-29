@@ -1,4 +1,5 @@
-import casadi as cs
+import math
+
 import liecasadi
 import numpy as np
 
@@ -24,9 +25,30 @@ def linear_interpolator(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    interpolator = cs.interpolant("lerp", "linear", [initial, final], [0.0, 1.0])
-    x = np.linspace(start=0.0, stop=1.0, num=number_of_points)
-    return [interpolator(x_i) for x_i in x]
+    initial = np.array(initial)
+    final = np.array(final)
+
+    if len(initial.shape) < 2:
+        initial = np.expand_dims(initial, axis=1)
+
+    if len(final.shape) < 2:
+        final = np.expand_dims(final, axis=1)
+
+    if (
+        hasattr(initial, "shape")
+        and hasattr(final, "shape")
+        and initial.shape != final.shape
+    ):
+        raise ValueError(
+            f"Initial value has shape {initial.shape}, "
+            f"but final value has shape {final.shape}."
+        )
+
+    t = np.linspace(start=0.0, stop=1.0, num=number_of_points)
+    output = []
+    for t_i in t:
+        output.append((1 - t_i) * initial + t_i * final)
+    return output
 
 
 def quaternion_slerp(
@@ -34,8 +56,27 @@ def quaternion_slerp(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    x = np.linspace(start=0.0, stop=1.0, num=number_of_points)
-    return [liecasadi.Quaternion.slerp_step(initial, final, t) for t in x]
+    initial = np.array(initial)
+    final = np.array(final)
+
+    if len(initial.shape) < 2:
+        initial = np.expand_dims(initial, axis=1)
+
+    if len(final.shape) < 2:
+        final = np.expand_dims(final, axis=1)
+
+    dot = initial.T @ final
+    angle = math.acos(dot)
+
+    t = np.linspace(start=0.0, stop=1.0, num=number_of_points)
+    output = []
+    for t_i in t:
+        output.append(
+            liecasadi.Quaternion.slerp_step(initial, final, t_i).coeffs()
+            if abs(angle) > 1e-6
+            else initial
+        )
+    return output
 
 
 def transform_interpolator(
@@ -47,14 +88,16 @@ def transform_interpolator(
         number_of_points=number_of_points,
     )
     quaternion_interpolation = quaternion_slerp(
-        initial=initial.rotation(),
-        final=final.rotation(),
+        initial=initial.rotation().as_quat().coeffs(),
+        final=final.rotation().as_quat().coeffs(),
         number_of_points=number_of_points,
     )
     output = []
     for i in range(number_of_points):
         output.append(
-            liecasadi.SE3(quaternion_interpolation[i], linear_interpolation[i])
+            liecasadi.SE3.from_position_quaternion(
+                linear_interpolation[i], quaternion_interpolation[i]
+            )
         )
     return output
 
@@ -140,6 +183,19 @@ def foot_contact_state_interpolator(
         full_swing_points = int(
             np.ceil((end_phase.activation_time - start_phase.deactivation_time) / dt)
         )
+
+        if start_phase.mid_swing_transform is None:
+            start_phase.mid_swing_transform = (
+                liecasadi.SE3.from_translation_and_rotation(
+                    (
+                        start_phase.transform.translation()
+                        + end_phase.transform.translation()
+                    )
+                    / 2,
+                    end_phase.transform.rotation(),
+                )
+            )
+
         mid_swing_points = min(round(full_swing_points / 2), points)
         mid_swing_transforms = transform_interpolator(
             start_phase.transform, start_phase.mid_swing_transform, mid_swing_points
