@@ -244,14 +244,17 @@ def foot_contact_state_interpolator(
         activation_time = phases_copy[i].activation_time
 
     if activation_time > t0:
-        # One possibility could be to call the interpolator recursively starting
-        # before in time (with more interpolation points) such that this is not an
-        # issue, and then keep only the last interpolation_points
-        raise ValueError(
-            f"There is no active contacts at t0 ({t0}). "
-            f"At the moment, starting the interpolation from a swing state"
-            f" is not supported."
+        previous_active_phase = phases_copy[i - 1]
+        new_t0 = previous_active_phase.deactivation_time - dt
+        advance_points = int(np.ceil((t0 - new_t0) / dt))
+        increased_output = foot_contact_state_interpolator(
+            phases=phases_copy,
+            descriptor=descriptor,
+            number_of_points=number_of_points + advance_points,
+            dt=dt,
+            t0=new_t0,
         )
+        return increased_output[advance_points:]
 
     remaining_points = number_of_points
     while i < len(phases_copy) - 1:
