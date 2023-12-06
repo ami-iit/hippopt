@@ -100,10 +100,10 @@ def get_planner_settings() -> walking_settings.Settings:
     settings.com_linear_velocity_cost_weights = [10.0, 0.1, 1.0]
     settings.com_linear_velocity_cost_multiplier = 1.0
     settings.desired_frame_quaternion_cost_frame_name = "chest"
-    settings.desired_frame_quaternion_cost_multiplier = 90.0
+    settings.desired_frame_quaternion_cost_multiplier = 200.0
     settings.base_quaternion_cost_multiplier = 50.0
     settings.base_quaternion_velocity_cost_multiplier = 0.001
-    settings.joint_regularization_cost_multiplier = 0.1
+    settings.joint_regularization_cost_multiplier = 10.0
     settings.force_regularization_cost_multiplier = 10.0
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
     settings.swing_foot_height_cost_multiplier = 1000.0
@@ -123,7 +123,7 @@ def get_planner_settings() -> walking_settings.Settings:
         "dual_inf_tol": 1000.0,
         "compl_inf_tol": 1e-2,
         "constr_viol_tol": 1e-4,
-        "acceptable_tol": 1e0,
+        "acceptable_tol": 5e-1,
         "acceptable_iter": 2,
         "acceptable_compl_inf_tol": 1.0,
         "warm_start_bound_frac": 1e-2,
@@ -333,20 +333,26 @@ def compute_final_state(
 
 def get_references(
     input_settings: walking_settings.Settings,
-    desired_state: hp_rp.HumanoidState,
-) -> walking_variables.References:
-    output_reference = walking_variables.References(
-        number_of_joints=len(input_settings.joints_name_list),
-        number_of_points_left=len(input_settings.contact_points.left),
-        number_of_points_right=len(input_settings.contact_points.right),
-    )
+    desired_states: list[hp_rp.HumanoidState],
+) -> list[walking_variables.References]:
+    output_list = []
 
-    output_reference.contacts_centroid_cost_weights = [100, 100, 10]
-    output_reference.contacts_centroid = [0.3, 0.0, 0.0]
-    output_reference.joint_regularization = desired_state.kinematics.joints.positions
-    output_reference.com_linear_velocity = [0.1, 0.0, 0.0]
+    for i in range(input_settings.horizon_length):
+        output_reference = walking_variables.References(
+            number_of_joints=len(input_settings.joints_name_list),
+            number_of_points_left=len(input_settings.contact_points.left),
+            number_of_points_right=len(input_settings.contact_points.right),
+        )
 
-    return output_reference
+        output_reference.contacts_centroid_cost_weights = [100, 100, 10]
+        output_reference.contacts_centroid = [0.3, 0.0, 0.0]
+        output_reference.joint_regularization = desired_states[
+            i
+        ].kinematics.joints.positions
+        output_reference.com_linear_velocity = [0.1, 0.0, 0.0]
+        output_list.append(output_reference)
+
+    return output_list
 
 
 if __name__ == "__main__":
@@ -468,7 +474,7 @@ if __name__ == "__main__":
 
     references = get_references(
         input_settings=planner_settings,
-        desired_state=final_state,
+        desired_states=guess,
     )
 
     planner.set_references(references)
