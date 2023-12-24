@@ -127,8 +127,8 @@ class HumanoidStateVisualizer:
             raise ValueError("Settings are not valid.")
         self._logger = logging.getLogger("[hippopt::HumanoidStateVisualizer]")
         self._settings = settings
-        self._create_ground_urdf()
-        self._create_ground_mesh()
+        mesh_file = self._create_ground_mesh()
+        self._create_ground_urdf(mesh_file)
         self._number_of_clones = self._settings.pre_allocated_clones
         self._viz = MeshcatVisualizer()
         self._viz.load_model_from_file(
@@ -255,7 +255,7 @@ class HumanoidStateVisualizer:
             transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
             self._viz.viewer[f"[{index}]f_{i}"].set_transform(transform)
 
-    def _create_ground_urdf(self) -> None:
+    def _create_ground_urdf(self, mesh_filename: str) -> None:
         filename = self._settings.terrain.get_name() + ".urdf"
         full_filename = os.path.join(self._settings.working_folder, filename)
         if os.path.exists(full_filename):
@@ -267,7 +267,7 @@ class HumanoidStateVisualizer:
 
         with open(full_filename, "w") as f:
             f.write(
-                """<?xml version="1.0"?>
+                f"""<?xml version="1.0"?>
                 <robot name="ground">
                     <link name="world"/>
                     <link name="link_0">
@@ -280,7 +280,7 @@ class HumanoidStateVisualizer:
                         <visual>
                             <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
                             <geometry>
-                                <mesh filename="./ground.stl" scale="1.0 1.0 1.0"/>
+                                <mesh filename="{mesh_filename}" scale="1.0 1.0 1.0"/>
                             </geometry>
                             <material name="ground_color">
                                  <color rgba="0.5 0.5 0.5 1"/>
@@ -289,7 +289,7 @@ class HumanoidStateVisualizer:
                         <collision>
                             <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
                             <geometry>
-                                 <mesh filename="./ground.stl" scale="1.0 1.0 1.0"/>
+                                 <mesh filename="{mesh_filename}" scale="1.0 1.0 1.0"/>
                             </geometry>
                         </collision>
                     </link>
@@ -302,7 +302,7 @@ class HumanoidStateVisualizer:
                 """
             )
 
-    def _create_ground_mesh(self) -> None:
+    def _create_ground_mesh(self) -> str:
         filename = self._settings.terrain.get_name() + ".stl"
         full_filename = os.path.join(self._settings.working_folder, filename)
         if os.path.exists(full_filename):
@@ -310,7 +310,7 @@ class HumanoidStateVisualizer:
                 self._logger.info(f"Overwriting {filename}")
             else:
                 self._logger.info(f"{filename} already exists. Skipping creation.")
-                return
+                return full_filename
         x_step = (
             self._settings.ground_x_limits[1] - self._settings.ground_x_limits[0]
         ) / self._settings.ground_mesh_axis_points
@@ -333,6 +333,7 @@ class HumanoidStateVisualizer:
         height_function_map = self._settings.terrain.height_function().map(x.size)
         z = -np.array(height_function_map(points).full()).reshape(x.shape)
         surf2stl.write(full_filename, x, y, z)
+        return full_filename
 
     def _visualize_single_state(
         self,
