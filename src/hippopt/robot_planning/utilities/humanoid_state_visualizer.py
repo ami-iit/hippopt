@@ -396,12 +396,12 @@ class HumanoidStateVisualizer:
 
         frame_prefix = "frame_"
 
-        for i in range(number_of_clones, len(states)):
+        for i in range(number_of_clones, len(states) + 1):
             initial_index = i - number_of_clones
             visualized_states = states[initial_index:i]
             if number_of_clones > 1:
                 self._logger.info(
-                    f"Visualizing states [{i-number_of_clones + 1},{i + 1}]"
+                    f"Visualizing states [{i-number_of_clones + 1},{i}]"
                     f" of {len(states)}."
                 )
             else:
@@ -414,7 +414,7 @@ class HumanoidStateVisualizer:
             )
             end = time.time()
             elapsed_s = end - start
-            sleep_time = _timestep_s[i] * time_multiplier - elapsed_s
+            sleep_time = _timestep_s[i - 1] * time_multiplier - elapsed_s
             time.sleep(max(0.0, sleep_time))
 
         if save:
