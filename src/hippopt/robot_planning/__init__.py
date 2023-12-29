@@ -48,7 +48,8 @@ from .utilities.interpolators import (
     quaternion_slerp,
     transform_interpolator,
 )
-from .utilities.terrain_descriptor import PlanarTerrain, TerrainDescriptor
+from .utilities.planar_terrain import PlanarTerrain
+from .utilities.terrain_descriptor import TerrainDescriptor
 from .variables.contacts import (
     ContactPointDescriptor,
     ContactPointState,

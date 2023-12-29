@@ -9,10 +9,8 @@ import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
 
-from hippopt.robot_planning.utilities.terrain_descriptor import (
-    PlanarTerrain,
-    TerrainDescriptor,
-)
+from hippopt.robot_planning.utilities.planar_terrain import PlanarTerrain
+from hippopt.robot_planning.utilities.terrain_descriptor import TerrainDescriptor
 from hippopt.robot_planning.variables.contacts import (
     ContactPointState,
     FootContactState,
