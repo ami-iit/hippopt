@@ -410,7 +410,7 @@ class HumanoidStateVisualizer:
             self._visualize_single_state(
                 visualized_states,
                 save=save,
-                file_name_stem=f"{folder_name}/{frame_prefix}{i:03}",
+                file_name_stem=f"{folder_name}/{frame_prefix}{i-number_of_clones:03}",
             )
             end = time.time()
             elapsed_s = end - start
@@ -456,8 +456,7 @@ class HumanoidStateVisualizer:
         self, file_name_stem: str, frames_folder: str, frames_prefix: str, fps: float
     ) -> None:
         frames = ffmpeg.input(
-            filename=f"{frames_folder}/{frames_prefix}*.png",
-            pattern_type="glob",
+            filename=f"{frames_folder}/{frames_prefix}%3d.png",
             framerate=fps,
         )
         video = ffmpeg.output(
