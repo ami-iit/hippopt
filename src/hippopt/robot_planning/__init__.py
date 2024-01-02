@@ -51,6 +51,7 @@ from .utilities.interpolators import (
 from .utilities.planar_terrain import PlanarTerrain
 from .utilities.smooth_terrain import SmoothTerrain
 from .utilities.terrain_descriptor import TerrainDescriptor
+from .utilities.terrain_visualizer import TerrainVisualizer, TerrainVisualizerSettings
 from .variables.contacts import (
     ContactPointDescriptor,
     ContactPointState,

@@ -5,4 +5,5 @@ from . import (
     planar_terrain,
     smooth_terrain,
     terrain_descriptor,
+    terrain_visualizer,
 )
