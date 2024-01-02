@@ -6,12 +6,12 @@ import casadi as cs
 
 @dataclasses.dataclass
 class TerrainDescriptor(abc.ABC):
-    _height_function: cs.Function = dataclasses.field(default=None)
-    _normal_direction_function: cs.Function = dataclasses.field(default=None)
-    _orientation_function: cs.Function = dataclasses.field(default=None)
+    _height_function: cs.Function | None = dataclasses.field(default=None)
+    _normal_direction_function: cs.Function | None = dataclasses.field(default=None)
+    _orientation_function: cs.Function | None = dataclasses.field(default=None)
     _point_position_name: str = dataclasses.field(default="point_position")
-    _name: str = dataclasses.field(default="terrain")
-    _options: dict = dataclasses.field(default=None)
+    _name: str = dataclasses.field(default=None)
+    _options: dict = dataclasses.field(default_factory=dict)
     point_position_name: dataclasses.InitVar[str] = dataclasses.field(
         default="point_position"
     )
@@ -20,18 +20,21 @@ class TerrainDescriptor(abc.ABC):
 
     def __post_init__(
         self,
-        point_position_name: str = "point_position",
+        point_position_name: str = None,
         options: dict = None,
         name: str = None,
     ):
         self.change_options(point_position_name, options)
-        self._name = name
+        if name is not None:
+            self._name = name
 
     def change_options(
-        self, point_position_name: str = "point_position", options: dict = None, **_
+        self, point_position_name: str = None, options: dict = None, **_
     ) -> None:
-        self._options = {} if options is None else options
-        self._point_position_name = point_position_name
+        if options is not None:
+            self._options = options
+        if point_position_name is not None:
+            self._point_position_name = point_position_name
 
     @abc.abstractmethod
     def create_height_function(self) -> cs.Function:
@@ -68,3 +71,8 @@ class TerrainDescriptor(abc.ABC):
 
     def get_name(self) -> str:
         return self._name if isinstance(self._name, str) else self.__class__.__name__
+
+    def invalidate_functions(self) -> None:
+        self._height_function = None
+        self._normal_direction_function = None
+        self._orientation_function = None

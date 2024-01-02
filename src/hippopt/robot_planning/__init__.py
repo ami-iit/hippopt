@@ -49,6 +49,7 @@ from .utilities.interpolators import (
     transform_interpolator,
 )
 from .utilities.planar_terrain import PlanarTerrain
+from .utilities.smooth_terrain import SmoothTerrain
 from .utilities.terrain_descriptor import TerrainDescriptor
 from .variables.contacts import (
     ContactPointDescriptor,
