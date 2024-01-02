@@ -4,6 +4,10 @@ import casadi as cs
 import numpy as np
 
 from hippopt.robot_planning.utilities.terrain_descriptor import TerrainDescriptor
+from hippopt.robot_planning.utilities.terrain_visualizer import (
+    TerrainVisualizer,
+    TerrainVisualizerSettings,
+)
 
 
 @dataclasses.dataclass
@@ -26,9 +30,9 @@ class SmoothTerrain(TerrainDescriptor):
     π(x, y), we can control the inclination of the top surface when g(x, y) = 0.
     Instead, g(x, y) = 1 controls the shape of the terrain at height 1/e * π(x, y).
 
-    For example, to define a classical step with a square base of dimension 1,
+    For example, to define a classical step with a square base of dimension l,
     we can use:
-    g(x, y) = |x|^p + |y|^p
+    g(x, y) = |2/l * x|^p + |2/l * y|^p
     π(x, y) = 1
     where p ≥ 1 is a parameter controlling the sharpness of the edges of the square
     at height 1/e.
@@ -93,7 +97,7 @@ class SmoothTerrain(TerrainDescriptor):
             self._shape_function = cs.Function(
                 "smooth_terrain_shape",
                 [point_position],
-                [point_position[0] ** 10 + point_position[1] ** 10],
+                [(4 * point_position[0]) ** 10 + (4 * point_position[1]) ** 10],
                 [self.get_point_position_name()],
                 ["g"],
                 self._options,
@@ -102,7 +106,7 @@ class SmoothTerrain(TerrainDescriptor):
             self._top_surface_function = cs.Function(
                 "smooth_terrain_top_surface",
                 [point_position],
-                [cs.MX.eye(1)],
+                [cs.MX(0.2)],
                 [self.get_point_position_name()],
                 ["pi"],
                 self._options,
@@ -161,14 +165,18 @@ class SmoothTerrain(TerrainDescriptor):
     def create_height_function(self) -> cs.Function:
         point_position = cs.MX.sym(self.get_point_position_name(), 3)
 
-        position_in_terrain_frame = cs.transpose(self._transformation_matrix) @ (
+        position_in_terrain_frame = cs.transpose(self._transformation_matrix) @ cs.MX(
             point_position - self._offset,
         )
 
         shape = self._shape_function(position_in_terrain_frame)
         top_surface = self._top_surface_function(position_in_terrain_frame)
 
-        height = cs.exp(-(shape ** (2 * self._sharpness))) * top_surface + self._delta
+        height = (
+            point_position[2]
+            - cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
+            - self._delta
+        )
 
         return cs.Function(
             "smooth_terrain_height",
@@ -188,3 +196,11 @@ class SmoothTerrain(TerrainDescriptor):
         raise NotImplementedError(
             "The orientation function is not implemented for this terrain."
         )
+
+
+if __name__ == "__main__":
+    viz_settings = TerrainVisualizerSettings()
+    viz_settings.terrain = SmoothTerrain()
+    viz_settings.overwrite_terrain_files = True
+    viz = TerrainVisualizer(viz_settings)
+    input("Press Enter to exit.")
