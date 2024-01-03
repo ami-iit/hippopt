@@ -15,16 +15,15 @@ class SmoothTerrain(TerrainDescriptor):
     """
     Smooth terrain is a terrain with a smooth height function.
     The height is defined as follows:
-    h(x, y) = exp(−g(x, y)^(2s)) π(x, y) + δ.
+    h(x, y) = exp(−g(x, y)^(2s)) π(x, y).
 
     Here, g(x, y) ≥ 0 is the equation of a closed curve in the xy-plane,
     and π(x, y) is the equation of a plane in the xy-plane, defining the shape of the
     terrain when exp(−g(x, y)^(2s)) = 1, i.e. when g(x, y) = 0.
     The parameter s ≥ 1 controls the smoothness of the terrain.
-    δ is a height offset.
 
     Independently of the value of s, the value of exp(−g(.)^(2s)) is always passing
-    through 1 at the origin, and through 1/e at the point where g(x,y) = 1. Then, will
+    through 1 when g(x,y) = 0, and through 1/e when g(x,y) = 1. Then, it will
     tend to zero as g(x, y) → ∞. The parameter s controls how fast exp(−g(.)^(2s)) tends
     to zero as g(x, y) grows. By multiplying times the equation of a plane, i.e.
     π(x, y), we can control the inclination of the top surface when g(x, y) = 0.
@@ -51,7 +50,6 @@ class SmoothTerrain(TerrainDescriptor):
     _shape_function: cs.Function = dataclasses.field(default=None)
     _top_surface_function: cs.Function = dataclasses.field(default=None)
     _sharpness: float = dataclasses.field(default=None)
-    _delta: float = dataclasses.field(default=None)
     _offset: np.ndarray = dataclasses.field(default=None)
     _transformation_matrix: np.ndarray = dataclasses.field(default=None)
 
@@ -60,7 +58,6 @@ class SmoothTerrain(TerrainDescriptor):
         default=None
     )
     sharpness: dataclasses.InitVar[float] = dataclasses.field(default=None)
-    delta: dataclasses.InitVar[float] = dataclasses.field(default=None)
     offset: dataclasses.InitVar[np.ndarray] = dataclasses.field(default=None)
     transformation_matrix: dataclasses.InitVar[np.ndarray] = dataclasses.field(
         default=None
@@ -74,7 +71,6 @@ class SmoothTerrain(TerrainDescriptor):
         shape_function: cs.Function = None,
         top_surface_function: cs.Function = None,
         sharpness: float = None,
-        delta: float = None,
         offset: np.ndarray = None,
         transformation_matrix: np.ndarray = None,
     ):
@@ -82,9 +78,6 @@ class SmoothTerrain(TerrainDescriptor):
 
         if self._sharpness is None:
             self._sharpness = 10.0
-
-        if self._delta is None:
-            self._delta = 0.0
 
         if self._offset is None:
             self._offset = np.zeros(3)
@@ -116,7 +109,6 @@ class SmoothTerrain(TerrainDescriptor):
             shape_function=shape_function,
             top_surface_function=top_surface_function,
             sharpness=sharpness,
-            delta=delta,
             offset=offset,
             transformation_matrix=transformation_matrix,
         )
@@ -126,7 +118,6 @@ class SmoothTerrain(TerrainDescriptor):
         shape_function: cs.Function = None,
         top_surface_function: cs.Function = None,
         sharpness: float = None,
-        delta: float = None,
         offset: np.ndarray = None,
         transformation_matrix: np.ndarray = None,
     ) -> None:
@@ -142,9 +133,6 @@ class SmoothTerrain(TerrainDescriptor):
                     "The sharpness parameter must be greater than or equal to 1."
                 )
             self._sharpness = sharpness
-
-        if delta is not None:
-            self._delta = delta
 
         if offset is not None:
             if not isinstance(offset, np.ndarray):
@@ -173,9 +161,7 @@ class SmoothTerrain(TerrainDescriptor):
         top_surface = self._top_surface_function(position_in_terrain_frame)
 
         height = (
-            point_position[2]
-            - cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
-            - self._delta
+            point_position[2] - cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
         )
 
         return cs.Function(
