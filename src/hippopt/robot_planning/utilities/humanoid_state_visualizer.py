@@ -141,9 +141,8 @@ class HumanoidStateVisualizer:
                 shape_name=f"[{index}]p_{i}",
                 color=self._settings.contact_points_color,
             )
-            self._viz.load_cylinder(
+            self._viz.load_arrow(
                 radius=self._settings.contact_force_radius,
-                length=1.0,
                 shape_name=f"[{index}]f_{i}",
                 color=self._settings.contact_forces_color,
             )
@@ -170,29 +169,6 @@ class HumanoidStateVisualizer:
                 [-x[1], x[0], 0],
             ]
         )
-
-    def _get_force_scaled_rotation(self, point_force: np.ndarray) -> np.ndarray:
-        force_norm = np.linalg.norm(point_force)
-        scaling = np.diag([1, 1, force_norm])
-
-        if force_norm < 1e-6:
-            return scaling
-
-        force_direction = point_force / force_norm
-        cos_angle = np.dot(np.array([0, 0, 1]), force_direction)
-        rotation_axis = self._skew(np.array([0, 0, 1])) @ force_direction
-
-        if np.linalg.norm(rotation_axis) < 1e-6:
-            return scaling
-
-        skew_symmetric_matrix = self._skew(rotation_axis)
-        rotation = (
-            np.eye(3)
-            + skew_symmetric_matrix
-            + np.dot(skew_symmetric_matrix, skew_symmetric_matrix)
-            * ((1 - cos_angle) / (np.linalg.norm(rotation_axis) ** 2))
-        )
-        return rotation @ scaling
 
     def _update_clone(self, index: int, state: HumanoidState) -> None:
         self._viz.set_multibody_system_state(
@@ -222,15 +198,9 @@ class HumanoidStateVisualizer:
                 np.array(point.f).flatten() * self._settings.contact_force_scaling
             )
 
-            # Copied from https://github.com/robotology/idyntree/pull/1087 until it is
-            # available in conda
-
-            position = point.p + point_force / 2  # the origin is in the cylinder center
-            transform = np.zeros((4, 4))
-            transform[0:3, 3] = np.array(position).flatten()
-            transform[3, 3] = 1
-            transform[0:3, 0:3] = self._get_force_scaled_rotation(point_force)
-            self._viz.viewer[f"[{index}]f_{i}"].set_transform(transform)
+            self._viz.set_arrow_transform(
+                origin=point.p, vector=point_force, shape_name=f"[{index}]f_{i}"
+            )
 
     def _visualize_single_state(
         self,
