@@ -22,7 +22,12 @@ class TerrainVisualizerSettings:
     terrain_normals_color: list[float] = dataclasses.field(default=None)
     terrain_normals_radius: float = dataclasses.field(default=None)
     terrain_normal_axis_points: int = dataclasses.field(default=None)
-    terrain_normal_scaling: float = dataclasses.field(default=None)
+    terrain_normal_length: float = dataclasses.field(default=None)
+    draw_terrain_frames: bool = dataclasses.field(default=None)
+    terrain_frames_opacity: float = dataclasses.field(default=None)
+    terrain_frames_axis_length: float = dataclasses.field(default=None)
+    terrain_frames_axis_radius: float = dataclasses.field(default=None)
+    terrain_frames_axis_points: int = dataclasses.field(default=None)
 
     def __post_init__(self):
         if self.terrain_color is None:
@@ -55,8 +60,23 @@ class TerrainVisualizerSettings:
         if self.terrain_normal_axis_points is None:
             self.terrain_normal_axis_points = 20
 
-        if self.terrain_normal_scaling is None:
-            self.terrain_normal_scaling = 0.1
+        if self.terrain_normal_length is None:
+            self.terrain_normal_length = 0.1
+
+        if self.draw_terrain_frames is None:
+            self.draw_terrain_frames = False
+
+        if self.terrain_frames_opacity is None:
+            self.terrain_frames_opacity = 0.5
+
+        if self.terrain_frames_axis_length is None:
+            self.terrain_frames_axis_length = 0.1
+
+        if self.terrain_frames_axis_radius is None:
+            self.terrain_frames_axis_radius = 0.01
+
+        if self.terrain_frames_axis_points is None:
+            self.terrain_frames_axis_points = 20
 
     def is_valid(self) -> bool:
         ok = True
@@ -92,6 +112,16 @@ class TerrainVisualizerSettings:
         if self.terrain_normal_axis_points <= 0:
             logger.error("terrain_normal_axis_points is not specified correctly.")
             ok = False
+        if self.terrain_frames_axis_points <= 0:
+            logger.error("terrain_frames_axis_points is not specified correctly.")
+            ok = False
+        if self.terrain_frames_opacity < 0 or self.terrain_frames_opacity > 1:
+            logger.error("terrain_frames_opacity is not specified correctly.")
+            ok = False
+        if self.terrain_frames_axis_radius <= 0:
+            logger.error("terrain_frames_axis_radius is not specified correctly.")
+            ok = False
+
         return ok
 
 
@@ -103,8 +133,8 @@ class TerrainVisualizer:
             raise ValueError("Settings are not valid.")
         self._logger = logging.getLogger("[hippopt::TerrainVisualizer]")
         self._settings = settings
-        mesh_file = self._create_ground_mesh()
-        self._create_ground_urdf(mesh_file)
+        mesh_file = self._create_terrain_mesh()
+        self._create_terrain_urdf(mesh_file)
         self._viz = MeshcatVisualizer() if viz is None else viz
         self._viz.load_model_from_file(
             model_path=os.path.join(
@@ -115,9 +145,11 @@ class TerrainVisualizer:
             color=self._settings.terrain_color,
         )
         if self._settings.draw_terrain_normals:
-            self._draw_ground_normals()
+            self._draw_terrain_normals()
+        if self._settings.draw_terrain_frames:
+            self._draw_terrain_frames()
 
-    def _create_ground_urdf(self, mesh_filename: str) -> None:
+    def _create_terrain_urdf(self, mesh_filename: str) -> None:
         filename = self._settings.terrain.get_name() + ".urdf"
         full_filename = os.path.join(self._settings.working_folder, filename)
         if os.path.exists(full_filename):
@@ -130,7 +162,7 @@ class TerrainVisualizer:
         with open(full_filename, "w") as f:
             f.write(
                 f"""<?xml version="1.0"?>
-                <robot name="ground">
+                <robot name="terrain">
                     <link name="world"/>
                     <link name="link_0">
                         <inertial>
@@ -144,7 +176,7 @@ class TerrainVisualizer:
                             <geometry>
                                 <mesh filename="{mesh_filename}" scale="1.0 1.0 1.0"/>
                             </geometry>
-                            <material name="ground_color">
+                            <material name="terrain_color">
                                  <color rgba="0.5 0.5 0.5 1"/>
                             </material>
                         </visual>
@@ -164,7 +196,7 @@ class TerrainVisualizer:
                 """
             )
 
-    def _create_ground_mesh(self) -> str:
+    def _create_terrain_mesh(self) -> str:
         filename = self._settings.terrain.get_name() + ".stl"
         full_filename = os.path.join(self._settings.working_folder, filename)
         if os.path.exists(full_filename):
@@ -197,7 +229,7 @@ class TerrainVisualizer:
         surf2stl.write(full_filename, x, y, z)
         return full_filename
 
-    def _draw_ground_normals(self) -> None:
+    def _draw_terrain_normals(self) -> None:
         x_step = (
             self._settings.terrain_x_limits[1] - self._settings.terrain_x_limits[0]
         ) / self._settings.terrain_normal_axis_points
@@ -233,6 +265,47 @@ class TerrainVisualizer:
             )
             self._viz.set_arrow_transform(
                 origin=points[:, i],
-                vector=self._settings.terrain_normal_scaling * normals[:, i],
+                vector=self._settings.terrain_normal_length * normals[:, i],
                 shape_name=f"normal_{i}",
             )
+
+    def _draw_terrain_frames(self) -> None:
+        x_step = (
+            self._settings.terrain_x_limits[1] - self._settings.terrain_x_limits[0]
+        ) / self._settings.terrain_frames_axis_points
+        y_step = (
+            self._settings.terrain_y_limits[1] - self._settings.terrain_y_limits[0]
+        ) / self._settings.terrain_frames_axis_points
+        x = np.arange(
+            self._settings.terrain_x_limits[0],
+            self._settings.terrain_x_limits[1] + x_step,
+            x_step,
+        )
+        y = np.arange(
+            self._settings.terrain_y_limits[0],
+            self._settings.terrain_y_limits[1] + y_step,
+            y_step,
+        )
+        x, y = np.meshgrid(x, y)
+        assert x.shape == y.shape
+        points = np.array([x.flatten(), y.flatten(), np.zeros(x.size)])
+        height_function_map = self._settings.terrain.height_function().map(x.size)
+        z = -np.array(height_function_map(points).full()).reshape(x.shape)
+        points = np.array([x.flatten(), y.flatten(), z.flatten()])
+
+        for i in range(x.size):
+            frame = self._settings.terrain.orientation_function()(points[:, i]).full()
+            for el in range(3):
+                color = [0.0, 0.0, 0.0, 0.0]
+                color[el] = 1.0
+                color[3] = self._settings.terrain_frames_opacity
+                self._viz.load_arrow(
+                    radius=self._settings.terrain_frames_axis_radius,
+                    color=color,
+                    shape_name=f"frame_{i}_{el}",
+                )
+                self._viz.set_arrow_transform(
+                    origin=points[:, i],
+                    vector=self._settings.terrain_frames_axis_length * frame[:, el],
+                    shape_name=f"frame_{i}_{el}",
+                )
