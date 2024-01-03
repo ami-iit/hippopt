@@ -85,22 +85,22 @@ class SmoothTerrain(TerrainDescriptor):
         if self._transformation_matrix is None:
             self._transformation_matrix = np.eye(3)
 
-        point_position = cs.MX.sym(self.get_point_position_name(), 3)
+        point_position_xy = cs.MX.sym(self.get_point_position_name() + "_xy", 2)
         if self._shape_function is None:
             self._shape_function = cs.Function(
                 "smooth_terrain_shape",
-                [point_position],
-                [(4 * point_position[0]) ** 10 + (4 * point_position[1]) ** 10],
-                [self.get_point_position_name()],
+                [point_position_xy],
+                [(2 * point_position_xy[0]) ** 10 + (2 * point_position_xy[1]) ** 10],
+                [point_position_xy.name()],
                 ["g"],
                 self._options,
             )
         if self._top_surface_function is None:
             self._top_surface_function = cs.Function(
                 "smooth_terrain_top_surface",
-                [point_position],
-                [cs.MX(0.2)],
-                [self.get_point_position_name()],
+                [point_position_xy],
+                [cs.MX(0.5)],
+                [point_position_xy.name()],
                 ["pi"],
                 self._options,
             )
@@ -121,10 +121,35 @@ class SmoothTerrain(TerrainDescriptor):
         offset: np.ndarray = None,
         transformation_matrix: np.ndarray = None,
     ) -> None:
-        if shape_function is not None:
+        if isinstance(shape_function, cs.Function):
+            if shape_function.n_in() != 1:
+                raise ValueError(
+                    "The shape function must have exactly one input argument."
+                )
+            if shape_function.n_out() != 1:
+                raise ValueError(
+                    "The shape function must have exactly one output argument."
+                )
+            if shape_function.numel_in() != 2:
+                raise ValueError(
+                    "The input argument of the shape function must be a 2D vector."
+                )
             self._shape_function = shape_function
 
-        if top_surface_function is not None:
+        if isinstance(top_surface_function, cs.Function):
+            if top_surface_function.n_in() != 1:
+                raise ValueError(
+                    "The top surface function must have exactly one input argument."
+                )
+            if top_surface_function.n_out() != 1:
+                raise ValueError(
+                    "The top surface function must have exactly one output argument."
+                )
+            if top_surface_function.numel_in() != 2:
+                raise ValueError(
+                    "The input argument of the top surface function"
+                    " must be a 2D vector."
+                )
             self._top_surface_function = top_surface_function
 
         if sharpness is not None:
@@ -146,6 +171,14 @@ class SmoothTerrain(TerrainDescriptor):
                 raise TypeError("The transformation matrix must be a numpy matrix.")
             if transformation_matrix.shape != (3, 3):
                 raise ValueError("The transformation matrix must be a 2x2 matrix.")
+            if (
+                np.abs(np.linalg.det(transformation_matrix)) < 1e-6
+                or (np.linalg.norm(transformation_matrix, axis=0) < 1e-6).any()
+            ):
+                raise ValueError(
+                    "The transformation matrix must be invertible and have a non-zero"
+                    " norm for each column."
+                )
             self._transformation_matrix = transformation_matrix
 
         self.invalidate_functions()
@@ -153,12 +186,12 @@ class SmoothTerrain(TerrainDescriptor):
     def create_height_function(self) -> cs.Function:
         point_position = cs.MX.sym(self.get_point_position_name(), 3)
 
-        position_in_terrain_frame = cs.transpose(self._transformation_matrix) @ cs.MX(
+        position_in_terrain_frame = np.linalg.inv(self._transformation_matrix) @ cs.MX(
             point_position - self._offset,
         )
 
-        shape = self._shape_function(position_in_terrain_frame)
-        top_surface = self._top_surface_function(position_in_terrain_frame)
+        shape = self._shape_function(position_in_terrain_frame[:2])
+        top_surface = self._top_surface_function(position_in_terrain_frame[:2])
 
         height = (
             point_position[2] - cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
@@ -174,13 +207,48 @@ class SmoothTerrain(TerrainDescriptor):
         )
 
     def create_normal_direction_function(self) -> cs.Function:
-        raise NotImplementedError(
-            "The normal direction function is not implemented for this terrain."
+        point_position = cs.MX.sym(self.get_point_position_name(), 3)
+
+        # The normal direction if the gradient of the implicit function h(x, y, z) = 0
+        height_gradient = cs.gradient(
+            self.height_function()(point_position), point_position
+        )
+        normal_direction = height_gradient / cs.norm_2(height_gradient)
+
+        return cs.Function(
+            "smooth_terrain_normal",
+            [point_position],
+            [normal_direction],
+            [self.get_point_position_name()],
+            ["normal_direction"],
+            self._options,
         )
 
     def create_orientation_function(self) -> cs.Function:
-        raise NotImplementedError(
-            "The orientation function is not implemented for this terrain."
+        point_position = cs.MX.sym(self.get_point_position_name(), 3)
+
+        normal_direction = self.normal_direction_function()(point_position)
+        transformation_matrix_inverse = np.linalg.inv(self._transformation_matrix)
+        normal_direction_in_plane = transformation_matrix_inverse @ normal_direction
+
+        # Here we assume that since the shape and top surface functions do not depend on
+        # z, the normal direction should always keep some z-component, i.e. the terrain
+        # normal should not be perfectly parallel to the x-axis in the original
+        # coordinates. This is to avoid using an if to check whether the normal is
+        # parallel to the x-axis, which would make the function not easily
+        # differentiable.
+        y_direction_plane = cs.cross(normal_direction_in_plane, cs.DM([1, 0, 0]))
+        y_direction = self._transformation_matrix @ y_direction_plane
+        y_direction = y_direction / cs.norm_2(y_direction)
+        x_direction = cs.cross(y_direction, normal_direction)
+
+        return cs.Function(
+            "smooth_terrain_orientation",
+            [point_position],
+            [cs.horzcat(x_direction, y_direction, normal_direction)],
+            [self.get_point_position_name()],
+            ["plane_rotation"],
+            self._options,
         )
 
 
@@ -188,5 +256,6 @@ if __name__ == "__main__":
     viz_settings = TerrainVisualizerSettings()
     viz_settings.terrain = SmoothTerrain()
     viz_settings.overwrite_terrain_files = True
+    viz_settings.draw_terrain_frames = True
     viz = TerrainVisualizer(viz_settings)
     input("Press Enter to exit.")
