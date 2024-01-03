@@ -18,6 +18,11 @@ class TerrainVisualizerSettings:
     terrain_x_limits: list[float] = dataclasses.field(default=None)
     terrain_y_limits: list[float] = dataclasses.field(default=None)
     overwrite_terrain_files: bool = dataclasses.field(default=None)
+    draw_terrain_normals: bool = dataclasses.field(default=None)
+    terrain_normals_color: list[float] = dataclasses.field(default=None)
+    terrain_normals_radius: float = dataclasses.field(default=None)
+    terrain_normal_axis_points: int = dataclasses.field(default=None)
+    terrain_normal_scaling: float = dataclasses.field(default=None)
 
     def __post_init__(self):
         if self.terrain_color is None:
@@ -37,6 +42,21 @@ class TerrainVisualizerSettings:
 
         if self.overwrite_terrain_files is None:
             self.overwrite_terrain_files = False
+
+        if self.draw_terrain_normals is None:
+            self.draw_terrain_normals = False
+
+        if self.terrain_normals_color is None:
+            self.terrain_normals_color = [1.0, 0.0, 0.0, 1.0]
+
+        if self.terrain_normals_radius is None:
+            self.terrain_normals_radius = 0.01
+
+        if self.terrain_normal_axis_points is None:
+            self.terrain_normal_axis_points = 20
+
+        if self.terrain_normal_scaling is None:
+            self.terrain_normal_scaling = 0.1
 
     def is_valid(self) -> bool:
         ok = True
@@ -63,6 +83,15 @@ class TerrainVisualizerSettings:
         ):
             logger.error("terrain_y_limits are not specified correctly.")
             ok = False
+        if len(self.terrain_normals_color) != 4:
+            logger.error("terrain_normals_color is not specified correctly.")
+            ok = False
+        if self.terrain_normals_radius <= 0:
+            logger.error("terrain_normals_radius is not specified correctly.")
+            ok = False
+        if self.terrain_normal_axis_points <= 0:
+            logger.error("terrain_normal_axis_points is not specified correctly.")
+            ok = False
         return ok
 
 
@@ -85,6 +114,8 @@ class TerrainVisualizer:
             model_name="terrain",
             color=self._settings.terrain_color,
         )
+        if self._settings.draw_terrain_normals:
+            self._draw_ground_normals()
 
     def _create_ground_urdf(self, mesh_filename: str) -> None:
         filename = self._settings.terrain.get_name() + ".urdf"
@@ -165,3 +196,43 @@ class TerrainVisualizer:
         z = -np.array(height_function_map(points).full()).reshape(x.shape)
         surf2stl.write(full_filename, x, y, z)
         return full_filename
+
+    def _draw_ground_normals(self) -> None:
+        x_step = (
+            self._settings.terrain_x_limits[1] - self._settings.terrain_x_limits[0]
+        ) / self._settings.terrain_normal_axis_points
+        y_step = (
+            self._settings.terrain_y_limits[1] - self._settings.terrain_y_limits[0]
+        ) / self._settings.terrain_normal_axis_points
+        x = np.arange(
+            self._settings.terrain_x_limits[0],
+            self._settings.terrain_x_limits[1] + x_step,
+            x_step,
+        )
+        y = np.arange(
+            self._settings.terrain_y_limits[0],
+            self._settings.terrain_y_limits[1] + y_step,
+            y_step,
+        )
+        x, y = np.meshgrid(x, y)
+        assert x.shape == y.shape
+        points = np.array([x.flatten(), y.flatten(), np.zeros(x.size)])
+        height_function_map = self._settings.terrain.height_function().map(x.size)
+        z = -np.array(height_function_map(points).full()).reshape(x.shape)
+        points = np.array([x.flatten(), y.flatten(), z.flatten()])
+        normal_function_map = self._settings.terrain.normal_direction_function().map(
+            x.size
+        )
+        normals = normal_function_map(points).full()
+
+        for i in range(normals.shape[1]):
+            self._viz.load_arrow(
+                radius=self._settings.terrain_normals_radius,
+                color=self._settings.terrain_normals_color,
+                shape_name=f"normal_{i}",
+            )
+            self._viz.set_arrow_transform(
+                origin=points[:, i],
+                vector=self._settings.terrain_normal_scaling * normals[:, i],
+                shape_name=f"normal_{i}",
+            )
