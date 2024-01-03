@@ -44,6 +44,9 @@ class SmoothTerrain(TerrainDescriptor):
     [x, y, z]^T = R^T * ([x_i, y_i, z_i]^T - [x_offset, y_offset, z_offset]^T)
     where [x_i, y_i, z_i]^T is the position of the point in the inertial frame, R is
     the transformation matrix, and [x_offset, y_offset, z_offset]^T is the offset.
+    When applying a transformation matrix, it is also possible to rotate the terrain.
+    Because of the choice of the projection method, the modified z axis needs to be
+    parallel to the original one (i.e. no rotations around x or y are allowed).
 
     """
 
@@ -170,7 +173,7 @@ class SmoothTerrain(TerrainDescriptor):
             if not isinstance(transformation_matrix, np.ndarray):
                 raise TypeError("The transformation matrix must be a numpy matrix.")
             if transformation_matrix.shape != (3, 3):
-                raise ValueError("The transformation matrix must be a 2x2 matrix.")
+                raise ValueError("The transformation matrix must be a 3x3 matrix.")
             if (
                 np.abs(np.linalg.det(transformation_matrix)) < 1e-6
                 or (np.linalg.norm(transformation_matrix, axis=0) < 1e-6).any()
@@ -178,6 +181,13 @@ class SmoothTerrain(TerrainDescriptor):
                 raise ValueError(
                     "The transformation matrix must be invertible and have a non-zero"
                     " norm for each column."
+                )
+            if np.abs(np.dot(transformation_matrix[:, 2], [0, 0, 1])) < (
+                1 - 1e-6
+            ) * np.linalg.norm(transformation_matrix[:, 2]):
+                raise ValueError(
+                    "The transformation matrix should not change"
+                    " the z axis orientation."
                 )
             self._transformation_matrix = transformation_matrix
 
@@ -193,9 +203,14 @@ class SmoothTerrain(TerrainDescriptor):
         shape = self._shape_function(position_in_terrain_frame[:2])
         top_surface = self._top_surface_function(position_in_terrain_frame[:2])
 
-        height = (
-            point_position[2] - cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
+        z_terrain = cs.exp(-(shape ** (2 * self._sharpness))) * top_surface
+        terrain_position = (
+            self._transformation_matrix
+            @ cs.vertcat(position_in_terrain_frame[:2], z_terrain)
+            + self._offset
         )
+
+        height = point_position[2] - terrain_position[2]
 
         return cs.Function(
             "smooth_terrain_height",
@@ -209,7 +224,7 @@ class SmoothTerrain(TerrainDescriptor):
     def create_normal_direction_function(self) -> cs.Function:
         point_position = cs.MX.sym(self.get_point_position_name(), 3)
 
-        # The normal direction if the gradient of the implicit function h(x, y, z) = 0
+        # The normal direction is the gradient of the implicit function h(x, y, z) = 0
         height_gradient = cs.gradient(
             self.height_function()(point_position), point_position
         )
@@ -239,8 +254,10 @@ class SmoothTerrain(TerrainDescriptor):
         # differentiable.
         y_direction_plane = cs.cross(normal_direction_in_plane, cs.DM([1, 0, 0]))
         y_direction = self._transformation_matrix @ y_direction_plane
-        y_direction = y_direction / cs.norm_2(y_direction)
         x_direction = cs.cross(y_direction, normal_direction)
+        x_direction = x_direction / cs.norm_2(x_direction)
+        # Make sure the y direction is orthogonal even after the transformation
+        y_direction = cs.cross(normal_direction, x_direction)
 
         return cs.Function(
             "smooth_terrain_orientation",
@@ -254,7 +271,16 @@ class SmoothTerrain(TerrainDescriptor):
 
 if __name__ == "__main__":
     viz_settings = TerrainVisualizerSettings()
-    viz_settings.terrain = SmoothTerrain()
+    rotation_x = np.array(
+        [
+            [np.cos(np.pi / 4), -np.sin(np.pi / 4), 0],
+            [np.sin(np.pi / 4), np.cos(np.pi / 4), 0],
+            [0, 0, 1],
+        ]
+    )
+    viz_settings.terrain = SmoothTerrain(
+        transformation_matrix=rotation_x, offset=np.array([0, 0, 0.2])
+    )
     viz_settings.overwrite_terrain_files = True
     viz_settings.draw_terrain_frames = True
     viz = TerrainVisualizer(viz_settings)
