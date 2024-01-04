@@ -26,7 +26,7 @@ class TerrainDescriptor(abc.ABC):
     ):
         self.change_options(point_position_name, options)
         if name is not None:
-            self._name = name
+            self.set_name(name)
 
     def change_options(
         self, point_position_name: str = None, options: dict = None, **_
@@ -35,6 +35,7 @@ class TerrainDescriptor(abc.ABC):
             self._options = options
         if point_position_name is not None:
             self._point_position_name = point_position_name
+        self.invalidate_functions()
 
     @abc.abstractmethod
     def create_height_function(self) -> cs.Function:
@@ -97,6 +98,9 @@ class TerrainDescriptor(abc.ABC):
 
     def get_point_position_name(self) -> str:
         return self._point_position_name
+
+    def set_name(self, name: str) -> None:
+        self._name = name
 
     def get_name(self) -> str:
         return self._name if isinstance(self._name, str) else self.__class__.__name__
