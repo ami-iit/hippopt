@@ -186,10 +186,12 @@ class HumanoidStateVisualizer:
 
             point_force = (
                 np.array(point.f).flatten() * self._settings.contact_force_scaling
-            )
+            ).flatten()
 
             self._viz.set_arrow_transform(
-                origin=point.p, vector=point_force, shape_name=f"[{index}]f_{i}"
+                origin=np.array(point.p).flatten(),
+                vector=point_force,
+                shape_name=f"[{index}]f_{i}",
             )
 
     def _visualize_single_state(
