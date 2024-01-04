@@ -16,7 +16,7 @@ import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
 def get_planner_settings() -> walking_settings.Settings:
     parser = argparse.ArgumentParser(
-        description="Trajectory Optimization of a forward walking motion on ergoCub.",
+        description="Trajectory Optimization of periodic walking motion on ergoCub.",
     )
     parser.add_argument(
         "--urdf",
