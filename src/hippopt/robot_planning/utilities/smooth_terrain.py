@@ -1,4 +1,5 @@
 import dataclasses
+from typing import TypeVar
 
 import casadi as cs
 import numpy as np
@@ -9,6 +10,8 @@ from hippopt.robot_planning.utilities.terrain_visualizer import (
     TerrainVisualizer,
     TerrainVisualizerSettings,
 )
+
+TSmoothTerrain = TypeVar("TSmoothTerrain", bound="SmoothTerrain")
 
 
 @dataclasses.dataclass
@@ -81,7 +84,7 @@ class SmoothTerrain(TerrainDescriptor):
         TerrainDescriptor.__post_init__(self, point_position_name, options, name)
 
         if self._sharpness is None:
-            self._sharpness = 10.0
+            self._sharpness = 1.0
 
         if self._offset is None:
             self._offset = np.zeros(3)
@@ -94,7 +97,7 @@ class SmoothTerrain(TerrainDescriptor):
             self._shape_function = cs.Function(
                 "smooth_terrain_shape",
                 [point_position_xy],
-                [(2 * point_position_xy[0]) ** 10 + (2 * point_position_xy[1]) ** 10],
+                [0],
                 [point_position_xy.name()],
                 ["g"],
                 self._options,
@@ -103,7 +106,7 @@ class SmoothTerrain(TerrainDescriptor):
             self._top_surface_function = cs.Function(
                 "smooth_terrain_top_surface",
                 [point_position_xy],
-                [cs.MX(0.5)],
+                [0],
                 [point_position_xy.name()],
                 ["pi"],
                 self._options,
@@ -228,19 +231,243 @@ class SmoothTerrain(TerrainDescriptor):
     def __radd__(self, other: TerrainDescriptor) -> TerrainSum:
         return TerrainSum.add(other, self)
 
+    @staticmethod
+    def _top_expression_from_normal(
+        height: float, point_position_xy: cs.MX, top_normal_direction: np.ndarray
+    ):
+        top_expression = cs.MX(height)
+        if top_normal_direction is not None:
+            if not isinstance(top_normal_direction, np.ndarray):
+                raise TypeError("The top normal direction must be a numpy array.")
+            if top_normal_direction.size != 3:
+                raise ValueError("The top normal direction must be a 3D vector.")
+
+            norm = np.linalg.norm(top_normal_direction)
+            if norm < 1e-6:
+                raise ValueError("The top normal direction must be non-zero.")
+
+            top_normal_direction = top_normal_direction / norm
+            if np.abs(top_normal_direction[2]) < 1e-6:
+                raise ValueError(
+                    "The top normal direction must not be parallel to the xy-plane."
+                )
+            top_expression = cs.MX(
+                -top_normal_direction[0]
+                / top_normal_direction[2]
+                * point_position_xy[0]
+                - top_normal_direction[1]
+                / top_normal_direction[2]
+                * point_position_xy[1]
+                + height
+            )
+        return top_expression
+
+    @classmethod
+    def step(
+        cls,
+        length: float,
+        width: float,
+        height: float,
+        edge_sharpness: float = 5,
+        side_sharpness: float = 10,
+        position: np.ndarray = None,
+        orientation: float = 0.0,
+        top_normal_direction: np.ndarray = None,
+        point_position_name: str = None,
+        options: dict = None,
+        name: str = None,
+    ) -> TSmoothTerrain:
+        if edge_sharpness < 1:
+            raise ValueError("The edge sharpness must be greater than or equal to 1.")
+
+        name = (
+            name
+            if isinstance(name, str)
+            else f"step_{length:.2f}x{width:.2f}x{height:.2f}"
+        )
+        options = {} if options is None else options
+
+        output = cls(
+            point_position_name=point_position_name,
+            options=options,
+            name=name,
+        )
+
+        rotation_z = np.array(
+            [
+                [np.cos(orientation), -np.sin(orientation), 0],
+                [np.sin(orientation), np.cos(orientation), 0],
+                [0, 0, 1],
+            ]
+        )
+        point_position_xy = cs.MX.sym(output.get_point_position_name() + "_xy", 2)
+
+        top_expression = cls._top_expression_from_normal(
+            height, point_position_xy, top_normal_direction
+        )
+
+        shape_function = cs.Function(
+            "step_shape",
+            [point_position_xy],
+            [
+                (2 / length * point_position_xy[0]) ** (2 * edge_sharpness)
+                + (2 / width * point_position_xy[1]) ** (2 * edge_sharpness)
+            ],
+            [point_position_xy.name()],
+            ["g"],
+            options,
+        )
+        top_surface_function = cs.Function(
+            "step_top_surface",
+            [point_position_xy],
+            [top_expression],
+            [point_position_xy.name()],
+            ["pi"],
+            options,
+        )
+        output.set_terrain(
+            shape_function=shape_function,
+            top_surface_function=top_surface_function,
+            sharpness=side_sharpness,
+            offset=position,
+            transformation_matrix=rotation_z,
+        )
+        return output
+
+    @classmethod
+    def cylinder(
+        cls,
+        radius: float,
+        height: float,
+        side_sharpness: float = 10,
+        top_normal_direction: np.ndarray = None,
+        position: np.ndarray = None,
+        point_position_name: str = None,
+        options: dict = None,
+        name: str = None,
+    ) -> TSmoothTerrain:
+        name = name if isinstance(name, str) else f"cylinder_{radius:.2f}x{height:.2f}"
+        options = {} if options is None else options
+
+        output = cls(
+            point_position_name=point_position_name,
+            options=options,
+            name=name,
+        )
+
+        point_position_xy = cs.MX.sym(output.get_point_position_name() + "_xy", 2)
+
+        top_expression = cls._top_expression_from_normal(
+            height, point_position_xy, top_normal_direction
+        )
+
+        shape_function = cs.Function(
+            "cylinder_shape",
+            [point_position_xy],
+            [
+                (1 / radius * point_position_xy[0]) ** 2
+                + (1 / radius * point_position_xy[1]) ** 2
+            ],
+            [point_position_xy.name()],
+            ["g"],
+            options,
+        )
+        top_surface_function = cs.Function(
+            "cylinder_top_surface",
+            [point_position_xy],
+            [top_expression],
+            [point_position_xy.name()],
+            ["pi"],
+            options,
+        )
+        output.set_terrain(
+            shape_function=shape_function,
+            top_surface_function=top_surface_function,
+            sharpness=side_sharpness,
+            offset=position,
+        )
+        return output
+
+    @classmethod
+    def plane(
+        cls,
+        normal_direction: np.ndarray = None,
+        position: np.ndarray = None,
+        point_position_name: str = None,
+        options: dict = None,
+        name: str = None,
+    ) -> TSmoothTerrain:
+        name = (
+            name
+            if isinstance(name, str)
+            else f"plane_{normal_direction[0]:.2f}x{normal_direction[1]:.2f}"
+            f"x{normal_direction[2]:.2f}"
+        )
+        options = {} if options is None else options
+
+        output = cls(
+            point_position_name=point_position_name,
+            options=options,
+            name=name,
+        )
+
+        point_position_xy = cs.MX.sym(output.get_point_position_name() + "_xy", 2)
+
+        top_expression = cls._top_expression_from_normal(
+            0, point_position_xy, normal_direction
+        )
+
+        shape_function = cs.Function(
+            "plane_shape",
+            [point_position_xy],
+            [0],
+            [point_position_xy.name()],
+            ["g"],
+            options,
+        )
+        top_surface_function = cs.Function(
+            "plane_top_surface",
+            [point_position_xy],
+            [top_expression],
+            [point_position_xy.name()],
+            ["pi"],
+            options,
+        )
+        output.set_terrain(
+            shape_function=shape_function,
+            top_surface_function=top_surface_function,
+            sharpness=1,
+            offset=position,
+        )
+        return output
+
 
 if __name__ == "__main__":
     viz_settings = TerrainVisualizerSettings()
-    rotation_x = np.array(
-        [
-            [np.cos(np.pi / 4), -np.sin(np.pi / 4), 0],
-            [np.sin(np.pi / 4), np.cos(np.pi / 4), 0],
-            [0, 0, 1],
-        ]
+    viz_settings.terrain = (
+        SmoothTerrain.step(
+            length=1.0,
+            width=0.5,
+            height=0.5,
+            position=np.array([-0.5, -0.5, 0.0]),
+            orientation=np.pi / 4,
+            top_normal_direction=np.array([0.5, 1.0, 1.0]),
+        )
+        + SmoothTerrain.cylinder(
+            radius=0.5, height=1.0, position=np.array([0.8, 0.5, 0.0])
+        )
+        + SmoothTerrain.step(
+            length=0.5,
+            width=0.5,
+            height=0.5,
+            edge_sharpness=2,
+            position=np.array([-0.5, 0.5, 0.0]),
+        )
+        + SmoothTerrain.plane(
+            normal_direction=np.array([0.5, 0.1, 1.0]),
+            position=np.array([0.0, 0.0, 0.0]),
+        )
     )
-    viz_settings.terrain = SmoothTerrain(
-        transformation_matrix=rotation_x, offset=np.array([-0.5, -0.5, 0.0])
-    ) + SmoothTerrain(offset=np.array([0.8, 0.5, 0.0]))
     viz_settings.overwrite_terrain_files = True
     viz_settings.draw_terrain_frames = True
     viz = TerrainVisualizer(viz_settings)
