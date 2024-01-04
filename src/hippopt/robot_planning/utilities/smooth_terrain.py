@@ -50,7 +50,8 @@ class SmoothTerrain(TerrainDescriptor):
     the transformation matrix, and [x_offset, y_offset, z_offset]^T is the offset.
     When applying a transformation matrix, it is also possible to rotate the terrain.
     Because of the choice of the projection method, the modified z axis needs to be
-    parallel to the original one (i.e. no rotations around x or y are allowed).
+    parallel to the original one (i.e. no rotations around x or y are allowed),
+    otherwise there are issues in the computation of the normal direction.
 
     """
 
