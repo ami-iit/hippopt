@@ -160,16 +160,6 @@ class HumanoidStateVisualizer:
                 key="visible", value=visible
             )
 
-    @staticmethod
-    def _skew(x: np.ndarray) -> np.ndarray:
-        return np.array(
-            [
-                [0, -x[2], x[1]],
-                [x[2], 0, -x[0]],
-                [-x[1], x[0], 0],
-            ]
-        )
-
     def _update_clone(self, index: int, state: HumanoidState) -> None:
         self._viz.set_multibody_system_state(
             np.array(state.kinematics.base.position).flatten(),
