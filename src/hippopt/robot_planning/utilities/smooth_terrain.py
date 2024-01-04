@@ -4,6 +4,7 @@ import casadi as cs
 import numpy as np
 
 from hippopt.robot_planning.utilities.terrain_descriptor import TerrainDescriptor
+from hippopt.robot_planning.utilities.terrain_sum import TerrainSum
 from hippopt.robot_planning.utilities.terrain_visualizer import (
     TerrainVisualizer,
     TerrainVisualizerSettings,
@@ -221,6 +222,12 @@ class SmoothTerrain(TerrainDescriptor):
             self._options,
         )
 
+    def __add__(self, other: TerrainDescriptor) -> TerrainSum:
+        return TerrainSum.add(self, other)
+
+    def __radd__(self, other: TerrainDescriptor) -> TerrainSum:
+        return TerrainSum.add(other, self)
+
 
 if __name__ == "__main__":
     viz_settings = TerrainVisualizerSettings()
@@ -232,8 +239,8 @@ if __name__ == "__main__":
         ]
     )
     viz_settings.terrain = SmoothTerrain(
-        transformation_matrix=rotation_x, offset=np.array([0, 0, 0.2])
-    )
+        transformation_matrix=rotation_x, offset=np.array([-0.5, -0.5, 0.0])
+    ) + SmoothTerrain(offset=np.array([0.8, 0.5, 0.0]))
     viz_settings.overwrite_terrain_files = True
     viz_settings.draw_terrain_frames = True
     viz = TerrainVisualizer(viz_settings)
