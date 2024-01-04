@@ -262,7 +262,7 @@ def foot_contact_state_interpolator(
         next_phase = phases_copy[i + 1]
 
         stance_points = int(
-            np.ceil((phase.deactivation_time - phase.activation_time) / dt)
+            np.ceil((phase.deactivation_time - max(phase.activation_time, t0)) / dt)
         )
         stance_points = min(stance_points, remaining_points)
 
