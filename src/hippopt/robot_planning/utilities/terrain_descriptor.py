@@ -40,13 +40,42 @@ class TerrainDescriptor(abc.ABC):
     def create_height_function(self) -> cs.Function:
         pass
 
-    @abc.abstractmethod
     def create_normal_direction_function(self) -> cs.Function:
-        pass
+        point_position = cs.MX.sym(self.get_point_position_name(), 3)
 
-    @abc.abstractmethod
+        # The normal direction is the gradient of the implicit function h(x, y, z) = 0
+        height_gradient = cs.gradient(
+            self.height_function()(point_position), point_position
+        )
+        normal_direction = height_gradient / cs.norm_2(height_gradient)
+
+        return cs.Function(
+            "terrain_normal",
+            [point_position],
+            [normal_direction],
+            [self.get_point_position_name()],
+            ["normal_direction"],
+            self._options,
+        )
+
     def create_orientation_function(self) -> cs.Function:
-        pass
+        point_position = cs.MX.sym(self.get_point_position_name(), 3)
+
+        normal_direction = self.normal_direction_function()(point_position)
+        y_direction = cs.cross(normal_direction, cs.DM([1, 0, 0]))
+        x_direction = cs.cross(y_direction, normal_direction)
+        x_direction = x_direction / cs.norm_2(x_direction)
+        # Make sure the y direction is orthogonal even after the transformation
+        y_direction = cs.cross(normal_direction, x_direction)
+
+        return cs.Function(
+            "terrain_orientation",
+            [point_position],
+            [cs.horzcat(x_direction, y_direction, normal_direction)],
+            [self.get_point_position_name()],
+            ["plane_rotation"],
+            self._options,
+        )
 
     def height_function(self) -> cs.Function:
         if not isinstance(self._height_function, cs.Function):

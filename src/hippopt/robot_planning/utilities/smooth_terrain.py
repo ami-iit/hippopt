@@ -221,53 +221,6 @@ class SmoothTerrain(TerrainDescriptor):
             self._options,
         )
 
-    def create_normal_direction_function(self) -> cs.Function:
-        point_position = cs.MX.sym(self.get_point_position_name(), 3)
-
-        # The normal direction is the gradient of the implicit function h(x, y, z) = 0
-        height_gradient = cs.gradient(
-            self.height_function()(point_position), point_position
-        )
-        normal_direction = height_gradient / cs.norm_2(height_gradient)
-
-        return cs.Function(
-            "smooth_terrain_normal",
-            [point_position],
-            [normal_direction],
-            [self.get_point_position_name()],
-            ["normal_direction"],
-            self._options,
-        )
-
-    def create_orientation_function(self) -> cs.Function:
-        point_position = cs.MX.sym(self.get_point_position_name(), 3)
-
-        normal_direction = self.normal_direction_function()(point_position)
-        transformation_matrix_inverse = np.linalg.inv(self._transformation_matrix)
-        normal_direction_in_plane = transformation_matrix_inverse @ normal_direction
-
-        # Here we assume that since the shape and top surface functions do not depend on
-        # z, the normal direction should always keep some z-component, i.e. the terrain
-        # normal should not be perfectly parallel to the x-axis in the original
-        # coordinates. This is to avoid using an if to check whether the normal is
-        # parallel to the x-axis, which would make the function not easily
-        # differentiable.
-        y_direction_plane = cs.cross(normal_direction_in_plane, cs.DM([1, 0, 0]))
-        y_direction = self._transformation_matrix @ y_direction_plane
-        x_direction = cs.cross(y_direction, normal_direction)
-        x_direction = x_direction / cs.norm_2(x_direction)
-        # Make sure the y direction is orthogonal even after the transformation
-        y_direction = cs.cross(normal_direction, x_direction)
-
-        return cs.Function(
-            "smooth_terrain_orientation",
-            [point_position],
-            [cs.horzcat(x_direction, y_direction, normal_direction)],
-            [self.get_point_position_name()],
-            ["plane_rotation"],
-            self._options,
-        )
-
 
 if __name__ == "__main__":
     viz_settings = TerrainVisualizerSettings()

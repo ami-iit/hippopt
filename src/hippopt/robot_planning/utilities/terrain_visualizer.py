@@ -295,6 +295,7 @@ class TerrainVisualizer:
 
         for i in range(x.size):
             frame = self._settings.terrain.orientation_function()(points[:, i]).full()
+            assert np.abs(np.linalg.det(frame) - 1.0) < 1e-6
             for el in range(3):
                 color = [0.0, 0.0, 0.0, 0.0]
                 color[el] = 1.0
