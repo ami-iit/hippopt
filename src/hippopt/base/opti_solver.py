@@ -55,7 +55,6 @@ class OptiSolver(OptimizationSolver):
     _cost_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
     _constraint_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
-    _opti_solution: cs.OptiSol = dataclasses.field(default=None)
     _output_solution: TOptimizationObject | list[
         TOptimizationObject
     ] = dataclasses.field(default=None)
@@ -257,9 +256,13 @@ class OptiSolver(OptimizationSolver):
         self._variables = output
         return output
 
-    def _get_opti_solution(self, variable: cs.MX) -> StorageType:
+    def _get_opti_solution(
+        self, variable: cs.MX, input_solution: cs.OptiSol | dict
+    ) -> StorageType:
         try:
-            return self._opti_solution.value(variable)
+            if isinstance(input_solution, dict):
+                return input_solution[variable]
+            return input_solution.value(variable)
         except Exception as err:  # noqa
             self._logger.debug(
                 "Failed to get the solution for variable "
@@ -274,12 +277,13 @@ class OptiSolver(OptimizationSolver):
         variables: TOptimizationObject
         | list[TOptimizationObject]
         | list[list[TOptimizationObject]],
+        input_solution: cs.OptiSol | dict,
     ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
 
         if isinstance(variables, list):
             for i in range(len(variables)):
-                output[i] = self._generate_solution_output(variables[i])
+                output[i] = self._generate_solution_output(variables[i], input_solution)
             return output
 
         for field in dataclasses.fields(variables):
@@ -299,9 +303,11 @@ class OptiSolver(OptimizationSolver):
                 if isinstance(var, list):
                     output_val = []
                     for el in var:
-                        output_val.append(np.array(self._get_opti_solution(el)))
+                        output_val.append(
+                            np.array(self._get_opti_solution(el, input_solution))
+                        )
                 else:
-                    output_val = np.array(self._get_opti_solution(var))
+                    output_val = np.array(self._get_opti_solution(var, input_solution))
 
                 output.__setattr__(field.name, output_val)
                 continue
@@ -319,7 +325,8 @@ class OptiSolver(OptimizationSolver):
                 or list_of_optimization_objects
             ):
                 output.__setattr__(
-                    field.name, self._generate_solution_output(composite_variable)
+                    field.name,
+                    self._generate_solution_output(composite_variable, input_solution),
                 )
 
         return output
@@ -628,19 +635,21 @@ class OptiSolver(OptimizationSolver):
                 "The following parameters are not set: " + str(self._free_parameters)
             )
         try:
-            self._opti_solution = self._solver.solve()
+            opti_solution = self._solver.solve()
         except Exception as err:  # noqa
             raise OptiFailure(message=err)
 
-        self._output_cost = self._opti_solution.value(self._cost)
-        self._output_solution = self._generate_solution_output(self._variables)
+        self._output_cost = opti_solution.value(self._cost)
+        self._output_solution = self._generate_solution_output(
+            variables=self._variables, input_solution=opti_solution
+        )
         self._cost_values = {
-            name: float(self._opti_solution.value(self._cost_expressions[name]))
+            name: float(opti_solution.value(self._cost_expressions[name]))
             for name in self._cost_expressions
         }
         self._constraint_values = {
             name: np.array(
-                self._opti_solution.value(
+                opti_solution.value(
                     self._solver.dual(self._constraint_expressions[name])
                 )
             )
