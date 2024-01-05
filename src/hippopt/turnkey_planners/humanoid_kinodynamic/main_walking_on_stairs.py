@@ -89,8 +89,8 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
         top_left_point_position=np.array([0.116, 0.05, 0.0]),
     )
     settings.planar_dcc_height_multiplier = 10.0
-    settings.dcc_gain = 2.0
-    settings.dcc_epsilon = 0.5
+    settings.dcc_gain = 20.0
+    settings.dcc_epsilon = 0.05
     settings.static_friction = 1.0
     settings.maximum_velocity_control = [2.0, 2.0, 5.0]
     settings.maximum_force_derivative = [500.0, 500.0, 500.0]
@@ -118,14 +118,13 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.desired_frame_quaternion_cost_multiplier = 200.0
     settings.base_quaternion_cost_multiplier = 50.0
     settings.base_quaternion_velocity_cost_multiplier = 0.001
-    settings.joint_regularization_cost_multiplier = 10.0
+    settings.joint_regularization_cost_multiplier = 1.0
     settings.force_regularization_cost_multiplier = 10.0
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
     settings.swing_foot_height_cost_multiplier = 1000.0
     settings.contact_velocity_control_cost_multiplier = 5.0
     settings.contact_force_control_cost_multiplier = 0.0001
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
-    settings.periodicity_expression_type = hippopt.ExpressionType.subject_to
     settings.casadi_function_options = {"cse": True}
     settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": True}
     settings.casadi_solver_options = {
@@ -401,6 +400,7 @@ if __name__ == "__main__":
 
     step_length = 0.7
     step_height = 0.1
+    swing_height = 0.1
 
     planner_settings = get_planner_settings(
         get_terrain(length=step_length / 2, width=0.8, height=step_height)
@@ -419,7 +419,7 @@ if __name__ == "__main__":
                 np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([step_length / 2, 0.1, 0.05 + 2 * step_height]),
+                np.array([step_length / 2, 0.1, swing_height + 2 * step_height]),
                 liecasadi.SO3.Identity(),
             ),
             force=np.array([0, 0, 100.0]),
@@ -444,7 +444,7 @@ if __name__ == "__main__":
                 np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.25 * step_length, -0.1, 0.05 + step_height]),
+                np.array([0.25 * step_length, -0.1, swing_height + step_height]),
                 liecasadi.SO3.Identity(),
             ),
             force=np.array([0, 0, 100.0]),
@@ -457,7 +457,7 @@ if __name__ == "__main__":
                 liecasadi.SO3.Identity(),
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.75 * step_length, -0.1, 0.05 + 2 * step_height]),
+                np.array([0.75 * step_length, -0.1, swing_height + 2 * step_height]),
                 liecasadi.SO3.Identity(),
             ),
             force=np.array([0, 0, 100.0]),
@@ -566,16 +566,16 @@ if __name__ == "__main__":
 
     guess = first_part_guess + second_part_guess + third_part_guess
 
-    # print("Press [Enter] to visualize the initial guess.")
-    # input()
-    #
-    # visualizer.visualize(
-    #     states=guess,
-    #     timestep_s=planner_settings.time_step,
-    #     time_multiplier=1.0,
-    #     save=True,
-    #     file_name_stem="humanoid_walking_step_guess",
-    # )
+    print("Press [Enter] to visualize the initial guess.")
+    input()
+
+    visualizer.visualize(
+        states=guess,
+        timestep_s=planner_settings.time_step,
+        time_multiplier=1.0,
+        save=True,
+        file_name_stem="humanoid_walking_step_guess",
+    )
 
     print("Starting the planner...")
 
