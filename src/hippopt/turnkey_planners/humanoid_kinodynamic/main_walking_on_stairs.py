@@ -73,7 +73,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     )
     idyntree_model = idyntree_model_loader.model()
     settings.root_link = "root_link"
-    settings.horizon_length = 30
+    settings.horizon_length = 50
     settings.time_step = 0.1
     settings.contact_points = hp_rp.FeetContactPointDescriptors()
     settings.contact_points.left = hp_rp.ContactPointDescriptor.rectangular_foot(
@@ -89,8 +89,8 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
         top_left_point_position=np.array([0.116, 0.05, 0.0]),
     )
     settings.planar_dcc_height_multiplier = 10.0
-    settings.dcc_gain = 20.0
-    settings.dcc_epsilon = 0.05
+    settings.dcc_gain = 40.0
+    settings.dcc_epsilon = 0.01
     settings.static_friction = 1.0
     settings.maximum_velocity_control = [2.0, 2.0, 5.0]
     settings.maximum_force_derivative = [500.0, 500.0, 500.0]
@@ -119,7 +119,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.base_quaternion_cost_multiplier = 50.0
     settings.base_quaternion_velocity_cost_multiplier = 0.001
     settings.joint_regularization_cost_multiplier = 1.0
-    settings.force_regularization_cost_multiplier = 10.0
+    settings.force_regularization_cost_multiplier = 100.0
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
     settings.swing_foot_height_cost_multiplier = 1000.0
     settings.contact_velocity_control_cost_multiplier = 5.0
@@ -130,7 +130,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.casadi_solver_options = {
         "max_iter": 10000,
         "linear_solver": "mumps",
-        "alpha_for_y": "dual-and-full",
+        # "alpha_for_y": "dual-and-full",
         "fast_step_computation": "yes",
         "hessian_approximation": "limited-memory",
         "tol": 1e-3,
@@ -398,7 +398,7 @@ def get_references(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    step_length = 0.7
+    step_length = 0.9
     step_height = 0.1
     swing_height = 0.1
 
