@@ -21,7 +21,7 @@ class Callback(cs.OptiCallback, abc.ABC):
         pass
 
 
-class StoppingCriterion(abc.ABC):
+class CallbackCriterion(abc.ABC):
     """"""
 
     def __init__(self) -> None:
@@ -41,12 +41,26 @@ class StoppingCriterion(abc.ABC):
         pass
 
     def __or__(
-        self, stopping_criterion: "StoppingCriterion"
-    ) -> "CombinedStoppingCriterion":
-        if not isinstance(stopping_criterion, StoppingCriterion):
+        self, stopping_criterion: "CallbackCriterion"
+    ) -> "CombinedCallbackCriterion":
+        if not isinstance(stopping_criterion, CallbackCriterion):
             raise TypeError(stopping_criterion)
 
-        return CombinedStoppingCriterion([self, stopping_criterion])
+        return OrCombinedCallbackCriterion(lhs=self, rhs=stopping_criterion)
+
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    def __and__(
+        self, stopping_criterion: "CallbackCriterion"
+    ) -> "CombinedCallbackCriterion":
+        if not isinstance(stopping_criterion, CallbackCriterion):
+            raise TypeError(stopping_criterion)
+
+        return AndCombinedCallbackCriterion(lhs=self, rhs=stopping_criterion)
+
+    def __rand__(self, other):
+        return self.__and__(other)
 
     def set_opti(self, opti: cs.Opti) -> None:
         """"""
@@ -55,13 +69,13 @@ class StoppingCriterion(abc.ABC):
         self.opti = weakref.proxy(opti)
 
 
-class BestCost(StoppingCriterion):
+class BestCost(CallbackCriterion):
     """"""
 
     def __init__(self) -> None:
         """"""
 
-        StoppingCriterion.__init__(self)
+        CallbackCriterion.__init__(self)
 
         self.best_cost = None
         self.reset()
@@ -95,13 +109,13 @@ class BestCost(StoppingCriterion):
         return self.opti.debug.value(self.opti.f)
 
 
-class AcceptableCost(StoppingCriterion):
+class AcceptableCost(CallbackCriterion):
     """"""
 
     def __init__(self, acceptable_cost: float = cs.inf) -> None:
         """"""
 
-        StoppingCriterion.__init__(self)
+        CallbackCriterion.__init__(self)
 
         self.acceptable_cost = acceptable_cost
 
@@ -139,13 +153,13 @@ class AcceptableCost(StoppingCriterion):
         return self.opti.debug.value(self.opti.f)
 
 
-class AcceptablePrimalInfeasibility(StoppingCriterion):
+class AcceptablePrimalInfeasibility(CallbackCriterion):
     """"""
 
     def __init__(self, acceptable_primal_infeasibility: float = cs.inf) -> None:
         """"""
 
-        StoppingCriterion.__init__(self)
+        CallbackCriterion.__init__(self)
 
         self.acceptable_primal_infeasibility = acceptable_primal_infeasibility
 
@@ -187,13 +201,13 @@ class AcceptablePrimalInfeasibility(StoppingCriterion):
         return self.opti.debug.stats()["iterations"]["inf_pr"][-1]
 
 
-class BestPrimalInfeasibility(StoppingCriterion):
+class BestPrimalInfeasibility(CallbackCriterion):
     """"""
 
     def __init__(self) -> None:
         """"""
 
-        StoppingCriterion.__init__(self)
+        CallbackCriterion.__init__(self)
 
         self.best_primal_infeasibility = None
         self.reset()
@@ -228,66 +242,56 @@ class BestPrimalInfeasibility(StoppingCriterion):
         return self.opti.debug.stats()["iterations"]["inf_pr"][-1]
 
 
-class CombinedStoppingCriterion(StoppingCriterion):
+class CombinedCallbackCriterion(abc.ABC, CallbackCriterion):
     """"""
 
-    def __init__(self, stopping_criteria: list[StoppingCriterion]) -> None:
+    def __init__(self, lhs: CallbackCriterion, rhs: CallbackCriterion) -> None:
         """"""
 
-        StoppingCriterion.__init__(self)
-        self.stopping_criteria = stopping_criteria
-
-    def __or__(
-        self, stopping_criterion: StoppingCriterion
-    ) -> "CombinedStoppingCriterion":
-        if isinstance(stopping_criterion, CombinedStoppingCriterion):
-            ret = CombinedStoppingCriterion(
-                stopping_criteria=self.stopping_criteria
-                + stopping_criterion.stopping_criteria
-            )
-
-        elif isinstance(stopping_criterion, StoppingCriterion):
-            ret = CombinedStoppingCriterion(
-                stopping_criteria=self.stopping_criteria + [stopping_criterion]
-            )
-
-        else:
-            raise TypeError(stopping_criterion)
-
-        return ret
+        CallbackCriterion.__init__(self)
+        self.lhs = lhs
+        self.rhs = rhs
 
     @final
     def reset(self) -> None:
         """"""
 
-        _ = [
-            stopping_criterion.reset() for stopping_criterion in self.stopping_criteria
-        ]
-
-    @final
-    def satisfied(self) -> bool:
-        """"""
-
-        return all(
-            [
-                stopping_criterion.satisfied()
-                for stopping_criterion in self.stopping_criteria
-            ]
-        )
+        self.lhs.reset()
+        self.rhs.reset()
 
     @final
     def update(self) -> None:
         """"""
 
-        for stopping_criterion in self.stopping_criteria:
-            stopping_criterion.update()
+        self.lhs.update()
+        self.rhs.update()
 
     @final
     def set_opti(self, opti: cs.Opti) -> None:
         """"""
 
-        for stopping_criterion in self.stopping_criteria:
-            stopping_criterion.set_opti(opti)
+        self.lhs.set_opti(opti)
+        self.rhs.set_opti(opti)
+
+
+class OrCombinedCallbackCriterion(CombinedCallbackCriterion):
+    """"""
+
+    @final
+    def satisfied(self) -> bool:
+        """"""
+
+        return self.lhs.satisfied() or self.rhs.satisfied()
+
+
+class AndCombinedCallbackCriterion(CombinedCallbackCriterion):
+    """"""
+
+    @final
+    def satisfied(self) -> bool:
+        """"""
+
+        return self.lhs.satisfied() and self.rhs.satisfied()
 
 
 class SaveBestUnsolvedVariablesCallback(Callback):
@@ -295,7 +299,7 @@ class SaveBestUnsolvedVariablesCallback(Callback):
 
     def __init__(
         self,
-        criterion: StoppingCriterion,
+        criterion: CallbackCriterion,
         opti: cs.Opti,
         optimization_objects: list[cs.MX],
         costs: list[cs.MX],
