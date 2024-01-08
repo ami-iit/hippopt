@@ -1,5 +1,6 @@
 import abc
 import logging
+import weakref
 from typing import final
 
 import casadi as cs
@@ -49,7 +50,9 @@ class StoppingCriterion(abc.ABC):
 
     def set_opti(self, opti: cs.Opti) -> None:
         """"""
-        self.opti = opti
+        # In theory, the callback is included in opti,
+        # so the weakref is to avoid circular references
+        self.opti = weakref.proxy(opti)
 
 
 class BestCost(StoppingCriterion):
@@ -295,18 +298,27 @@ class SaveBestUnsolvedVariablesCallback(Callback):
         criterion: StoppingCriterion,
         opti: cs.Opti,
         optimization_objects: list[cs.MX],
+        costs: list[cs.MX],
+        constraints: list[cs.MX],
     ) -> None:
         """"""
 
         Callback.__init__(self)
 
         self.criterion = criterion
-        self.opti = opti
-        self.criterion.set_opti(self.opti)
+        # In theory, the callback is included in opti,
+        # so the weakref is to avoid circular references
+        self.opti = weakref.proxy(opti)
+        self.criterion.set_opti(opti)
         self.optimization_objects = optimization_objects
+        self.cost = costs
+        self.constraints = constraints
 
         self.best_stats = None
         self.best_variables = {}
+        self.best_cost = None
+        self.best_cost_values = {}
+        self.best_constraint_multipliers = {}
 
     def call(self, i: int) -> None:
         """"""
@@ -318,7 +330,15 @@ class SaveBestUnsolvedVariablesCallback(Callback):
             _logger.info(f"[i={i}] New best intermediate variables")
 
             self.best_stats = self.opti.debug.stats()
+            self.best_cost = self.opti.debug.value(self.opti.f)
             self.best_variables = {
                 optimization_object: self.opti.debug.value(optimization_object)
                 for optimization_object in self.optimization_objects
+            }
+            self.best_cost_values = {
+                cost: self.opti.debug.value(cost) for cost in self.cost
+            }
+            self.best_constraint_multipliers = {
+                constraint: self.opti.debug.value(self.opti.dual(constraint))
+                for constraint in self.constraints
             }
