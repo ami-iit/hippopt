@@ -67,6 +67,7 @@ class CallbackCriterion(abc.ABC):
         # In theory, the callback is included in opti,
         # so the weakref is to avoid circular references
         self.opti = weakref.proxy(opti)
+        self.reset()
 
 
 class BestCost(CallbackCriterion):
@@ -242,7 +243,7 @@ class BestPrimalInfeasibility(CallbackCriterion):
         return self.opti.debug.stats()["iterations"]["inf_pr"][-1]
 
 
-class CombinedCallbackCriterion(abc.ABC, CallbackCriterion):
+class CombinedCallbackCriterion(CallbackCriterion, abc.ABC):
     """"""
 
     def __init__(self, lhs: CallbackCriterion, rhs: CallbackCriterion) -> None:
@@ -318,11 +319,12 @@ class SaveBestUnsolvedVariablesCallback(Callback):
         self.cost = costs
         self.constraints = constraints
 
-        self.best_stats = None
-        self.best_variables = {}
+        self.best_iteration = None
+        self.best_objects = {}
         self.best_cost = None
         self.best_cost_values = {}
         self.best_constraint_multipliers = {}
+        self.ignore_map = {obj: False for obj in self.optimization_objects}
 
     def call(self, i: int) -> None:
         """"""
@@ -333,12 +335,19 @@ class SaveBestUnsolvedVariablesCallback(Callback):
             _logger = logging.getLogger(f"[hippopt::{self.__class__.__name__}]")
             _logger.info(f"[i={i}] New best intermediate variables")
 
-            self.best_stats = self.opti.debug.stats()
+            self.best_iteration = i
             self.best_cost = self.opti.debug.value(self.opti.f)
-            self.best_variables = {
-                optimization_object: self.opti.debug.value(optimization_object)
-                for optimization_object in self.optimization_objects
-            }
+            self.best_objects = {}
+            for optimization_object in self.optimization_objects:
+                if self.ignore_map[optimization_object]:
+                    continue
+                try:
+                    self.best_objects[optimization_object] = self.opti.debug.value(
+                        optimization_object
+                    )
+                except Exception as err:  # noqa
+                    self.ignore_map[optimization_object] = True
+
             self.best_cost_values = {
                 cost: self.opti.debug.value(cost) for cost in self.cost
             }

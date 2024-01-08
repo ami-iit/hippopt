@@ -1,4 +1,5 @@
-from . import base, integrators
+import hippopt.base.opti_callback as opti_callback
+
 from .base.dynamics import Dynamics, TypedDynamics, dot
 from .base.multiple_shooting_solver import MultipleShootingSolver
 from .base.opti_solver import OptiFailure, OptiSolver

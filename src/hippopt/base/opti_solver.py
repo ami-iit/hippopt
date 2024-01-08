@@ -6,6 +6,10 @@ from typing import Any, ClassVar
 import casadi as cs
 import numpy as np
 
+from hippopt.base.opti_callback import (
+    CallbackCriterion,
+    SaveBestUnsolvedVariablesCallback,
+)
 from hippopt.base.optimization_object import (
     OptimizationObject,
     StorageType,
@@ -22,8 +26,15 @@ from hippopt.base.variable import Variable
 
 
 class OptiFailure(Exception):
-    def __init__(self, message: Exception):
-        super().__init__("Opti failed to solve the problem. Message: " + str(message))
+    def __init__(self, message: Exception, callback_used: bool):
+        callback_info = ""
+        if callback_used:
+            callback_info = (
+                " and the callback did not manage to save an intermediate solution"
+            )
+        super().__init__(
+            f"Opti failed to solve the problem{callback_info}. Message: {str(message)}"
+        )
 
 
 class InitialGuessFailure(Exception):
@@ -50,6 +61,11 @@ class OptiSolver(OptimizationSolver):
     options_plugin: dataclasses.InitVar[dict[str, Any]] = dataclasses.field(
         default=None
     )
+    _callback_criterion: CallbackCriterion = dataclasses.field(default=None)
+    callback_criterion: dataclasses.InitVar[CallbackCriterion] = dataclasses.field(
+        default=None
+    )
+    _callback: SaveBestUnsolvedVariablesCallback = dataclasses.field(default=None)
 
     _cost: cs.MX = dataclasses.field(default=None)
     _cost_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
@@ -80,6 +96,7 @@ class OptiSolver(OptimizationSolver):
         problem_type: str = "nlp",
         options_solver: dict[str, Any] = None,
         options_plugin: dict[str, Any] = None,
+        callback_criterion: CallbackCriterion = None,
     ):
         self._solver = cs.Opti(problem_type)
         self._inner_solver = (
@@ -94,6 +111,7 @@ class OptiSolver(OptimizationSolver):
         self._solver.solver(
             self._inner_solver, self._options_plugin, self._options_solver
         )
+        self._callback_criterion = callback_criterion
         self._cost_expressions = {}
         self._constraint_expressions = {}
         self._objects_type_map = {}
@@ -634,10 +652,49 @@ class OptiSolver(OptimizationSolver):
             raise ValueError(
                 "The following parameters are not set: " + str(self._free_parameters)
             )
+        use_callback = self._callback_criterion is not None
+        if use_callback:
+            self._callback = SaveBestUnsolvedVariablesCallback(
+                criterion=self._callback_criterion,
+                opti=self._solver,
+                optimization_objects=list(self._objects_type_map.keys()),
+                costs=list(self._cost_expressions.values()),
+                constraints=list(self._constraint_expressions.values()),
+            )
+            self._solver.callback(self._callback)
         try:
             opti_solution = self._solver.solve()
         except Exception as err:  # noqa
-            raise OptiFailure(message=err)
+            if use_callback and self._callback.best_iteration is not None:
+                self._logger.warning(
+                    "Opti failed to solve the problem, but the callback managed to save"
+                    " an intermediate solution at "
+                    f"iteration {self._callback.best_iteration}."
+                )
+                self._output_cost = self._callback.best_cost
+                self._output_solution = self._generate_solution_output(
+                    variables=self._variables,
+                    input_solution=self._callback.best_objects,
+                )
+                self._cost_values = {
+                    name: float(
+                        self._callback.best_cost_values[self._cost_expressions[name]]
+                    )
+                    for name in self._cost_expressions
+                }
+                self._constraint_values = {
+                    name: np.array(
+                        (
+                            self._callback.best_constraint_multipliers[
+                                self._constraint_expressions[name]
+                            ]
+                        )
+                    )
+                    for name in self._constraint_expressions
+                }
+                return
+
+            raise OptiFailure(message=err, callback_used=use_callback)
 
         self._output_cost = opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(
