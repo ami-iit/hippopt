@@ -34,11 +34,21 @@ class Planner:
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
+        opti_callback = None
+        if self.settings.use_opti_callback:
+            opti_callback = (
+                hp.opti_callback.BestCost()
+                & hp.opti_callback.AcceptablePrimalInfeasibility(
+                    self.settings.acceptable_constraint_violation
+                )
+            )
+
         optimization_solver = hp.OptiSolver(
             inner_solver=self.settings.opti_solver,
             problem_type=self.settings.problem_type,
             options_solver=self.settings.casadi_solver_options,
             options_plugin=self.settings.casadi_opti_options,
+            callback_criterion=opti_callback,
         )
         ocp_solver = hp.MultipleShootingSolver(optimization_solver=optimization_solver)
 

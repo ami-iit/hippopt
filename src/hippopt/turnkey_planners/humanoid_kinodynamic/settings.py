@@ -70,6 +70,14 @@ class Settings:
 
     problem_type: str = dataclasses.field(default="nlp")
 
+    use_opti_callback: bool = dataclasses.field(default=None)
+
+    acceptable_constraint_violation: float = dataclasses.field(default=None)
+
+    opti_callback_save_costs: bool = dataclasses.field(default=None)
+
+    opti_callback_save_constraint_multipliers: bool = dataclasses.field(default=None)
+
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
 
     casadi_opti_options: dict = dataclasses.field(default_factory=dict)
@@ -92,6 +100,10 @@ class Settings:
         self.final_state_expression_weight = 1.0
         self.periodicity_expression_type = hp.ExpressionType.skip
         self.periodicity_expression_weight = 1.0
+        self.use_opti_callback = False
+        self.acceptable_constraint_violation = 1e-3
+        self.opti_callback_save_costs = True
+        self.opti_callback_save_constraint_multipliers = True
 
     def is_valid(self) -> bool:
         number_of_joints = len(self.joints_name_list)
