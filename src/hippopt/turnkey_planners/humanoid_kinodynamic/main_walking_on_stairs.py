@@ -97,7 +97,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.maximum_angular_momentum = 5.0
     settings.minimum_com_height = 0.3
     settings.minimum_feet_lateral_distance = 0.1
-    settings.maximum_feet_relative_height = 0.05
+    settings.maximum_feet_relative_height = 0.5
     settings.maximum_joint_positions = cs.inf * np.ones(number_of_joints)
     settings.minimum_joint_positions = -cs.inf * np.ones(number_of_joints)
     for i in range(number_of_joints):
@@ -113,7 +113,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.joint_regularization_cost_weights[11:] = 1.0  # legs
     settings.contacts_centroid_cost_multiplier = 0.0
     settings.com_linear_velocity_cost_weights = [10.0, 0.1, 1.0]
-    settings.com_linear_velocity_cost_multiplier = 1.0
+    settings.com_linear_velocity_cost_multiplier = 0.0
     settings.desired_frame_quaternion_cost_frame_name = "chest"
     settings.desired_frame_quaternion_cost_multiplier = 200.0
     settings.base_quaternion_cost_multiplier = 50.0
@@ -121,10 +121,13 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.joint_regularization_cost_multiplier = 1.0
     settings.force_regularization_cost_multiplier = 100.0
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
-    settings.swing_foot_height_cost_multiplier = 1000.0
+    settings.swing_foot_height_cost_multiplier = 10.0
     settings.contact_velocity_control_cost_multiplier = 5.0
     settings.contact_force_control_cost_multiplier = 0.0001
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
+    settings.use_opti_callback = True
+    settings.opti_callback_save_costs = False
+    settings.opti_callback_save_constraint_multipliers = False
     settings.casadi_function_options = {"cse": True}
     settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": True}
     settings.casadi_solver_options = {
@@ -400,7 +403,7 @@ if __name__ == "__main__":
 
     step_length = 0.9
     step_height = 0.1
-    swing_height = 0.1
+    swing_height = 1.0
 
     planner_settings = get_planner_settings(
         get_terrain(length=step_length / 2, width=0.8, height=step_height)
