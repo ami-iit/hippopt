@@ -66,6 +66,12 @@ class OptiSolver(OptimizationSolver):
         default=None
     )
     _callback: SaveBestUnsolvedVariablesCallback = dataclasses.field(default=None)
+    _callback_save_costs: bool = dataclasses.field(default=True)
+    _callback_save_constraint_multipliers: bool = dataclasses.field(default=True)
+    callback_save_costs: dataclasses.InitVar[bool] = dataclasses.field(default=None)
+    callback_save_constraint_multipliers: dataclasses.InitVar[bool] = dataclasses.field(
+        default=None
+    )
 
     _cost: cs.MX = dataclasses.field(default=None)
     _cost_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
@@ -97,6 +103,8 @@ class OptiSolver(OptimizationSolver):
         options_solver: dict[str, Any] = None,
         options_plugin: dict[str, Any] = None,
         callback_criterion: CallbackCriterion = None,
+        callback_save_costs: bool = True,
+        callback_save_constraint_multipliers: bool = True,
     ):
         self._solver = cs.Opti(problem_type)
         self._inner_solver = (
@@ -112,6 +120,10 @@ class OptiSolver(OptimizationSolver):
             self._inner_solver, self._options_plugin, self._options_solver
         )
         self._callback_criterion = callback_criterion
+        self._callback_save_costs = callback_save_costs
+        self._callback_save_constraint_multipliers = (
+            callback_save_constraint_multipliers
+        )
         self._cost_expressions = {}
         self._constraint_expressions = {}
         self._objects_type_map = {}
@@ -658,8 +670,12 @@ class OptiSolver(OptimizationSolver):
                 criterion=self._callback_criterion,
                 opti=self._solver,
                 optimization_objects=list(self._objects_type_map.keys()),
-                costs=list(self._cost_expressions.values()),
-                constraints=list(self._constraint_expressions.values()),
+                costs=list(self._cost_expressions.values())
+                if self._callback_save_costs
+                else [],
+                constraints=list(self._constraint_expressions.values())
+                if self._callback_save_constraint_multipliers
+                else [],
             )
             self._solver.callback(self._callback)
         try:
@@ -676,22 +692,32 @@ class OptiSolver(OptimizationSolver):
                     variables=self._variables,
                     input_solution=self._callback.best_objects,
                 )
-                self._cost_values = {
-                    name: float(
-                        self._callback.best_cost_values[self._cost_expressions[name]]
-                    )
-                    for name in self._cost_expressions
-                }
-                self._constraint_values = {
-                    name: np.array(
-                        (
-                            self._callback.best_constraint_multipliers[
-                                self._constraint_expressions[name]
+                self._cost_values = (
+                    {
+                        name: float(
+                            self._callback.best_cost_values[
+                                self._cost_expressions[name]
                             ]
                         )
-                    )
-                    for name in self._constraint_expressions
-                }
+                        for name in self._cost_expressions
+                    }
+                    if self._callback_save_costs
+                    else {}
+                )
+                self._constraint_values = (
+                    {
+                        name: np.array(
+                            (
+                                self._callback.best_constraint_multipliers[
+                                    self._constraint_expressions[name]
+                                ]
+                            )
+                        )
+                        for name in self._constraint_expressions
+                    }
+                    if self._callback_save_constraint_multipliers
+                    else {}
+                )
                 return
 
             raise OptiFailure(message=err, callback_used=use_callback)
