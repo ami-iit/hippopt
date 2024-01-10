@@ -666,10 +666,19 @@ class OptiSolver(OptimizationSolver):
             )
         use_callback = self._callback_criterion is not None
         if use_callback:
+            variables = []
+            parameters = []
+            for obj in self._objects_type_map:
+                if self._objects_type_map[obj] is Variable.StorageTypeValue:
+                    variables.append(obj)
+                elif self._objects_type_map[obj] is Parameter.StorageTypeValue:
+                    parameters.append(obj)
+
             self._callback = SaveBestUnsolvedVariablesCallback(
                 criterion=self._callback_criterion,
                 opti=self._solver,
-                optimization_objects=list(self._objects_type_map.keys()),
+                variables=variables,
+                parameters=parameters,
                 costs=list(self._cost_expressions.values())
                 if self._callback_save_costs
                 else [],

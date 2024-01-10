@@ -302,7 +302,8 @@ class SaveBestUnsolvedVariablesCallback(Callback):
         self,
         criterion: CallbackCriterion,
         opti: cs.Opti,
-        optimization_objects: list[cs.MX],
+        variables: list[cs.MX],
+        parameters: list[cs.MX],
         costs: list[cs.MX],
         constraints: list[cs.MX],
     ) -> None:
@@ -315,7 +316,8 @@ class SaveBestUnsolvedVariablesCallback(Callback):
         # so the weakref is to avoid circular references
         self.opti = weakref.proxy(opti)
         self.criterion.set_opti(opti)
-        self.optimization_objects = optimization_objects
+        self.variables = variables
+        self.parameters = parameters
         self.cost = costs
         self.constraints = constraints
 
@@ -324,7 +326,7 @@ class SaveBestUnsolvedVariablesCallback(Callback):
         self.best_cost = None
         self.best_cost_values = {}
         self.best_constraint_multipliers = {}
-        self.ignore_map = {obj: False for obj in self.optimization_objects}
+        self.ignore_map = {obj: False for obj in self.variables + self.parameters}
 
     def call(self, i: int) -> None:
         """"""
@@ -337,16 +339,18 @@ class SaveBestUnsolvedVariablesCallback(Callback):
 
             self.best_iteration = i
             self.best_cost = self.opti.debug.value(self.opti.f)
-            self.best_objects = {}
-            for optimization_object in self.optimization_objects:
-                if self.ignore_map[optimization_object]:
+            for variable in self.variables:
+                if self.ignore_map[variable]:
                     continue
                 try:
-                    self.best_objects[optimization_object] = self.opti.debug.value(
-                        optimization_object
-                    )
+                    self.best_objects[variable] = self.opti.debug.value(variable)
                 except Exception as err:  # noqa
-                    self.ignore_map[optimization_object] = True
+                    self.ignore_map[variable] = True
+            for parameter in self.parameters:
+                if self.ignore_map[parameter]:
+                    continue
+                self.best_objects[parameter] = self.opti.debug.value(parameter)
+                self.ignore_map[parameter] = True  # Parameters are saved only once
 
             self.best_cost_values = {
                 cost: self.opti.debug.value(cost) for cost in self.cost
