@@ -54,11 +54,12 @@ class ContactPointStatePlotterSettings:
             else None
         )
 
-        self.terrain = (
-            input_terrain
-            if isinstance(input_terrain, TerrainDescriptor)
-            else PlanarTerrain()
-        )
+        if not isinstance(self.terrain, TerrainDescriptor):
+            self.terrain = (
+                input_terrain
+                if isinstance(input_terrain, TerrainDescriptor)
+                else PlanarTerrain()
+            )
 
 
 class ContactPointStatePlotter:
@@ -245,7 +246,7 @@ class FootContactStatePlotter:
             ContactPointStatePlotter(
                 ContactPointStatePlotterSettings(
                     input_complementarity_axes=[el, last_plot],
-                    terrain=terrain,
+                    input_terrain=terrain,
                 )
             )
             for row in axes_list
