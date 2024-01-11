@@ -89,9 +89,9 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
         top_left_point_position=np.array([0.116, 0.05, 0.0]),
     )
     settings.planar_dcc_height_multiplier = 10.0
-    settings.dcc_gain = 40.0
+    settings.dcc_gain = 150.0
     settings.dcc_epsilon = 0.01
-    settings.static_friction = 1.0
+    settings.static_friction = 0.3
     settings.maximum_velocity_control = [2.0, 2.0, 5.0]
     settings.maximum_force_derivative = [500.0, 500.0, 500.0]
     settings.maximum_angular_momentum = 5.0
@@ -133,7 +133,6 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.casadi_solver_options = {
         "max_iter": 10000,
         "linear_solver": "mumps",
-        # "alpha_for_y": "dual-and-full",
         "fast_step_computation": "yes",
         "hessian_approximation": "limited-memory",
         "tol": 1e-3,
@@ -403,7 +402,7 @@ if __name__ == "__main__":
 
     step_length = 0.9
     step_height = 0.1
-    swing_height = 1.0
+    swing_height = 0.1
 
     planner_settings = get_planner_settings(
         get_terrain(length=step_length / 2, width=0.8, height=step_height)
@@ -488,11 +487,6 @@ if __name__ == "__main__":
         contact_guess=contact_phases_guess,
     )
 
-    # print("Press [Enter] to visualize the initial state.")
-    # input()
-    #
-    # visualizer.visualize(initial_state)
-
     final_state = compute_final_state(
         input_settings=planner_settings,
         pf_input=pf,
@@ -500,32 +494,17 @@ if __name__ == "__main__":
     )
     final_state.centroidal_momentum = np.zeros((6, 1))
 
-    # print("Press [Enter] to visualize the final desired state.")
-    # input()
-    #
-    # visualizer.visualize(final_state)
-
     second_state = compute_second_state(
         input_settings=planner_settings,
         pf_input=pf,
         contact_guess=contact_phases_guess,
     )
 
-    # print("Press [Enter] to visualize the first intermediate state.")
-    # input()
-    #
-    # visualizer.visualize(second_state)
-
     third_state = compute_third_state(
         input_settings=planner_settings,
         pf_input=pf,
         contact_guess=contact_phases_guess,
     )
-
-    # print("Press [Enter] to visualize the second intermediate state.")
-    # input()
-    #
-    # visualizer.visualize(third_state)
 
     # Until the middle of the second double support phase
     first_part_guess_length = (planner_settings.horizon_length * 5) // 14
@@ -611,3 +590,26 @@ if __name__ == "__main__":
         save=True,
         file_name_stem="humanoid_walking_step",
     )
+
+    plotter_settings = hp_rp.FootContactStatePlotterSettings()
+    plotter_settings.terrain = planner_settings.terrain
+    left_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+    right_foot_plotter = hp_rp.FootContactStatePlotter(plotter_settings)
+
+    left_foot_plotter.plot_complementarity(
+        states=left_contact_points,
+        time_s=output.values.dt,
+        title="Left Foot Complementarity",
+        blocking=False,
+    )
+    right_foot_plotter.plot_complementarity(
+        states=right_contact_points,
+        time_s=output.values.dt,
+        title="Right Foot Complementarity",
+        blocking=False,
+    )
+
+    print("Press [Enter] to exit.")
+    input()
+    left_foot_plotter.close()
+    right_foot_plotter.close()
