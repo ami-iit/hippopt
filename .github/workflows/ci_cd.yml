@@ -38,7 +38,6 @@ jobs:
         shell: bash -l {0}
         run: |
           mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib
-          mamba install metis=5.1.0 # Reminder for https://github.com/conda-forge/conda-forge-pinning-feedstock/pull/4857#issuecomment-1699470569
           mamba list
 
       - name: Install
