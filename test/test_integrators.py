@@ -4,7 +4,8 @@ import math
 import casadi as cs
 import pytest
 
-from hippopt import ForwardEuler, ImplicitTrapezoid, dot, step
+from hippopt import dot, step
+from hippopt.integrators import ForwardEuler, ImplicitTrapezoid
 
 
 def get_test_function() -> cs.Function:
@@ -50,6 +51,18 @@ def test_dynamics_creation():
 
     assert dynamics.state_variables() == ["x"]
     assert dynamics.input_names() == ["x", "lam"]
+    assert dynamics.time_name() == "time"
+
+
+def test_dynamics_creation_with_mx():
+    _x = cs.MX.sym("x", 1)
+    _lambda = cs.MX.sym("lambda", 1)
+    _time = cs.MX.sym("time", 1)
+
+    dynamics = dot(_x, _time).equal(_lambda * _x, {"lam": "lambda"})
+
+    assert dynamics.state_variables() == ["x"]
+    assert dynamics.input_names() == ["lam", "x"]
     assert dynamics.time_name() == "time"
 
 

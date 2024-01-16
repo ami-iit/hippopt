@@ -31,11 +31,14 @@ jobs:
         with:
           miniforge-variant: Mambaforge
           miniforge-version: latest
+          channels: conda-forge,robotology
+          channel-priority: true
 
       - name: Dependencies
         shell: bash -l {0}
         run: |
-          mamba install python=${{ matrix.python }} casadi pytest
+          mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib
+          mamba list
 
       - name: Install
         shell: bash  -l {0}

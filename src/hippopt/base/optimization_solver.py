@@ -50,6 +50,10 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
     def solve(self) -> None:
         pass
 

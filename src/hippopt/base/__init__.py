@@ -1,6 +1,7 @@
 from . import (
     dynamics,
     multiple_shooting_solver,
+    opti_callback,
     opti_solver,
     optimal_control_problem,
     optimal_control_solver,

@@ -9,10 +9,12 @@ from hippopt import (
     OptiFailure,
     OptimizationObject,
     OptimizationProblem,
+    OptiSolver,
     Parameter,
     StorageType,
     Variable,
     default_storage_field,
+    opti_callback,
 )
 
 
@@ -263,3 +265,19 @@ def test_opti_failure():
         print("Received error: ", err)
     else:
         assert False
+
+
+def test_opti_callback():
+    opti_solver = OptiSolver(
+        callback_criterion=opti_callback.BestCost()
+        | opti_callback.BestPrimalInfeasibility()
+    )
+    problem, variables = OptimizationProblem.create(
+        input_structure=SwitchVar(), optimization_solver=opti_solver
+    )
+
+    problem.add_constraint(variables.x <= 1)
+    problem.add_constraint(variables.x >= 0)
+    problem.add_constraint(variables.x**2 == 10)
+
+    problem.solve()

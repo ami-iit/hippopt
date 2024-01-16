@@ -66,6 +66,9 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
     ) -> None:
         self.solver().set_initial_guess(initial_guess)
 
+    def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
+        return self.solver().get_initial_guess()
+
     def add_cost(
         self,
         expression: cs.MX | Generator[cs.MX, None, None],
@@ -156,7 +159,7 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
     def solver(self) -> TGenericSolver:
         return self._solver
 
-    def solve(self) -> Output:
+    def solve(self) -> Output[TInputObjects]:
         self.solver().solve()
         self._output = Output(
             _cost_value=self.solver().get_cost_value(),
@@ -166,7 +169,7 @@ class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
         )
         return self._output
 
-    def get_output(self) -> Output:
+    def get_output(self) -> Output[TInputObjects]:
         if self._output is None:
             raise ProblemNotSolvedException
 
