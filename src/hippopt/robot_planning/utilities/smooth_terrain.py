@@ -21,17 +21,17 @@ class SmoothTerrain(TerrainDescriptor):
     The height is defined as follows:
     h(x, y) = exp(−g(x, y)^(2s)) π(x, y).
 
-    Here, g(x, y) ≥ 0 is the equation of a closed curve in the xy-plane,
-    and π(x, y) is the equation of a plane in the xy-plane, defining the shape of the
-    terrain when exp(−g(x, y)^(2s)) = 1, i.e. when g(x, y) = 0.
-    The parameter s ≥ 1 controls the smoothness of the terrain.
+    Here, g(x, y) is the equation of a curve in the xy-plane, and π(x, y) is the
+    equation of a plane in the xy-plane, defining the shape of the terrain when
+    exp(−g(x, y)^(2s)) = 1, i.e. when g(x, y) = 0. The parameter s ≥ 1 controls the
+    smoothness of the terrain.
 
     Independently of the value of s, the value of exp(−g(.)^(2s)) is always passing
-    through 1 when g(x,y) = 0, and through 1/e when g(x,y) = 1. Then, it will
-    tend to zero as g(x, y) → ∞. The parameter s controls how fast exp(−g(.)^(2s)) tends
-    to zero as g(x, y) grows. By multiplying times the equation of a plane, i.e.
+    through 1 when g(x,y) = 0, and through 1/e when |g(x,y)| = 1. Then, it will
+    tend to zero as |g(x, y)| → ∞. The parameter s controls how fast exp(−g(.)^(2s))
+    tends to zero as |g(x, y)| grows. By multiplying times the equation of a plane, i.e.
     π(x, y), we can control the inclination of the top surface when g(x, y) = 0.
-    Instead, g(x, y) = 1 controls the shape of the terrain at height 1/e * π(x, y).
+    Instead, |g(x, y)| = 1 controls the shape of the terrain at height 1/e * π(x, y).
 
     For example, to define a classical step with a square base of dimension l,
     we can use:
