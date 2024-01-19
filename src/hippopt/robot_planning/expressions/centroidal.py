@@ -14,12 +14,17 @@ def centroidal_dynamics_with_point_forces(
 ) -> cs.Function:
     options = {} if options is None else options
 
-    if point_position_names is None:
-        point_position_names = []
-        for i in range(number_of_points):
-            point_position_names.append(f"p{i}")
+    point_position_names = (
+        point_position_names
+        if point_position_names is not None
+        else [f"p{i}" for i in range(number_of_points)]
+    )
 
-    assert len(point_position_names) == number_of_points
+    if len(point_position_names) != number_of_points:
+        raise ValueError(
+            f"Expected {number_of_points} point position names,"
+            f" got {len(point_position_names)}"
+        )
 
     if point_force_names is None:
         point_force_names = []
@@ -44,20 +49,19 @@ def centroidal_dynamics_with_point_forces(
 
     p = []
     f = []
-    for i in range(number_of_points):
-        p.append(cs.MX.sym(point_position_names[i], 3))
-        input_vars.append(p[i])
-        f.append(cs.MX.sym(point_force_names[i], 3))
-        input_vars.append(f[i])
+    for point_position_name, point_force_name in zip(
+        point_position_names, point_force_names
+    ):
+        p.append(cs.MX.sym(point_position_name, 3))
+        input_vars.append(p[-1])
+        f.append(cs.MX.sym(point_force_name, 3))
+        input_vars.append(f[-1])
 
-    input_names = []
-    for var in input_vars:
-        input_names.append(var.name())
+    input_names = [var.name() for var in input_vars]
 
-    h_g = m @ g
-
-    for i in range(number_of_points):
-        h_g = h_g + cs.vertcat(f[i], cs.cross(p[i] - x, f[i]))
+    h_g = m * g + cs.sum2(
+        cs.horzcat(*[cs.vertcat(fi, cs.cross(pi - x, fi)) for fi, pi in zip(f, p)])
+    )
 
     return cs.Function(
         "centroidal_dynamics_with_point_forces",
