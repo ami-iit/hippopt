@@ -53,5 +53,4 @@ class HumanoidState(OptimizationObject):
             self.kinematics = FloatingBaseSystemState(
                 number_of_joints_state=number_of_joints
             )
-        if self.com is None:
-            self.com = np.zeros(3)
+        self.com = np.zeros(3) if self.com is None else self.com

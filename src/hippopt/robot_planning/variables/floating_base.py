@@ -19,8 +19,7 @@ class FreeFloatingObjectState(OptimizationObject):
     quaternion_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
-        if self.position is None:
-            self.position = np.zeros(3)
+        self.position = np.zeros(3) if self.position is None else self.position
         if self.quaternion_xyzw is None:
             self.quaternion_xyzw = np.zeros(4)
             self.quaternion_xyzw[3] = 1.0
@@ -32,11 +31,15 @@ class FreeFloatingObjectStateDerivative(OptimizationObject):
     quaternion_velocity_xyzw: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self):
-        if self.linear_velocity is None:
-            self.linear_velocity = np.zeros(3)
+        self.linear_velocity = (
+            np.zeros(3) if self.linear_velocity is None else self.linear_velocity
+        )
 
-        if self.quaternion_velocity_xyzw is None:
-            self.quaternion_velocity_xyzw = np.zeros(4)
+        self.quaternion_velocity_xyzw = (
+            np.zeros(4)
+            if self.quaternion_velocity_xyzw is None
+            else self.quaternion_velocity_xyzw
+        )
 
 
 @dataclasses.dataclass
@@ -53,7 +56,7 @@ class KinematicTreeState(OptimizationObject):
     number_of_joints_state: dataclasses.InitVar[int] = dataclasses.field(default=0)
 
     def __post_init__(self, number_of_joints_state: int):
-        if number_of_joints_state is not None:
+        if number_of_joints_state is not None and self.positions is None:
             self.positions = np.zeros(number_of_joints_state)
 
 

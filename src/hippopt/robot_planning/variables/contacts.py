@@ -78,12 +78,8 @@ class ContactPointState(OptimizationObject):
     )
 
     def __post_init__(self, input_descriptor: ContactPointDescriptor) -> None:
-        if self.p is None:
-            self.p = np.zeros(3)
-
-        if self.f is None:
-            self.f = np.zeros(3)
-
+        self.p = np.zeros(3) if self.p is None else self.p
+        self.f = np.zeros(3) if self.f is None else self.f
         if input_descriptor is not None:
             self.descriptor = input_descriptor
 
@@ -94,11 +90,8 @@ class ContactPointStateDerivative(OptimizationObject):
     f_dot: StorageType = default_storage_field(OverridableVariable)
 
     def __post_init__(self) -> None:
-        if self.v is None:
-            self.v = np.zeros(3)
-
-        if self.f_dot is None:
-            self.f_dot = np.zeros(3)
+        self.v = np.zeros(3) if self.v is None else self.v
+        self.f_dot = np.zeros(3) if self.f_dot is None else self.f_dot
 
 
 TFootContactState = TypeVar("TFootContactState", bound="FootContactState")
@@ -154,10 +147,13 @@ class FootContactPhaseDescriptor:
     deactivation_time: float | None = dataclasses.field(default=None)
 
     def __post_init__(self) -> None:
-        if self.transform is None:
-            self.transform = liecasadi.SE3.from_translation_and_rotation(
+        self.transform = (
+            liecasadi.SE3.from_translation_and_rotation(
                 cs.DM.zeros(3), liecasadi.SO3.Identity()
             )
+            if self.transform is None
+            else self.transform
+        )
         if self.force is None:
             self.force = np.zeros(3)
             self.force[2] = 100
