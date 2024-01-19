@@ -317,14 +317,10 @@ def feet_contact_points_interpolator(
 
     assert len(left_output) == len(right_output) == number_of_points
 
-    output = []
-    for i in range(number_of_points):
-        output_state = FeetContactPoints()
-        output_state.left = left_output[i]
-        output_state.right = right_output[i]
-        output.append(output_state)
-
-    return output
+    return [
+        FeetContactPoints(left=left, right=right)
+        for left, right in zip(left_output, right_output)
+    ]
 
 
 def free_floating_object_state_interpolator(
@@ -345,13 +341,12 @@ def free_floating_object_state_interpolator(
     assert (
         len(position_interpolation) == len(quaternion_interpolation) == number_of_points
     )
-    output = []
-    for i in range(number_of_points):
-        output_state = FreeFloatingObjectState()
-        output_state.position = position_interpolation[i]
-        output_state.quaternion_xyzw = quaternion_interpolation[i]
-        output.append(output_state)
-    return output
+    return [
+        FreeFloatingObjectState(position=position, quaternion_xyzw=quaternion)
+        for position, quaternion in zip(
+            position_interpolation, quaternion_interpolation
+        )
+    ]
 
 
 def kinematic_tree_state_interpolator(
@@ -370,14 +365,9 @@ def kinematic_tree_state_interpolator(
         final=final_state.positions,
         number_of_points=number_of_points,
     )
-    output = []
-    for i in range(number_of_points):
-        output_state = KinematicTreeState(
-            number_of_joints_state=len(initial_state.positions)
-        )
-        output_state.positions = positions_interpolation[i]
-        output.append(output_state)
-    return output
+    return [
+        KinematicTreeState(positions=positions) for positions in positions_interpolation
+    ]
 
 
 def floating_base_system_state_interpolator(
@@ -398,15 +388,10 @@ def floating_base_system_state_interpolator(
 
     assert len(base_interpolation) == len(joints_interpolation) == number_of_points
 
-    output = []
-    for i in range(number_of_points):
-        output_state = FloatingBaseSystemState(
-            number_of_joints_state=len(initial_state.joints.positions)
-        )
-        output_state.base = base_interpolation[i]
-        output_state.joints = joints_interpolation[i]
-        output.append(output_state)
-    return output
+    return [
+        FloatingBaseSystemState(base=base, joints=joints)
+        for base, joints in zip(base_interpolation, joints_interpolation)
+    ]
 
 
 def humanoid_state_interpolator(
@@ -444,13 +429,15 @@ def humanoid_state_interpolator(
     )
 
     output = []
-    for i in range(number_of_points):
+    for points, kin, com in zip(
+        contact_points_interpolation, kinematics_interpolation, com_interpolation
+    ):
         output_state = HumanoidState(
             contact_point_descriptors=contact_descriptor,
             number_of_joints=len(initial_state.kinematics.joints.positions),
         )
-        output_state.contact_points = contact_points_interpolation[i]
-        output_state.kinematics = kinematics_interpolation[i]
-        output_state.com = com_interpolation[i]
+        output_state.contact_points = points
+        output_state.kinematics = kin
+        output_state.com = com
         output.append(output_state)
     return output
