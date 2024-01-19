@@ -92,13 +92,11 @@ def contact_points_centroid(
 
     input_vars = []
     p = []
-    for i in range(number_of_points):
-        p.append(cs.MX.sym(point_position_names[i], 3))
-        input_vars.append(p[i])
+    for point_position_name in point_position_names:
+        p.append(cs.MX.sym(point_position_name, 3))
+        input_vars.append(p[-1])
 
-    input_names = []
-    for var in input_vars:
-        input_names.append(var.name())
+    input_names = [var.name() for var in input_vars]
 
     centroid = cs.DM.zeros(3, 1)
 
