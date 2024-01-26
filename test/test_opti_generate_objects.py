@@ -178,10 +178,10 @@ class CustomCustomOverridableVariableInner(OptimizationObject):
 
 @dataclasses.dataclass
 class CustomCustomOverridableVariableNested(OptimizationObject):
-    composite: CompositeType[
-        CustomCustomOverridableVariableInner
-    ] = default_composite_field(
-        cls=OverridableParameter, factory=CustomCustomOverridableVariableInner
+    composite: CompositeType[CustomCustomOverridableVariableInner] = (
+        default_composite_field(
+            cls=OverridableParameter, factory=CustomCustomOverridableVariableInner
+        )
     )
 
 

@@ -25,9 +25,9 @@ class ContactPointStatePlotterSettings:
     force_axes: matplotlib.axes.Axes | None = dataclasses.field(default=None)
     terrain: TerrainDescriptor = dataclasses.field(default=None)
 
-    input_complementarity_axes: dataclasses.InitVar[
-        list[matplotlib.axes.Axes]
-    ] = dataclasses.field(default=None)
+    input_complementarity_axes: dataclasses.InitVar[list[matplotlib.axes.Axes]] = (
+        dataclasses.field(default=None)
+    )
     input_force_axes: dataclasses.InitVar[matplotlib.axes.Axes] = dataclasses.field(
         default=None
     )

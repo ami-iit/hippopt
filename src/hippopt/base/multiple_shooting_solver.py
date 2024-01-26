@@ -39,9 +39,9 @@ class MultipleShootingSolver(OptimalControlSolver):
 
     _flattened_variables: FlattenedVariableDict = dataclasses.field(default=None)
 
-    _symbolic_structure: TOptimizationObject | list[
-        TOptimizationObject
-    ] = dataclasses.field(default=None)
+    _symbolic_structure: TOptimizationObject | list[TOptimizationObject] = (
+        dataclasses.field(default=None)
+    )
 
     def __post_init__(
         self,
@@ -363,9 +363,9 @@ class MultipleShootingSolver(OptimalControlSolver):
                     object_in=field_value,
                     top_level=False,
                     base_string=base_string + field.name + ".",
-                    base_iterator=(base_iterator[0], generator)
-                    if generator is not None
-                    else None,
+                    base_iterator=(
+                        (base_iterator[0], generator) if generator is not None else None
+                    ),
                 )
 
                 output_dict = output_dict | inner_dict
@@ -408,9 +408,11 @@ class MultipleShootingSolver(OptimalControlSolver):
                             + "["
                             + str(k)
                             + "].",  # we flatten the list. Note the added [k]
-                            base_iterator=(base_iterator[0], generator)
-                            if generator is not None
-                            else None,
+                            base_iterator=(
+                                (base_iterator[0], generator)
+                                if generator is not None
+                                else None
+                            ),
                         )
 
                         output_dict = output_dict | inner_dict

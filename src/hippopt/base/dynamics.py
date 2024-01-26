@@ -159,14 +159,16 @@ class DynamicsLHS:
 
     def __eq__(
         self,
-        other: cs.Function
-        | str
-        | list[str]
-        | cs.MX
-        | tuple[cs.Function, dict[str, str]]
-        | tuple[str, dict[str, str]]
-        | tuple[list[str], dict[str, str]]
-        | tuple[cs.MX, dict[str, str]],
+        other: (
+            cs.Function
+            | str
+            | list[str]
+            | cs.MX
+            | tuple[cs.Function, dict[str, str]]
+            | tuple[str, dict[str, str]]
+            | tuple[list[str], dict[str, str]]
+            | tuple[cs.MX, dict[str, str]]
+        ),
     ) -> TDynamics:
         if isinstance(other, tuple):
             return self.equal(f=other[0], names_map=other[1])

@@ -39,9 +39,9 @@ class Output(Generic[TGenericOptimizationObject]):
     _cost_values: dataclasses.InitVar[dict[str, np.ndarray]] = dataclasses.field(
         default=None
     )
-    _constraint_multipliers: dataclasses.InitVar[
-        dict[str, np.ndarray]
-    ] = dataclasses.field(default=None)
+    _constraint_multipliers: dataclasses.InitVar[dict[str, np.ndarray]] = (
+        dataclasses.field(default=None)
+    )
 
     def __post_init__(
         self,
