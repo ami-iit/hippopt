@@ -180,9 +180,9 @@ TExtendedHumanoid = TypeVar("TExtendedHumanoid", bound="ExtendedHumanoid")
 
 @dataclasses.dataclass
 class ExtendedHumanoid(hp.OptimizationObject):
-    contact_points: hp.CompositeType[
-        FeetContactPointsExtended
-    ] = hp.default_composite_field(factory=FeetContactPointsExtended)
+    contact_points: hp.CompositeType[FeetContactPointsExtended] = (
+        hp.default_composite_field(factory=FeetContactPointsExtended)
+    )
 
     kinematics: hp.CompositeType[hp_rp.FloatingBaseSystem] = hp.default_composite_field(
         cls=hp.Variable, factory=hp_rp.FloatingBaseSystem
@@ -295,9 +295,9 @@ class Variables(hp.OptimizationObject):
     )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
-    kin_dyn_object: dataclasses.InitVar[
-        adam.casadi.KinDynComputations
-    ] = dataclasses.field(default=None)
+    kin_dyn_object: dataclasses.InitVar[adam.casadi.KinDynComputations] = (
+        dataclasses.field(default=None)
+    )
 
     def __post_init__(
         self,

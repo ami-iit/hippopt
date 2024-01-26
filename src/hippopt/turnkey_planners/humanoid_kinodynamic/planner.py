@@ -515,9 +515,11 @@ class Planner:
         )
         problem.add_dynamics(
             hp.dot(sym.system.centroidal_momentum) == centroidal_dynamics,  # noqa
-            x0=problem.initial(sym.initial_state.centroidal_momentum)
-            if self.settings.periodicity_expression_type is hp.ExpressionType.skip
-            else None,  # noqa
+            x0=(
+                problem.initial(sym.initial_state.centroidal_momentum)
+                if self.settings.periodicity_expression_type is hp.ExpressionType.skip
+                else None
+            ),  # noqa
             dt=sym.dt,
             integrator=default_integrator,
             name="centroidal_momentum_dynamics",
@@ -536,12 +538,12 @@ class Planner:
         # Creation of contact kinematics consistency functions
         descriptor = point.descriptor
         if descriptor.foot_frame not in point_kinematics_functions:
-            point_kinematics_functions[
-                descriptor.foot_frame
-            ] = hp_rp.point_position_from_kinematics(
-                kindyn_object=self.kin_dyn_object,
-                frame_name=descriptor.foot_frame,
-                **function_inputs,
+            point_kinematics_functions[descriptor.foot_frame] = (
+                hp_rp.point_position_from_kinematics(
+                    kindyn_object=self.kin_dyn_object,
+                    frame_name=descriptor.foot_frame,
+                    **function_inputs,
+                )
             )
 
         # Consistency between the contact position and the kinematics

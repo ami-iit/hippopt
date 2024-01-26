@@ -164,9 +164,9 @@ class Variables(hp.OptimizationObject):
     minimum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
-    kin_dyn_object: dataclasses.InitVar[
-        adam.casadi.KinDynComputations
-    ] = dataclasses.field(default=None)
+    kin_dyn_object: dataclasses.InitVar[adam.casadi.KinDynComputations] = (
+        dataclasses.field(default=None)
+    )
 
     def __post_init__(
         self,
@@ -455,12 +455,12 @@ class Planner:
         # Creation of contact kinematics consistency functions
         descriptor = point.descriptor
         if descriptor.foot_frame not in point_kinematics_functions:
-            point_kinematics_functions[
-                descriptor.foot_frame
-            ] = hp_rp.point_position_from_kinematics(
-                kindyn_object=self.kin_dyn_object,
-                frame_name=descriptor.foot_frame,
-                **function_inputs,
+            point_kinematics_functions[descriptor.foot_frame] = (
+                hp_rp.point_position_from_kinematics(
+                    kindyn_object=self.kin_dyn_object,
+                    frame_name=descriptor.foot_frame,
+                    **function_inputs,
+                )
             )
 
         # Consistency between the contact position and the kinematics
