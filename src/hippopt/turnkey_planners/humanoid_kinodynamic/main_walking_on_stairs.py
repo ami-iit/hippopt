@@ -1,10 +1,10 @@
-import argparse
 import logging
 
 import casadi as cs
 import idyntree.bindings as idyntree
 import liecasadi
 import numpy as np
+import resolve_robotics_uri_py
 
 import hippopt
 import hippopt.robot_planning as hp_rp
@@ -28,19 +28,12 @@ def get_terrain(length: float, width: float, height: float) -> hp_rp.TerrainDesc
 
 
 def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.Settings:
-    parser = argparse.ArgumentParser(
-        description="Trajectory Optimization of a walking motion"
-        " on ergoCub over stairs.",
-    )
-    parser.add_argument(
-        "--urdf",
-        type=str,
-        required=True,
-        help="Path to the ergoCubGazeboV1_minContacts URDF file.",
+    urdf_path = resolve_robotics_uri_py.resolve_robotics_uri(
+        "package://ergoCub/robots/ergoCubGazeboV1_minContacts/model.urdf"
     )
     settings = walking_settings.Settings()
     settings.terrain = terrain
-    settings.robot_urdf = parser.parse_args().urdf
+    settings.robot_urdf = str(urdf_path)
     settings.joints_name_list = [
         "torso_pitch",
         "torso_roll",

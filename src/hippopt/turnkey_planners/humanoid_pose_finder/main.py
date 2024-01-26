@@ -1,10 +1,10 @@
-import argparse
 import logging
 
 import casadi as cs
 import idyntree.bindings as idyntree
 import liecasadi
 import numpy as np
+import resolve_robotics_uri_py
 
 import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
@@ -12,19 +12,12 @@ import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    parser = argparse.ArgumentParser(
-        description="Trajectory Optimization of a forward walking motion on ergoCub.",
-    )
-
-    parser.add_argument(
-        "--urdf",
-        type=str,
-        required=True,
-        help="Path to the ergoCubGazeboV1_minContacts URDF file.",
+    urdf_path = resolve_robotics_uri_py.resolve_robotics_uri(
+        "package://ergoCub/robots/ergoCubGazeboV1_minContacts/model.urdf"
     )
 
     planner_settings = pose_finder.Settings()
-    planner_settings.robot_urdf = parser.parse_args().urdf
+    planner_settings.robot_urdf = str(urdf_path)
     planner_settings.joints_name_list = [
         "torso_pitch",
         "torso_roll",
