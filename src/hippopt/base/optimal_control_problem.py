@@ -48,9 +48,9 @@ class OptimalControlProblemInstance:
 
 @dataclasses.dataclass
 class OptimalControlProblem(Problem[TOptimalControlSolver, TInputObjects]):
-    optimal_control_solver: dataclasses.InitVar[
-        OptimalControlSolver
-    ] = dataclasses.field(default=None)
+    optimal_control_solver: dataclasses.InitVar[OptimalControlSolver] = (
+        dataclasses.field(default=None)
+    )
 
     def __post_init__(
         self,

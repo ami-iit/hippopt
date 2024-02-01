@@ -77,9 +77,9 @@ class OptiSolver(OptimizationSolver):
     _cost_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
     _constraint_expressions: dict[str, cs.MX] = dataclasses.field(default=None)
     _solver: cs.Opti = dataclasses.field(default=None)
-    _output_solution: TOptimizationObject | list[
-        TOptimizationObject
-    ] = dataclasses.field(default=None)
+    _output_solution: TOptimizationObject | list[TOptimizationObject] = (
+        dataclasses.field(default=None)
+    )
     _output_cost: float = dataclasses.field(default=None)
     _cost_values: dict[str, float] = dataclasses.field(default=None)
     _constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
@@ -304,9 +304,11 @@ class OptiSolver(OptimizationSolver):
 
     def _generate_solution_output(
         self,
-        variables: TOptimizationObject
-        | list[TOptimizationObject]
-        | list[list[TOptimizationObject]],
+        variables: (
+            TOptimizationObject
+            | list[TOptimizationObject]
+            | list[list[TOptimizationObject]]
+        ),
         input_solution: cs.OptiSol | dict,
     ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
@@ -383,12 +385,16 @@ class OptiSolver(OptimizationSolver):
 
     def _set_initial_guess_internal(
         self,
-        initial_guess: TOptimizationObject
-        | list[TOptimizationObject]
-        | list[list[TOptimizationObject]],
-        corresponding_variable: TOptimizationObject
-        | list[TOptimizationObject]
-        | list[list[TOptimizationObject]],
+        initial_guess: (
+            TOptimizationObject
+            | list[TOptimizationObject]
+            | list[list[TOptimizationObject]]
+        ),
+        corresponding_variable: (
+            TOptimizationObject
+            | list[TOptimizationObject]
+            | list[list[TOptimizationObject]]
+        ),
         base_name: str = "",
     ) -> None:
         if isinstance(initial_guess, list):
@@ -679,12 +685,16 @@ class OptiSolver(OptimizationSolver):
                 opti=self._solver,
                 variables=variables,
                 parameters=parameters,
-                costs=list(self._cost_expressions.values())
-                if self._callback_save_costs
-                else [],
-                constraints=list(self._constraint_expressions.values())
-                if self._callback_save_constraint_multipliers
-                else [],
+                costs=(
+                    list(self._cost_expressions.values())
+                    if self._callback_save_costs
+                    else []
+                ),
+                constraints=(
+                    list(self._constraint_expressions.values())
+                    if self._callback_save_constraint_multipliers
+                    else []
+                ),
             )
             self._solver.callback(self._callback)
         try:

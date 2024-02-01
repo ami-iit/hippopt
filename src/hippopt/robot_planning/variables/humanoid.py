@@ -30,9 +30,9 @@ class HumanoidState(OptimizationObject):
 
     com: StorageType = default_storage_field(OverridableVariable)
 
-    contact_point_descriptors: dataclasses.InitVar[
-        FeetContactPointDescriptors
-    ] = dataclasses.field(default=None)
+    contact_point_descriptors: dataclasses.InitVar[FeetContactPointDescriptors] = (
+        dataclasses.field(default=None)
+    )
     number_of_joints: dataclasses.InitVar[int] = dataclasses.field(default=None)
 
     def __post_init__(
