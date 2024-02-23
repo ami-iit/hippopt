@@ -267,6 +267,7 @@ def compute_initial_state(
     desired_com_position = (
         desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
     ) / 2.0
+    desired_com_position[2] = 0.7
     output_pf = compute_state(
         input_settings=input_settings,
         pf_input=pf_input,
