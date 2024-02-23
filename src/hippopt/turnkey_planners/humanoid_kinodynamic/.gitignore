@@ -1,0 +1,5 @@
+*.stl
+*.urdf
+frames/*
+*.png
+*.mp4
