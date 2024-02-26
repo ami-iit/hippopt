@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 import typing
 
 import numpy as np
@@ -143,38 +144,122 @@ class Settings:
             self.opti_callback_save_constraint_multipliers = True
 
     def is_valid(self) -> bool:
+        ok = True
+        logger = logging.getLogger("[hippopt::HumanoidKynodynamic::Settings]")
         number_of_joints = len(self.joints_name_list)
-        return (
-            self.robot_urdf is not None
-            and self.joints_name_list is not None
-            and self.contact_points is not None
-            and self.horizon_length is not None
-            and self.time_step is not None
-            and self.minimum_com_height is not None
-            and self.minimum_feet_lateral_distance is not None
-            and self.maximum_feet_relative_height is not None
-            and self.maximum_joint_positions is not None
-            and self.minimum_joint_positions is not None
-            and self.maximum_joint_velocities is not None
-            and self.minimum_joint_velocities is not None
-            and len(self.maximum_joint_positions) == number_of_joints
-            and len(self.minimum_joint_positions) == number_of_joints
-            and len(self.maximum_joint_velocities) == number_of_joints
-            and len(self.minimum_joint_velocities) == number_of_joints
-            and self.contacts_centroid_cost_multiplier is not None
-            and self.com_linear_velocity_cost_weights is not None
-            and len(self.com_linear_velocity_cost_weights) == 3
-            and self.com_linear_velocity_cost_multiplier is not None
-            and self.desired_frame_quaternion_cost_frame_name is not None
-            and self.desired_frame_quaternion_cost_multiplier is not None
-            and self.base_quaternion_cost_multiplier is not None
-            and self.base_quaternion_velocity_cost_multiplier is not None
-            and self.joint_regularization_cost_weights is not None
-            and len(self.joint_regularization_cost_weights) == number_of_joints
-            and self.joint_regularization_cost_multiplier is not None
-            and self.force_regularization_cost_multiplier is not None
-            and self.foot_yaw_regularization_cost_multiplier is not None
-            and self.swing_foot_height_cost_multiplier is not None
-            and self.contact_velocity_control_cost_multiplier is not None
-            and self.contact_force_control_cost_multiplier is not None
-        )
+        if self.robot_urdf is None:
+            logger.error("robot_urdf is None")
+            ok = False
+        if self.joints_name_list is None:
+            logger.error("joints_name_list is None")
+            ok = False
+        if self.contact_points is None:
+            logger.error("contact_points is None")
+            ok = False
+        if self.horizon_length is None:
+            logger.error("horizon_length is None")
+            ok = False
+        if self.time_step is None:
+            logger.error("time_step is None")
+            ok = False
+        if self.minimum_com_height is None:
+            logger.error("minimum_com_height is None")
+            ok = False
+        if self.minimum_feet_lateral_distance is None:
+            logger.error("minimum_feet_lateral_distance is None")
+            ok = False
+        if self.maximum_feet_relative_height is None:
+            logger.error("maximum_feet_relative_height is None")
+            ok = False
+        if self.maximum_joint_positions is None:
+            logger.error("maximum_joint_positions is None")
+            ok = False
+        if self.minimum_joint_positions is None:
+            logger.error("minimum_joint_positions is None")
+            ok = False
+        if self.maximum_joint_velocities is None:
+            logger.error("maximum_joint_velocities is None")
+            ok = False
+        if self.minimum_joint_velocities is None:
+            logger.error("minimum_joint_velocities is None")
+            ok = False
+        if len(self.maximum_joint_positions) != number_of_joints:
+            logger.error(
+                f"len(maximum_joint_positions)={len(self.maximum_joint_positions)} !="
+                f" number_of_joints={number_of_joints}"
+            )
+            ok = False
+        if len(self.minimum_joint_positions) != number_of_joints:
+            logger.error(
+                f"len(minimum_joint_positions)={len(self.minimum_joint_positions)} !="
+                f" number_of_joints={number_of_joints}"
+            )
+            ok = False
+        if len(self.maximum_joint_velocities) != number_of_joints:
+            logger.error(
+                f"len(maximum_joint_velocities)={len(self.maximum_joint_velocities)} !="
+                f" number_of_joints={number_of_joints}"
+            )
+            ok = False
+        if len(self.minimum_joint_velocities) != number_of_joints:
+            logger.error(
+                f"len(minimum_joint_velocities)={len(self.minimum_joint_velocities)} !="
+                f" number_of_joints={number_of_joints}"
+            )
+            ok = False
+        if self.contacts_centroid_cost_multiplier is None:
+            logger.error("contacts_centroid_cost_multiplier is None")
+            ok = False
+        if self.com_linear_velocity_cost_weights is None:
+            logger.error("com_linear_velocity_cost_weights is None")
+            ok = False
+        if len(self.com_linear_velocity_cost_weights) != 3:
+            logger.error(
+                f"len(com_linear_velocity_cost_weights)="
+                f"{len(self.com_linear_velocity_cost_weights)} != 3"
+            )
+            ok = False
+        if self.com_linear_velocity_cost_multiplier is None:
+            logger.error("com_linear_velocity_cost_multiplier is None")
+            ok = False
+        if self.desired_frame_quaternion_cost_frame_name is None:
+            logger.error("desired_frame_quaternion_cost_frame_name is None")
+            ok = False
+        if self.desired_frame_quaternion_cost_multiplier is None:
+            logger.error("desired_frame_quaternion_cost_multiplier is None")
+            ok = False
+        if self.base_quaternion_cost_multiplier is None:
+            logger.error("base_quaternion_cost_multiplier is None")
+            ok = False
+        if self.base_quaternion_velocity_cost_multiplier is None:
+            logger.error("base_quaternion_velocity_cost_multiplier is None")
+            ok = False
+        if self.joint_regularization_cost_weights is None:
+            logger.error("joint_regularization_cost_weights is None")
+            ok = False
+        if len(self.joint_regularization_cost_weights) != number_of_joints:
+            logger.error(
+                f"len(joint_regularization_cost_weights)="
+                f"{len(self.joint_regularization_cost_weights)} !="
+                f" number_of_joints={number_of_joints}"
+            )
+            ok = False
+        if self.joint_regularization_cost_multiplier is None:
+            logger.error("joint_regularization_cost_multiplier is None")
+            ok = False
+        if self.force_regularization_cost_multiplier is None:
+            logger.error("force_regularization_cost_multiplier is None")
+            ok = False
+        if self.foot_yaw_regularization_cost_multiplier is None:
+            logger.error("foot_yaw_regularization_cost_multiplier is None")
+            ok = False
+        if self.swing_foot_height_cost_multiplier is None:
+            logger.error("swing_foot_height_cost_multiplier is None")
+            ok = False
+        if self.contact_velocity_control_cost_multiplier is None:
+            logger.error("contact_velocity_control_cost_multiplier is None")
+            ok = False
+        if self.contact_force_control_cost_multiplier is None:
+            logger.error("contact_force_control_cost_multiplier is None")
+            ok = False
+        return ok
