@@ -85,25 +85,62 @@ class Settings:
     casadi_solver_options: dict = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.root_link = "root_link"
-        self.gravity = np.array([0.0, 0.0, -9.80665, 0.0, 0.0, 0.0])
-        self.integrator = hp_int.ImplicitTrapezoid
-        self.terrain = hp_rp.PlanarTerrain()
-        self.planar_dcc_height_multiplier = 10.0
-        self.dcc_gain = 20.0
-        self.dcc_epsilon = 0.05
-        self.static_friction = 0.3
-        self.maximum_velocity_control = np.array([2.0, 2.0, 5.0])
-        self.maximum_force_derivative = np.array([100.0, 100.0, 100.0])
-        self.maximum_angular_momentum = 10.0
-        self.final_state_expression_type = hp.ExpressionType.skip
-        self.final_state_expression_weight = 1.0
-        self.periodicity_expression_type = hp.ExpressionType.skip
-        self.periodicity_expression_weight = 1.0
-        self.use_opti_callback = False
-        self.acceptable_constraint_violation = 1e-3
-        self.opti_callback_save_costs = True
-        self.opti_callback_save_constraint_multipliers = True
+        if self.root_link is None:
+            self.root_link = "root_link"
+
+        if self.gravity is None:
+            self.gravity = np.array([0.0, 0.0, -9.80665, 0.0, 0.0, 0.0])
+
+        if self.integrator is None:
+            self.integrator = hp_int.ImplicitTrapezoid
+
+        if self.terrain is None:
+            self.terrain = hp_rp.PlanarTerrain()
+
+        if self.planar_dcc_height_multiplier is None:
+            self.planar_dcc_height_multiplier = 10.0
+
+        if self.dcc_gain is None:
+            self.dcc_gain = 20.0
+
+        if self.dcc_epsilon is None:
+            self.dcc_epsilon = 0.05
+
+        if self.static_friction is None:
+            self.static_friction = 0.3
+
+        if self.maximum_velocity_control is None:
+            self.maximum_velocity_control = np.array([2.0, 2.0, 5.0])
+
+        if self.maximum_force_derivative is None:
+            self.maximum_force_derivative = np.array([100.0, 100.0, 100.0])
+
+        if self.maximum_angular_momentum is None:
+            self.maximum_angular_momentum = 10.0
+
+        if self.final_state_expression_type is None:
+            self.final_state_expression_type = hp.ExpressionType.skip
+
+        if self.final_state_expression_weight is None:
+            self.final_state_expression_weight = 1.0
+
+        if self.periodicity_expression_type is None:
+            self.periodicity_expression_type = hp.ExpressionType.skip
+
+        if self.periodicity_expression_weight is None:
+            self.periodicity_expression_weight = 1.0
+
+        if self.use_opti_callback is None:
+            self.use_opti_callback = False
+
+        if self.acceptable_constraint_violation is None:
+            self.acceptable_constraint_violation = 1e-3
+
+        if self.opti_callback_save_costs is None:
+            self.opti_callback_save_costs = True
+
+        if self.opti_callback_save_constraint_multipliers is None:
+            self.opti_callback_save_constraint_multipliers = True
 
     def is_valid(self) -> bool:
         number_of_joints = len(self.joints_name_list)
