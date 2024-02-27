@@ -1,6 +1,7 @@
 import copy
 
 import adam.casadi
+import adam.parametric.casadi
 import casadi as cs
 import numpy as np
 
@@ -21,14 +22,26 @@ class Planner:
         if not settings.is_valid():
             raise ValueError("Settings are not valid")
         self.settings = copy.deepcopy(settings)
-        self.kin_dyn_object = adam.casadi.KinDynComputations(
-            urdfstring=self.settings.robot_urdf,
-            joints_name_list=self.settings.joints_name_list,
-            root_link=self.settings.root_link,
-            gravity=self.settings.gravity,
-            f_opts=self.settings.casadi_function_options,
-        )
-        self.numeric_mass = self.kin_dyn_object.get_total_mass()
+        if self.settings.parametric_link_names is not None:
+            self.parametric = True
+            self.kin_dyn_object = adam.parametric.casadi.KinDynComputationsParametric(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                links_name_list=self.settings.parametric_link_names,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+        else:
+            self.parametric = False
+            self.kin_dyn_object = adam.casadi.KinDynComputations(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+            self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
         self.variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
@@ -858,7 +871,16 @@ class Planner:
         )
 
     def _apply_mass_regularization(self, input_var: Variables) -> Variables:
-        assert self.numeric_mass > 0
+        if self.parametric:
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(  # noqa It is a function, not a float
+                input_var.parametric_link_densities,  # WARNING the order might change
+                input_var.parametric_link_length_multipliers,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        assert numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
             if (
@@ -866,19 +888,19 @@ class Planner:
                 and len(output.initial_state.centroidal_momentum.shape) > 0
                 and output.initial_state.centroidal_momentum.shape[0] == 6
             ):
-                output.initial_state.centroidal_momentum /= self.numeric_mass
+                output.initial_state.centroidal_momentum /= numeric_mass
             for point in (
                 output.initial_state.contact_points.left
                 + output.initial_state.contact_points.right
             ):
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         if output.final_state is not None:
             for point in (
                 output.final_state.contact_points.left
                 + output.final_state.contact_points.right
             ):
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         if output.system is None:
             return output
@@ -889,14 +911,23 @@ class Planner:
 
         for system in system_list:
             if system.centroidal_momentum is not None:
-                system.centroidal_momentum /= self.numeric_mass
+                system.centroidal_momentum /= numeric_mass
             for point in system.contact_points.left + system.contact_points.right:
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         return output
 
     def _undo_mass_regularization(self, input_var: Variables) -> Variables:
-        assert self.numeric_mass > 0
+        if self.parametric:
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(  # noqa It is a function, not a float
+                input_var.parametric_link_densities,  # WARNING the order might change
+                input_var.parametric_link_length_multipliers,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        assert numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
             if (
@@ -904,19 +935,19 @@ class Planner:
                 and len(output.initial_state.centroidal_momentum.shape) > 0
                 and output.initial_state.centroidal_momentum.shape[0] == 6
             ):
-                output.initial_state.centroidal_momentum *= self.numeric_mass
+                output.initial_state.centroidal_momentum *= numeric_mass
             for point in (
                 output.initial_state.contact_points.left
                 + output.initial_state.contact_points.right
             ):
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         if output.final_state is not None:
             for point in (
                 output.final_state.contact_points.left
                 + output.final_state.contact_points.right
             ):
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         if output.system is None:
             return output
@@ -927,9 +958,9 @@ class Planner:
 
         for system in system_list:
             if system.centroidal_momentum is not None:
-                system.centroidal_momentum *= self.numeric_mass
+                system.centroidal_momentum *= numeric_mass
             for point in system.contact_points.left + system.contact_points.right:
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         return output
 

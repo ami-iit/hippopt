@@ -1,7 +1,9 @@
+import copy
 import dataclasses
 from typing import TypeVar
 
 import adam.casadi
+import adam.parametric.casadi
 import numpy as np
 
 import hippopt as hp
@@ -259,6 +261,11 @@ class Variables(hp.OptimizationObject):
 
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
+    parametric_link_length_multipliers: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+    parametric_link_densities: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
     initial_state: hp.CompositeType[ExtendedHumanoidState] = hp.default_composite_field(
         cls=hp.Parameter, factory=ExtendedHumanoidState, time_varying=False
     )
@@ -295,14 +302,18 @@ class Variables(hp.OptimizationObject):
     )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
-    kin_dyn_object: dataclasses.InitVar[adam.casadi.KinDynComputations] = (
-        dataclasses.field(default=None)
-    )
+    kin_dyn_object: dataclasses.InitVar[
+        adam.casadi.KinDynComputations
+        | adam.parametric.casadi.KinDynComputationsParametric
+    ] = dataclasses.field(default=None)
 
     def __post_init__(
         self,
         settings: Settings,
-        kin_dyn_object: adam.casadi.KinDynComputations,
+        kin_dyn_object: (
+            adam.casadi.KinDynComputations
+            | adam.parametric.casadi.KinDynComputationsParametric
+        ),
     ) -> None:
         self.system = ExtendedHumanoid(
             contact_point_descriptors=settings.contact_points,
@@ -321,7 +332,27 @@ class Variables(hp.OptimizationObject):
 
         self.dt = settings.time_step
         self.gravity = kin_dyn_object.g
-        self.mass = kin_dyn_object.get_total_mass()
+
+        self.parametric_link_length_multipliers = (
+            np.ones(len(settings.parametric_link_names))
+            if settings.parametric_link_names is not None
+            else np.array([])
+        )
+        self.parametric_link_densities = (
+            copy.deepcopy(settings.initial_densities)
+            if settings.initial_densities is not None
+            else np.array([])
+        )
+
+        if isinstance(
+            kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+        ):
+            total_mass_fun = kin_dyn_object.get_total_mass()
+            self.mass = total_mass_fun(  # noqa
+                self.parametric_link_densities, self.parametric_link_length_multipliers
+            )  # WARNING, the order might change
+        else:
+            self.mass = kin_dyn_object.get_total_mass()
 
         self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
         self.dcc_gain = settings.dcc_gain

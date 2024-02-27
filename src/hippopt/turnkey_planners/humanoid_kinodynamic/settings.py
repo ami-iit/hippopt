@@ -13,6 +13,10 @@ from hippopt import robot_planning as hp_rp
 class Settings:
     robot_urdf: str = dataclasses.field(default=None)
     joints_name_list: list[str] = dataclasses.field(default=None)
+    parametric_link_names: list[str] = dataclasses.field(default=None)
+    initial_densities: np.ndarray = dataclasses.field(
+        default=None
+    )  # Necessary because of https://github.com/ami-iit/adam/issues/70
     contact_points: hp_rp.FeetContactPointDescriptors = dataclasses.field(default=None)
     root_link: str = dataclasses.field(default=None)
     gravity: np.array = dataclasses.field(default=None)
@@ -153,6 +157,13 @@ class Settings:
         if self.joints_name_list is None:
             logger.error("joints_name_list is None")
             ok = False
+        if self.parametric_link_names is not None:
+            if len(self.parametric_link_names) != len(self.initial_densities):
+                logger.error(
+                    f"len(parametric_link_names)={len(self.parametric_link_names)} !="
+                    f" len(initial_densities)={len(self.initial_densities)}"
+                )
+                ok = False
         if self.contact_points is None:
             logger.error("contact_points is None")
             ok = False
