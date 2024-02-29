@@ -348,9 +348,9 @@ class Variables(hp.OptimizationObject):
             kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
         ):
             total_mass_fun = kin_dyn_object.get_total_mass()
-            self.mass = total_mass_fun(  # noqa
-                self.parametric_link_densities, self.parametric_link_length_multipliers
-            )  # WARNING, the order might change
+            self.mass = total_mass_fun(
+                self.parametric_link_length_multipliers, self.parametric_link_densities
+            )
         else:
             self.mass = kin_dyn_object.get_total_mass()
 

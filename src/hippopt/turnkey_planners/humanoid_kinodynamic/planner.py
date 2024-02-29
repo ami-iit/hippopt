@@ -872,10 +872,13 @@ class Planner:
 
     def _apply_mass_regularization(self, input_var: Variables) -> Variables:
         if self.parametric:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
             numeric_mass_fun = self.kin_dyn_object.get_total_mass()
-            numeric_mass = numeric_mass_fun(  # noqa It is a function, not a float
-                input_var.parametric_link_densities,  # WARNING the order might change
+            numeric_mass = numeric_mass_fun(
                 input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
             )
         else:
             numeric_mass = self.numeric_mass
@@ -919,10 +922,13 @@ class Planner:
 
     def _undo_mass_regularization(self, input_var: Variables) -> Variables:
         if self.parametric:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
             numeric_mass_fun = self.kin_dyn_object.get_total_mass()
-            numeric_mass = numeric_mass_fun(  # noqa It is a function, not a float
-                input_var.parametric_link_densities,  # WARNING the order might change
+            numeric_mass = numeric_mass_fun(
                 input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
             )
         else:
             numeric_mass = self.numeric_mass
