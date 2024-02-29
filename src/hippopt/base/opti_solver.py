@@ -152,6 +152,9 @@ class OptiSolver(OptimizationSolver):
         if isinstance(value, float):
             value = value * np.ones((1, 1))
 
+        if value.shape[0] * value.shape[1] == 0:
+            raise ValueError("Field " + name + " has a zero dimension.")
+
         if storage_type is Variable.StorageTypeValue:
             self._logger.debug("Creating variable " + name)
             opti_object = self._solver.variable(*value.shape)
@@ -181,12 +184,17 @@ class OptiSolver(OptimizationSolver):
             composite_value = output.__getattribute__(field.name)
 
             is_list = isinstance(composite_value, list)
-            list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                for elem in composite_value
+            list_of_optimization_objects = (
+                is_list
+                and len(composite_value) > 0
+                and all(
+                    isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                    for elem in composite_value
+                )
             )
-            list_of_float = is_list and all(
-                isinstance(elem, float) for elem in composite_value
+            list_of_float = is_list and (
+                len(composite_value) == 0
+                or all(isinstance(elem, float) for elem in composite_value)
             )
             if list_of_float:
                 composite_value = np.array(composite_value)
