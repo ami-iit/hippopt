@@ -15,6 +15,9 @@ import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
 
 def get_planner_settings() -> walking_settings.Settings:
+    # The model is available at
+    # https://github.com/icub-tech-iit/ergocub-gazebo-simulations/tree/↵
+    # 1179630a88541479df51ebb108a21865ea251302/models/stickBot
     urdf_path = resolve_robotics_uri_py.resolve_robotics_uri(
         "package://stickBot/model.urdf"
     )
@@ -44,6 +47,26 @@ def get_planner_settings() -> walking_settings.Settings:
         "r_knee",
         "r_ankle_pitch",
         "r_ankle_roll",
+    ]
+    settings.parametric_link_names = [
+        "r_upper_arm",
+        "r_forearm",
+        "l_hip_3",
+        "l_lower_leg",
+        "root_link",
+        "torso_1",
+        "torso_2",
+        "chest",
+    ]
+    settings.initial_densities = [
+        1661.6863265236248,
+        727.4313078156689,
+        600.8642717368293,
+        2134.3111071426842,
+        2129.295296396375,
+        1199.0762240824756,
+        893.1076351798705,
+        626.6027187152905,
     ]
     number_of_joints = len(settings.joints_name_list)
     idyntree_model_loader = idyntree.ModelLoader()
@@ -452,19 +475,6 @@ if __name__ == "__main__":
 
     guess = first_half_guess + second_half_guess
 
-    visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    print("Press [Enter] to visualize the initial guess.")
-    input()
-
-    visualizer.visualize(
-        states=guess,
-        timestep_s=planner_settings.time_step,
-        time_multiplier=1.0,
-        save=True,
-        file_name_stem="humanoid_walking_periodic_parametric_guess",
-    )
-
     print("Starting the planner...")
 
     references = get_references(
@@ -486,6 +496,9 @@ if __name__ == "__main__":
     humanoid_states = [s.to_humanoid_state() for s in output.values.system]
     left_contact_points = [s.contact_points.left for s in humanoid_states]
     right_contact_points = [s.contact_points.right for s in humanoid_states]
+
+    visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     print("Press [Enter] to visualize the solution.")
     input()
 
