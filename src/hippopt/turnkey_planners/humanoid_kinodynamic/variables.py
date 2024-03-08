@@ -336,12 +336,12 @@ class Variables(hp.OptimizationObject):
         self.parametric_link_length_multipliers = (
             np.ones(len(settings.parametric_link_names))
             if settings.parametric_link_names is not None
-            else np.array([])
+            else 0.0
         )
         self.parametric_link_densities = (
             copy.deepcopy(settings.initial_densities)
             if settings.initial_densities is not None
-            else np.array([])
+            else 0.0
         )
 
         if isinstance(
