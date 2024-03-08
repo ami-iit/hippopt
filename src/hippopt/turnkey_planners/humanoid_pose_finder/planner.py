@@ -3,6 +3,7 @@ import dataclasses
 import logging
 
 import adam.casadi
+import adam.model
 import casadi as cs
 import numpy as np
 
@@ -572,3 +573,6 @@ class Planner:
 
     def solve(self) -> hp.Output[Variables]:
         return self.op.problem.solve()
+
+    def get_adam_model(self) -> adam.model.Model:
+        return self.kin_dyn_object.rbdalgos.model
