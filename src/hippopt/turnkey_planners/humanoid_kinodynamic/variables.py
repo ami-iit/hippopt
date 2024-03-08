@@ -1,4 +1,3 @@
-import copy
 import dataclasses
 from typing import TypeVar
 
@@ -338,15 +337,12 @@ class Variables(hp.OptimizationObject):
             if settings.parametric_link_names is not None
             else 0.0
         )
-        self.parametric_link_densities = (
-            copy.deepcopy(settings.initial_densities)
-            if settings.initial_densities is not None
-            else 0.0
-        )
 
         if isinstance(
             kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
         ):
+            self.parametric_link_densities = kin_dyn_object.get_original_densities()
+            print("parametric_link_densities", self.parametric_link_densities)
             total_mass_fun = kin_dyn_object.get_total_mass()
             self.mass = float(
                 total_mass_fun(
@@ -356,6 +352,7 @@ class Variables(hp.OptimizationObject):
             )
         else:
             self.mass = kin_dyn_object.get_total_mass()
+            self.parametric_link_densities = 0.0
 
         self.planar_dcc_height_multiplier = settings.planar_dcc_height_multiplier
         self.dcc_gain = settings.dcc_gain

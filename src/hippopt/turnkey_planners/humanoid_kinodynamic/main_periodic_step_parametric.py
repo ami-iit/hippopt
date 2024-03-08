@@ -58,16 +58,27 @@ def get_planner_settings() -> walking_settings.Settings:
         "torso_2",
         "chest",
     ]
-    settings.initial_densities = [
-        1661.6863265236248,
-        727.4313078156689,
-        600.8642717368293,
-        2134.3111071426842,
-        2129.295296396375,
-        1199.0762240824756,
-        893.1076351798705,
-        626.6027187152905,
-    ]
+    # settings.parametric_link_densities = [
+    #     1661.6863265236248,
+    #     727.4313078156689,
+    #     600.8642717368293,
+    #     2134.3111071426842,
+    #     2129.295296396375,
+    #     1199.0762240824756,
+    #     893.1076351798705,
+    #     626.6027187152905,
+    # ]
+    # settings.parametric_link_length_multipliers = [
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    #     1.0,
+    # ]
+
     number_of_joints = len(settings.joints_name_list)
     idyntree_model_loader = idyntree.ModelLoader()
     idyntree_model_loader.loadReducedModelFromFile(
