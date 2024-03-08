@@ -1,9 +1,14 @@
 import copy
 
 import adam.casadi
+import adam.model
+import adam.numpy
 import adam.parametric.casadi
 import casadi as cs
 import numpy as np
+from adam.parametric.model.parametric_factories.parametric_model import (
+    URDFParametricModelFactory,
+)
 
 import hippopt as hp
 import hippopt.robot_planning as hp_rp
@@ -1057,3 +1062,22 @@ class Planner:
         output = self.ocp.problem.solve()
         output.values = self._undo_mass_regularization(output.values)
         return output
+
+    def get_adam_model(self) -> adam.model.Model:
+        if self.parametric_model:
+            guess = self.ocp.problem.get_initial_guess()
+            original_length = guess.parametric_link_length_multipliers
+            original_density = guess.parametric_link_densities
+            factory = URDFParametricModelFactory(
+                path=self.settings.robot_urdf,
+                math=adam.numpy.numpy_like.SpatialMath(),
+                links_name_list=self.settings.parametric_link_names,
+                length_multiplier=original_length,
+                densities=original_density,
+            )
+            model = adam.model.Model.build(
+                factory=factory, joints_name_list=self.settings.joints_name_list
+            )
+            return model
+
+        return self.kin_dyn_object.rbdalgos.model
