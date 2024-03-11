@@ -48,36 +48,6 @@ def get_planner_settings() -> walking_settings.Settings:
         "r_ankle_pitch",
         "r_ankle_roll",
     ]
-    settings.parametric_link_names = [
-        "r_upper_arm",
-        "r_forearm",
-        "l_hip_3",
-        "l_lower_leg",
-        "root_link",
-        "torso_1",
-        "torso_2",
-        "chest",
-    ]
-    # settings.parametric_link_densities = [
-    #     1661.6863265236248,
-    #     727.4313078156689,
-    #     600.8642717368293,
-    #     2134.3111071426842,
-    #     2129.295296396375,
-    #     1199.0762240824756,
-    #     893.1076351798705,
-    #     626.6027187152905,
-    # ]
-    # settings.parametric_link_length_multipliers = [
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    #     1.0,
-    # ]
 
     number_of_joints = len(settings.joints_name_list)
     idyntree_model_loader = idyntree.ModelLoader()
@@ -176,6 +146,7 @@ def get_pose_finder_settings(
     settings = pose_finder.Settings()
     settings.robot_urdf = input_settings.robot_urdf
     settings.joints_name_list = input_settings.joints_name_list
+    settings.parametric_link_names = input_settings.parametric_link_names
 
     settings.root_link = input_settings.root_link
     settings.desired_frame_quaternion_cost_frame_name = (
@@ -228,6 +199,8 @@ def compute_state(
     desired_com_position: np.ndarray,
     desired_left_foot_pose: liecasadi.SE3,
     desired_right_foot_pose: liecasadi.SE3,
+    pf_parametric_link_densities: list[float] | None,
+    pf_parametric_link_length_multipliers: list[float] | None,
 ) -> hp_rp.HumanoidState:
     desired_joints = np.deg2rad(
         [
@@ -285,7 +258,15 @@ def compute_state(
 
     pf_ref.state.kinematics.joints.positions = desired_joints
 
-    pf_input.set_references(pf_ref)
+    pf_guess = pf_input.get_initial_guess()
+    pf_guess.references = pf_ref
+    if pf_parametric_link_densities is not None:
+        pf_guess.parametric_link_densities = pf_parametric_link_densities
+    if pf_parametric_link_length_multipliers is not None:
+        pf_guess.parametric_link_length_multipliers = (
+            pf_parametric_link_length_multipliers
+        )
+    pf_input.set_initial_guess(pf_guess)
 
     output_pf = pf_input.solve()
     return output_pf.values.state
@@ -295,6 +276,8 @@ def compute_initial_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
     contact_guess: hp_rp.FeetContactPhasesDescriptor,
+    pf_parametric_link_densities: list[float] | None,
+    pf_parametric_link_length_multipliers: list[float] | None,
 ) -> walking_variables.ExtendedHumanoidState:
     desired_left_foot_pose = contact_guess.left[0].transform
     desired_right_foot_pose = contact_guess.right[0].transform
@@ -308,6 +291,8 @@ def compute_initial_state(
         desired_com_position=desired_com_position,
         desired_left_foot_pose=desired_left_foot_pose,
         desired_right_foot_pose=desired_right_foot_pose,
+        pf_parametric_link_densities=pf_parametric_link_densities,
+        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
     )
 
     output_state = walking_variables.ExtendedHumanoidState()
@@ -324,6 +309,8 @@ def compute_middle_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
     contact_guess: hp_rp.FeetContactPhasesDescriptor,
+    pf_parametric_link_densities: list[float] | None,
+    pf_parametric_link_length_multipliers: list[float] | None,
 ) -> hp_rp.HumanoidState:
     desired_left_foot_pose = contact_guess.left[1].transform
     desired_right_foot_pose = contact_guess.right[0].transform
@@ -337,6 +324,8 @@ def compute_middle_state(
         desired_com_position=desired_com_position,
         desired_left_foot_pose=desired_left_foot_pose,
         desired_right_foot_pose=desired_right_foot_pose,
+        pf_parametric_link_densities=pf_parametric_link_densities,
+        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
     )
 
 
@@ -344,6 +333,8 @@ def compute_final_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
     contact_guess: hp_rp.FeetContactPhasesDescriptor,
+    pf_parametric_link_densities: list[float] | None,
+    pf_parametric_link_length_multipliers: list[float] | None,
 ) -> hp_rp.HumanoidState:
     desired_left_foot_pose = contact_guess.left[1].transform
     desired_right_foot_pose = contact_guess.right[1].transform
@@ -357,6 +348,8 @@ def compute_final_state(
         desired_com_position=desired_com_position,
         desired_left_foot_pose=desired_left_foot_pose,
         desired_right_foot_pose=desired_right_foot_pose,
+        pf_parametric_link_densities=pf_parametric_link_densities,
+        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
     )
 
 
@@ -388,6 +381,39 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     planner_settings = get_planner_settings()
+
+    planner_settings.parametric_link_names = [
+        "r_upper_arm",
+        "r_forearm",
+        "l_hip_3",
+        "l_lower_leg",
+        "root_link",
+        "torso_1",
+        "torso_2",
+        "chest",
+    ]
+
+    parametric_link_densities = [
+        1578.8230690646876,
+        687.9855671524874,
+        568.2817642184916,
+        1907.2410446310623,
+        2013.8319822728106,
+        1134.0550335996697,
+        844.6779189491116,
+        628.0724496264946,
+    ]
+    parametric_link_length_multipliers = [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        2.0,
+    ]
+
     planner = walking_planner.Planner(settings=planner_settings)
 
     pf_settings = get_pose_finder_settings(input_settings=planner_settings)
@@ -448,12 +474,16 @@ if __name__ == "__main__":
         input_settings=planner_settings,
         pf_input=pf,
         contact_guess=contact_phases_guess,
+        pf_parametric_link_densities=parametric_link_densities,
+        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
     )
 
     final_state = compute_final_state(
         input_settings=planner_settings,
         pf_input=pf,
         contact_guess=contact_phases_guess,
+        pf_parametric_link_densities=parametric_link_densities,
+        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
     )
     final_state.centroidal_momentum = np.zeros((6, 1))
 
@@ -461,6 +491,8 @@ if __name__ == "__main__":
         input_settings=planner_settings,
         pf_input=pf,
         contact_guess=contact_phases_guess,
+        pf_parametric_link_densities=parametric_link_densities,
+        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
     )
 
     first_half_guess_length = planner_settings.horizon_length // 2
@@ -500,6 +532,12 @@ if __name__ == "__main__":
     ]
     planner_guess.initial_state = initial_state
     planner_guess.final_state = final_state
+    if parametric_link_densities is not None:
+        planner_guess.parametric_link_densities = parametric_link_densities
+    if parametric_link_length_multipliers is not None:
+        planner_guess.parametric_link_length_multipliers = (
+            parametric_link_length_multipliers
+        )
     planner.set_initial_guess(planner_guess)
 
     output = planner.solve()
