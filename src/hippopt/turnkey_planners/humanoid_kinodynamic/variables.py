@@ -342,7 +342,6 @@ class Variables(hp.OptimizationObject):
             kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
         ):
             self.parametric_link_densities = kin_dyn_object.get_original_densities()
-            print("parametric_link_densities", self.parametric_link_densities)
             total_mass_fun = kin_dyn_object.get_total_mass()
             self.mass = float(
                 total_mass_fun(
