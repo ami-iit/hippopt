@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 
 import casadi as cs
@@ -97,6 +98,10 @@ def test_generate_objects():
         ]
     )
     assert "other" not in as_dict
+    dict_copy = copy.deepcopy(as_dict)
+    dict_copy["aggregated.scalar"] = 7.0
+    opti_var.from_dict(dict_copy)
+    assert opti_var.aggregated.scalar == 7.0
 
 
 def test_generate_objects_list():
