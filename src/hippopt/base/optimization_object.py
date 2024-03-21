@@ -172,12 +172,16 @@ class OptimizationObject(abc.ABC):
 
         return output_dict, metadata_dict
 
-    def to_dict(self) -> (dict, dict):
-        output_dict, metadata_dict = OptimizationObject._scan(input_object=self)
+    def to_dict(self, prefix: str = "") -> (dict, dict):
+        output_dict, metadata_dict = OptimizationObject._scan(
+            input_object=self, name_prefix=prefix
+        )
         return output_dict, metadata_dict
 
-    def from_dict(self, input_dict: dict) -> None:
-        OptimizationObject._scan(input_object=self, input_dict=input_dict)
+    def from_dict(self, input_dict: dict, prefix: str = "") -> None:
+        OptimizationObject._scan(
+            input_object=self, name_prefix=prefix, input_dict=input_dict
+        )
 
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
