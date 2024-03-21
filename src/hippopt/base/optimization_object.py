@@ -68,6 +68,53 @@ class OptimizationObject(abc.ABC):
     def to_mx(self) -> cs.MX:
         return cs.vertcat(*self.to_list())
 
+    @staticmethod
+    def _to_dict(
+        input_object: TOptimizationObject | list[TOptimizationObject],
+        name_prefix: str = "",
+    ) -> dict:
+        output_dict = {}
+        if isinstance(input_object, list):
+            assert all(
+                isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                for elem in input_object
+            )
+            for i, elem in enumerate(input_object):
+                output_dict.update(
+                    OptimizationObject._to_dict(elem, name_prefix + f"[{str(i)}].")
+                )
+            return output_dict
+
+        assert isinstance(input_object, OptimizationObject)
+        for field in dataclasses.fields(input_object):
+            composite_value = input_object.__getattribute__(field.name)
+
+            list_of_optimization_objects = isinstance(composite_value, list) and all(
+                isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                for elem in composite_value
+            )
+
+            if (
+                isinstance(composite_value, OptimizationObject)
+                or list_of_optimization_objects
+            ):
+                separator = "" if list_of_optimization_objects else "."
+                output_dict.update(
+                    OptimizationObject._to_dict(
+                        composite_value, name_prefix + field.name + separator
+                    )
+                )
+                continue
+
+            if OptimizationObject.StorageTypeField in field.metadata:
+                output_dict[name_prefix + field.name] = composite_value
+                continue
+
+        return output_dict
+
+    def to_dict(self) -> dict:
+        return OptimizationObject._to_dict(self)
+
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
         pass
