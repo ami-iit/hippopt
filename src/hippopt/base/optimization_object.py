@@ -69,36 +69,41 @@ class OptimizationObject(abc.ABC):
         return cs.vertcat(*self.to_list())
 
     @staticmethod
-    def _to_dict(
+    def _scan(
         input_object: TOptimizationObject | list[TOptimizationObject],
         name_prefix: str = "",
-        get_metadata: bool = False,
         parent_metadata: dict | None = None,
-    ) -> dict:
+        input_dict: dict | None = None,
+    ) -> (dict, dict):
         output_dict = {}
+        metadata_dict = {}
         if isinstance(input_object, list):
             assert all(
                 isinstance(elem, OptimizationObject) or isinstance(elem, list)
                 for elem in input_object
             )
             for i, elem in enumerate(input_object):
-                output_dict.update(
-                    OptimizationObject._to_dict(
-                        input_object=elem,
-                        name_prefix=name_prefix + f"[{str(i)}].",
-                        get_metadata=get_metadata,
-                        parent_metadata=parent_metadata,
-                    )
+                inner_dict, inner_metadata = OptimizationObject._scan(
+                    input_object=elem,
+                    name_prefix=name_prefix + f"[{str(i)}].",
+                    parent_metadata=parent_metadata,
+                    input_dict=input_dict,
                 )
-            return output_dict
+                output_dict.update(inner_dict)
+                metadata_dict.update(inner_metadata)
+            return output_dict, metadata_dict
 
         assert isinstance(input_object, OptimizationObject)
         for field in dataclasses.fields(input_object):
             composite_value = input_object.__getattribute__(field.name)
 
-            list_of_optimization_objects = isinstance(composite_value, list) and all(
-                isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                for elem in composite_value
+            list_of_optimization_objects = (
+                isinstance(composite_value, list)
+                and len(composite_value) > 0
+                and all(
+                    isinstance(elem, OptimizationObject) or isinstance(elem, list)
+                    for elem in composite_value
+                )
             )
 
             if (
@@ -128,14 +133,14 @@ class OptimizationObject(abc.ABC):
                         new_parent_metadata = composite_metadata
 
                 separator = "" if list_of_optimization_objects else "."
-                output_dict.update(
-                    OptimizationObject._to_dict(
-                        input_object=composite_value,
-                        name_prefix=name_prefix + field.name + separator,
-                        get_metadata=get_metadata,
-                        parent_metadata=new_parent_metadata,
-                    )
+                inner_dict, inner_metadata = OptimizationObject._scan(
+                    input_object=composite_value,
+                    name_prefix=name_prefix + field.name + separator,
+                    parent_metadata=new_parent_metadata,
+                    input_dict=input_dict,
                 )
+                output_dict.update(inner_dict)
+                metadata_dict.update(inner_metadata)
                 continue
 
             if OptimizationObject.StorageTypeField in field.metadata:
@@ -154,18 +159,29 @@ class OptimizationObject(abc.ABC):
                         parent_metadata[OptimizationObject.StorageTypeField]
                     )
 
-                output_dict[name_prefix + field.name] = (
-                    composite_value if not get_metadata else value_metadata
-                )
+                full_name = name_prefix + field.name
+
+                if input_dict is not None and full_name in input_dict:
+                    input_value = input_dict[full_name]
+                    input_object.__setattr__(field.name, input_value)
+
+                metadata_dict[full_name] = value_metadata
+                output_dict[full_name] = composite_value
+
                 continue
 
-        return output_dict
+        return output_dict, metadata_dict
 
     def to_dict(self) -> dict:
-        return OptimizationObject._to_dict(input_object=self)
+        output_dict, _ = OptimizationObject._scan(input_object=self)
+        return output_dict
 
     def metadata_to_dict(self) -> dict:
-        return OptimizationObject._to_dict(input_object=self, get_metadata=True)
+        _, metadata_dict = OptimizationObject._scan(input_object=self)
+        return metadata_dict
+
+    def from_dict(self, input_dict: dict) -> None:
+        OptimizationObject._scan(input_object=self, input_dict=input_dict)
 
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
