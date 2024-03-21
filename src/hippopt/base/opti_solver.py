@@ -155,6 +155,9 @@ class OptiSolver(OptimizationSolver):
         if value.shape[0] * value.shape[1] == 0:
             raise ValueError("Field " + name + " has a zero dimension.")
 
+        assert isinstance(value, np.ndarray)
+        assert value.ndim == 2
+
         if storage_type is Variable.StorageTypeValue:
             self._logger.debug("Creating variable " + name)
             opti_object = self._solver.variable(*value.shape)
@@ -232,7 +235,9 @@ class OptiSolver(OptimizationSolver):
                         input_structure=composite_value,
                         fill_initial_guess=False,
                         _parent_metadata=new_parent_metadata,
-                        _base_name=base_name + field.name + ".",
+                        _base_name=base_name
+                        + field.name
+                        + ".",  # TODO: This is a mistake for lists
                     ),
                 )
                 continue
@@ -482,6 +487,14 @@ class OptiSolver(OptimizationSolver):
                         + " is neither an numpy nor a DM array."
                     )
 
+                if not isinstance(corresponding_value, cs.MX):
+                    raise ValueError(
+                        "The field "
+                        + base_name
+                        + field.name
+                        + "has not been added to opti."
+                    )
+
                 if len(guess.shape) == 0:
                     continue
 
@@ -555,6 +568,15 @@ class OptiSolver(OptimizationSolver):
                 + str(len(guess))
             )
         for i in range(len(corresponding_value)):
+            if not isinstance(corresponding_value[i], cs.MX):
+                raise ValueError(
+                    "The field "
+                    + base_name
+                    + field.name
+                    + "["
+                    + str(i)
+                    + "] has not been added to opti."
+                )
             value = guess[i]
             if isinstance(value, float):
                 value = value * np.ones((1, 1))
@@ -597,6 +619,51 @@ class OptiSolver(OptimizationSolver):
             raise ValueError(
                 "The input structure is neither an optimization object nor a list."
             )
+        # output = copy.deepcopy(input_structure)
+        # is_list = isinstance(output, list)
+        # input_list = output if is_list else [output]
+        # input_as_dict = {}
+        # input_metadata_as_dict = {}
+        # output_dict = {}
+        # for i, elem in enumerate(input_list):
+        #     prefix = f"[{i}]." if is_list else ""
+        #     elem_dict, elem_metadata = elem.to_dict(prefix=prefix)
+        #     input_as_dict.update(elem_dict)
+        #     input_metadata_as_dict.update(elem_metadata)
+        #
+        # for obj_name in input_as_dict:
+        #     value = input_as_dict[obj_name]
+        #     value_is_list = isinstance(value, list)
+        #     list_of_float = value_is_list and (
+        #         len(value) == 0 or all(isinstance(elem, float) for elem in value)
+        #     )
+        #     if list_of_float:
+        #         value = np.array(value)
+        #         value_is_list = False
+        #
+        #     value_list = value if value_is_list else [value]
+        #     output_value = []
+        #     storage_type = input_metadata_as_dict[obj_name][
+        #         OptimizationObject.StorageTypeField
+        #     ]
+        #     for i, val in enumerate(value_list):
+        #         output_value.append(
+        #             self._generate_opti_object(
+        #                 storage_type=storage_type,
+        #                 name=obj_name + f"[{str(i)}]" if value_is_list else obj_name,
+        #                 value=val,
+        #             )
+        #         )
+        #     output_dict[obj_name] = output_value if value_is_list else output_value[0]
+        #
+        # if is_list:
+        #     for i in range(len(output)):
+        #         output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
+        # else:
+        #     assert isinstance(output, OptimizationObject)
+        #     output.from_dict(input_dict=output_dict)
+        #
+        # self._variables = output
 
         parent_metadata = (
             kwargs["_parent_metadata"] if "_parent_metadata" in kwargs else None
