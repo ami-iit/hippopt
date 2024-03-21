@@ -72,6 +72,8 @@ class OptimizationObject(abc.ABC):
     def _to_dict(
         input_object: TOptimizationObject | list[TOptimizationObject],
         name_prefix: str = "",
+        get_metadata: bool = False,
+        parent_metadata: dict | None = None,
     ) -> dict:
         output_dict = {}
         if isinstance(input_object, list):
@@ -81,7 +83,12 @@ class OptimizationObject(abc.ABC):
             )
             for i, elem in enumerate(input_object):
                 output_dict.update(
-                    OptimizationObject._to_dict(elem, name_prefix + f"[{str(i)}].")
+                    OptimizationObject._to_dict(
+                        input_object=elem,
+                        name_prefix=name_prefix + f"[{str(i)}].",
+                        get_metadata=get_metadata,
+                        parent_metadata=parent_metadata,
+                    )
                 )
             return output_dict
 
@@ -98,22 +105,67 @@ class OptimizationObject(abc.ABC):
                 isinstance(composite_value, OptimizationObject)
                 or list_of_optimization_objects
             ):
+                new_parent_metadata = parent_metadata
+                has_composite_metadata = (
+                    OptimizationObject.CompositeTypeField in field.metadata
+                    and field.metadata[OptimizationObject.CompositeTypeField]
+                    is not None
+                )
+                if has_composite_metadata:
+                    composite_metadata = field.metadata[
+                        OptimizationObject.CompositeTypeField
+                    ]
+                    use_old_metadata = (
+                        parent_metadata is not None
+                        and OptimizationObject.OverrideIfCompositeField
+                        in composite_metadata
+                        and composite_metadata[
+                            OptimizationObject.OverrideIfCompositeField
+                        ]
+                    )
+
+                    if not use_old_metadata:
+                        new_parent_metadata = composite_metadata
+
                 separator = "" if list_of_optimization_objects else "."
                 output_dict.update(
                     OptimizationObject._to_dict(
-                        composite_value, name_prefix + field.name + separator
+                        input_object=composite_value,
+                        name_prefix=name_prefix + field.name + separator,
+                        get_metadata=get_metadata,
+                        parent_metadata=new_parent_metadata,
                     )
                 )
                 continue
 
             if OptimizationObject.StorageTypeField in field.metadata:
-                output_dict[name_prefix + field.name] = composite_value
+                should_override = (
+                    OptimizationObject.OverrideIfCompositeField in field.metadata
+                    and field.metadata[OptimizationObject.OverrideIfCompositeField]
+                )
+                parent_can_override = (
+                    parent_metadata is not None
+                    and OptimizationObject.StorageTypeField in parent_metadata
+                )
+                value_metadata = field.metadata.copy()
+
+                if should_override and parent_can_override:
+                    value_metadata[OptimizationObject.StorageTypeField] = (
+                        parent_metadata[OptimizationObject.StorageTypeField]
+                    )
+
+                output_dict[name_prefix + field.name] = (
+                    composite_value if not get_metadata else value_metadata
+                )
                 continue
 
         return output_dict
 
     def to_dict(self) -> dict:
-        return OptimizationObject._to_dict(self)
+        return OptimizationObject._to_dict(input_object=self)
+
+    def metadata_to_dict(self) -> dict:
+        return OptimizationObject._to_dict(input_object=self, get_metadata=True)
 
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:

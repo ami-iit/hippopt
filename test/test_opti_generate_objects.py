@@ -221,3 +221,17 @@ def test_generate_nested_overridable_class():
         solver.get_object_type(opti_var.composite.composite.not_overridable)
         == Variable.StorageTypeValue
     )
+
+    metadata_dict = test_var.metadata_to_dict()
+    assert (
+        metadata_dict["composite.composite.overridable"][
+            OptimizationObject.StorageTypeField
+        ]
+        == Parameter.StorageTypeValue
+    )
+    assert (
+        metadata_dict["composite.composite.not_overridable"][
+            OptimizationObject.StorageTypeField
+        ]
+        == Variable.StorageTypeValue
+    )
