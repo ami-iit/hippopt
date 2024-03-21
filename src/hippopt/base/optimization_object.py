@@ -172,13 +172,9 @@ class OptimizationObject(abc.ABC):
 
         return output_dict, metadata_dict
 
-    def to_dict(self) -> dict:
-        output_dict, _ = OptimizationObject._scan(input_object=self)
-        return output_dict
-
-    def metadata_to_dict(self) -> dict:
-        _, metadata_dict = OptimizationObject._scan(input_object=self)
-        return metadata_dict
+    def to_dict(self) -> (dict, dict):
+        output_dict, metadata_dict = OptimizationObject._scan(input_object=self)
+        return output_dict, metadata_dict
 
     def from_dict(self, input_dict: dict) -> None:
         OptimizationObject._scan(input_object=self, input_dict=input_dict)

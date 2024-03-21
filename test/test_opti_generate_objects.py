@@ -78,7 +78,7 @@ def test_generate_objects():
     assert (len(opti_var.to_list())) == len(test_var_as_list)
     expected_len = 7 + 3 * 7 + 3
     assert opti_var.to_mx().shape == (expected_len, 1)
-    as_dict = opti_var.to_dict()
+    as_dict, _ = opti_var.to_dict()
     assert all(
         expected in as_dict
         for expected in [
@@ -227,7 +227,7 @@ def test_generate_nested_overridable_class():
         == Variable.StorageTypeValue
     )
 
-    metadata_dict = test_var.metadata_to_dict()
+    _, metadata_dict = test_var.to_dict()
     assert (
         metadata_dict["composite.composite.overridable"][
             OptimizationObject.StorageTypeField
