@@ -32,58 +32,23 @@ class OptimizationObject(abc.ABC):
         OverrideIfComposite=False,
     )
 
-    def to_list(self) -> list:
-        output_list = []
-        for field in dataclasses.fields(self):
-            composite_value = self.__getattribute__(field.name)
-
-            is_list = isinstance(composite_value, list)
-            list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                for elem in composite_value
-            )
-            list_of_float = is_list and all(
-                isinstance(elem, float) for elem in composite_value
-            )
-            if list_of_float:
-                is_list = False
-
-            if list_of_optimization_objects:
-                for elem in composite_value:
-                    output_list += elem.to_list()
-                continue
-
-            if isinstance(composite_value, OptimizationObject):
-                output_list += composite_value.to_list()
-                continue
-
-            if OptimizationObject.StorageTypeField in field.metadata:
-                value_list = composite_value if is_list else [composite_value]
-                for value in value_list:
-                    output_list.append(value)
-                continue
-
-        return output_list
-
-    def to_mx(self) -> cs.MX:
-        return cs.vertcat(*self.to_list())
-
     @staticmethod
     def _convert_to_np_array(value: Any) -> Any | np.ndarray:
         output_value = value
-        list_of_float = isinstance(output_value, list) and (
+        list_of_numbers = isinstance(output_value, list) and (
             len(output_value) == 0
             or all(isinstance(elem, float) for elem in output_value)
+            or all(isinstance(elem, int) for elem in output_value)
         )
-        if list_of_float:
-            output_value = np.array(output_value)
+        if list_of_numbers:
+            output_value = np.array(output_value, dtype=float)
 
         if isinstance(output_value, np.ndarray):
             if output_value.ndim < 2:
                 output_value = np.expand_dims(output_value, axis=1)
 
-        if isinstance(output_value, float):
-            output_value = output_value * np.ones((1, 1))
+        if isinstance(output_value, float) or isinstance(output_value, int):
+            output_value = output_value * np.ones((1, 1), dtype=float)
 
         return output_value
 
@@ -224,6 +189,17 @@ class OptimizationObject(abc.ABC):
         OptimizationObject._scan(
             input_object=self, name_prefix=prefix, input_dict=input_dict
         )
+
+    def to_list(self) -> list:
+        output_list = []
+        as_dict = self.to_dict()
+        for key in sorted(as_dict.keys()):
+            output_list.append(as_dict[key])
+
+        return output_list
+
+    def to_mx(self) -> cs.MX:
+        return cs.vertcat(*self.to_list())
 
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
