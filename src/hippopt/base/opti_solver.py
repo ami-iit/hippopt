@@ -138,25 +138,20 @@ class OptiSolver(OptimizationSolver):
         if value is None:
             raise ValueError("Field " + name + " is tagged as storage, but it is None.")
 
-        if isinstance(value, np.ndarray):
-            if value.ndim > 2:
-                raise ValueError(
-                    "Field " + name + " has number of dimensions greater than 2."
-                )
-            if value.ndim == 0:
-                raise ValueError("Field " + name + " is a zero-dimensional vector.")
+        if not isinstance(value, np.ndarray):
+            raise ValueError(
+                f"Field {name} is tagged as storage, but it is not an array "
+                f"(it is a {str(type(value))})."
+            )
 
-            if value.ndim < 2:
-                value = np.expand_dims(value, axis=1)
-
-        if isinstance(value, float):
-            value = value * np.ones((1, 1))
+        if value.ndim != 2:
+            raise ValueError(
+                f"Field {name} has number of dimensions different from 2 "
+                f"(input: {value.ndim})."
+            )
 
         if value.shape[0] * value.shape[1] == 0:
             raise ValueError("Field " + name + " has a zero dimension.")
-
-        assert isinstance(value, np.ndarray)
-        assert value.ndim == 2
 
         if storage_type is Variable.StorageTypeValue:
             self._logger.debug("Creating variable " + name)
