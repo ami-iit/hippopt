@@ -184,7 +184,6 @@ class OptimizationObject(abc.ABC):
                     )
 
                 if len(value_from_dict) > 0:
-                    print(f"Setting {name_radix} with {value_from_dict[0].name()}")
                     input_object.__setattr__(
                         field.name,
                         value_from_dict if value_is_list else value_from_dict[0],
