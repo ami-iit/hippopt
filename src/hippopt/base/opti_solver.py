@@ -175,130 +175,6 @@ class OptiSolver(OptimizationSolver):
 
         raise ValueError("Unsupported input storage type")
 
-    def _generate_objects_from_instance(
-        self,
-        input_structure: TOptimizationObject,
-        parent_metadata: dict,
-        base_name: str,
-    ) -> TOptimizationObject:
-        output = copy.deepcopy(input_structure)
-
-        for field in dataclasses.fields(output):
-            composite_value = output.__getattribute__(field.name)
-
-            is_list = isinstance(composite_value, list)
-            list_of_optimization_objects = (
-                is_list
-                and len(composite_value) > 0
-                and all(
-                    isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                    for elem in composite_value
-                )
-            )
-            list_of_float = is_list and (
-                len(composite_value) == 0
-                or all(isinstance(elem, float) for elem in composite_value)
-            )
-            if list_of_float:
-                composite_value = np.array(composite_value)
-                is_list = False
-
-            if (
-                isinstance(composite_value, OptimizationObject)
-                or list_of_optimization_objects
-            ):
-                new_parent_metadata = parent_metadata
-                has_composite_metadata = (
-                    OptimizationObject.CompositeTypeField in field.metadata
-                    and field.metadata[OptimizationObject.CompositeTypeField]
-                    is not None
-                )
-                if has_composite_metadata:
-                    composite_metadata = field.metadata[
-                        OptimizationObject.CompositeTypeField
-                    ]
-                    use_old_metadata = (
-                        parent_metadata is not None
-                        and OptimizationObject.OverrideIfCompositeField
-                        in composite_metadata
-                        and composite_metadata[
-                            OptimizationObject.OverrideIfCompositeField
-                        ]
-                    )
-
-                    if not use_old_metadata:
-                        new_parent_metadata = composite_metadata
-
-                output.__setattr__(
-                    field.name,
-                    self.generate_optimization_objects(
-                        input_structure=composite_value,
-                        fill_initial_guess=False,
-                        _parent_metadata=new_parent_metadata,
-                        _base_name=base_name
-                        + field.name
-                        + ".",  # TODO: This is a mistake for lists
-                    ),
-                )
-                continue
-
-            if OptimizationObject.StorageTypeField in field.metadata:
-                value_list = composite_value if is_list else [composite_value]
-                output_value = []
-                for value in value_list:
-                    should_override = (
-                        OptimizationObject.OverrideIfCompositeField in field.metadata
-                        and field.metadata[OptimizationObject.OverrideIfCompositeField]
-                    )
-                    parent_can_override = (
-                        parent_metadata is not None
-                        and OptimizationObject.StorageTypeField in parent_metadata
-                    )
-                    if should_override and parent_can_override:
-                        storage_type = parent_metadata[
-                            OptimizationObject.StorageTypeField
-                        ]
-                    else:
-                        storage_type = field.metadata[
-                            OptimizationObject.StorageTypeField
-                        ]
-
-                    output_value.append(
-                        self._generate_opti_object(
-                            storage_type=storage_type,
-                            name=base_name + field.name,
-                            value=value,
-                        )
-                    )
-
-                output.__setattr__(
-                    field.name, output_value if is_list else output_value[0]
-                )
-                continue
-
-        self._variables = output
-        return output
-
-    def _generate_objects_from_list(
-        self,
-        input_structure: list[TOptimizationObject],
-        parent_metadata: dict,
-        base_name: str,
-    ) -> list[TOptimizationObject]:
-        assert isinstance(input_structure, list)
-
-        output = copy.deepcopy(input_structure)
-        for i in range(len(output)):
-            output[i] = self.generate_optimization_objects(
-                input_structure=output[i],
-                fill_initial_guess=False,
-                _parent_metadata=parent_metadata,
-                _base_name=base_name + "[" + str(i) + "].",
-            )
-
-        self._variables = output
-        return output
-
     def _get_opti_solution(
         self, variable: cs.MX, input_solution: cs.OptiSol | dict
     ) -> StorageType:
@@ -619,70 +495,66 @@ class OptiSolver(OptimizationSolver):
             raise ValueError(
                 "The input structure is neither an optimization object nor a list."
             )
-        # output = copy.deepcopy(input_structure)
-        # is_list = isinstance(output, list)
-        # input_list = output if is_list else [output]
-        # input_as_dict = {}
-        # input_metadata_as_dict = {}
-        # output_dict = {}
-        # for i, elem in enumerate(input_list):
-        #     prefix = f"[{i}]." if is_list else ""
-        #     elem_dict, elem_metadata = elem.to_dict(prefix=prefix)
-        #     input_as_dict.update(elem_dict)
-        #     input_metadata_as_dict.update(elem_metadata)
-        #
-        # for obj_name in input_as_dict:
-        #     value = input_as_dict[obj_name]
-        #     value_is_list = isinstance(value, list)
-        #     list_of_float = value_is_list and (
-        #         len(value) == 0 or all(isinstance(elem, float) for elem in value)
-        #     )
-        #     if list_of_float:
-        #         value = np.array(value)
-        #         value_is_list = False
-        #
-        #     value_list = value if value_is_list else [value]
-        #     output_value = []
-        #     storage_type = input_metadata_as_dict[obj_name][
-        #         OptimizationObject.StorageTypeField
-        #     ]
-        #     for i, val in enumerate(value_list):
-        #         output_value.append(
-        #             self._generate_opti_object(
-        #                 storage_type=storage_type,
-        #                 name=obj_name + f"[{str(i)}]" if value_is_list else obj_name,
-        #                 value=val,
-        #             )
-        #         )
-        #     output_dict[obj_name] = output_value if value_is_list else output_value[0]
-        #
-        # if is_list:
-        #     for i in range(len(output)):
-        #         output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
-        # else:
-        #     assert isinstance(output, OptimizationObject)
-        #     output.from_dict(input_dict=output_dict)
-        #
-        # self._variables = output
+        output = copy.deepcopy(input_structure)
+        is_list = isinstance(output, list)
+        input_list = output if is_list else [output]
+        input_as_dict = {}
+        input_metadata_as_dict = {}
+        output_dict = {}
 
-        parent_metadata = (
-            kwargs["_parent_metadata"] if "_parent_metadata" in kwargs else None
-        )
+        # In case of list, flatten to a single dict
+        for i, elem in enumerate(input_list):
+            prefix = f"[{i}]." if is_list else ""
+            elem_dict, elem_metadata = elem.to_dict(prefix=prefix)
+            input_as_dict.update(elem_dict)
+            input_metadata_as_dict.update(elem_metadata)
 
-        base_name = kwargs["_base_name"] if "_base_name" in kwargs else ""
+        reverse_input_dict = {}
+        duplicates = {}
+        for obj_name in input_as_dict:
+            value = input_as_dict[obj_name]
+            if value is None or isinstance(value, float):
+                continue
+            value_id = id(value)
+            if value_id in reverse_input_dict:
+                if value_id not in duplicates:
+                    duplicates[value_id] = []
+                duplicates[value_id].append(obj_name)
+            else:
+                reverse_input_dict[value_id] = obj_name
 
-        if isinstance(input_structure, OptimizationObject):
-            output = self._generate_objects_from_instance(
-                input_structure=input_structure,
-                parent_metadata=parent_metadata,
-                base_name=base_name,
+        duplicates_string = ""
+        for value_id in duplicates:
+            duplicates_string += (
+                f"{reverse_input_dict[value_id]} is duplicated in the "
+                f"following fields: {duplicates[value_id]}\n"
             )
+        if len(duplicates):
+            raise ValueError(
+                "The following fields share the same object as value:\n"
+                + duplicates_string
+                + "This can cause issues when assigning a new value to these fields."
+            )
+
+        # For each element of the dict, create an opti object
+        for obj_name in input_as_dict:
+            value_id = input_as_dict[obj_name]
+            storage_type = input_metadata_as_dict[obj_name][
+                OptimizationObject.StorageTypeField
+            ]
+            output_dict[obj_name] = self._generate_opti_object(
+                storage_type=storage_type, name=obj_name, value=value_id
+            )
+
+        # Convert the dict to the output structure
+        if is_list:
+            for i in range(len(output)):
+                output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
         else:
-            output = self._generate_objects_from_list(
-                input_structure=input_structure,
-                parent_metadata=parent_metadata,
-                base_name=base_name,
-            )
+            assert isinstance(output, OptimizationObject)
+            output.from_dict(input_dict=output_dict)
+
+        self._variables = output
 
         fill_initial_guess = (
             kwargs["fill_initial_guess"] if "fill_initial_guess" in kwargs else True
