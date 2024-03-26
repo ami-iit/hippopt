@@ -83,9 +83,10 @@ class OptiSolver(OptimizationSolver):
     _output_cost: float = dataclasses.field(default=None)
     _cost_values: dict[str, float] = dataclasses.field(default=None)
     _constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
-    _variables: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
+    _objects: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
+    _objects_dict: dict[str, cs.MX] = dataclasses.field(default=None)
     _problem: Problem = dataclasses.field(default=None)
     _guess: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
@@ -240,220 +241,6 @@ class OptiSolver(OptimizationSolver):
 
         return
 
-    def _set_initial_guess_internal(
-        self,
-        initial_guess: (
-            TOptimizationObject
-            | list[TOptimizationObject]
-            | list[list[TOptimizationObject]]
-        ),
-        corresponding_variable: (
-            TOptimizationObject
-            | list[TOptimizationObject]
-            | list[list[TOptimizationObject]]
-        ),
-        base_name: str = "",
-    ) -> None:
-        if isinstance(initial_guess, list):
-            if not isinstance(corresponding_variable, list):
-                raise ValueError(
-                    "The input guess is a list, but the specified variable "
-                    + base_name
-                    + " is not"
-                )
-
-            if len(corresponding_variable) != len(initial_guess):
-                raise ValueError(
-                    "The input guess is a list but the variable "
-                    + base_name
-                    + " has a different dimension. Expected: "
-                    + str(len(corresponding_variable))
-                    + " Input: "
-                    + str(len(initial_guess))
-                )
-
-            for i in range(len(corresponding_variable)):
-                self._set_initial_guess_internal(
-                    initial_guess=initial_guess[i],
-                    corresponding_variable=corresponding_variable[i],
-                    base_name=base_name + "[" + str(i) + "].",
-                )
-            return
-
-        # Check that the initial guess is an optimization object
-        if not isinstance(initial_guess, OptimizationObject):
-            raise ValueError(
-                "The initial guess for the variable "
-                + base_name
-                + " is not an optimization object."
-                + " It is of type "
-                + str(type(initial_guess))
-            )
-
-        for field in dataclasses.fields(initial_guess):
-            guess = initial_guess.__getattribute__(field.name)
-
-            if guess is None:
-                continue
-
-            if OptimizationObject.StorageTypeField in field.metadata:
-                if not hasattr(corresponding_variable, field.name):
-                    raise ValueError(
-                        "The guess has the field "
-                        + base_name
-                        + field.name
-                        + " but it is not present in the optimization parameters"
-                    )
-
-                corresponding_value = corresponding_variable.__getattribute__(
-                    field.name
-                )
-
-                if isinstance(corresponding_value, list):
-                    self._set_list_object_guess_internal(
-                        base_name, corresponding_value, field, guess
-                    )
-                    continue
-
-                if isinstance(guess, float):
-                    guess = guess * np.ones((1, 1))
-
-                if isinstance(guess, list) and all(
-                    isinstance(elem, float) or isinstance(elem, int) for elem in guess
-                ):
-                    guess = np.array(guess)
-
-                if not isinstance(guess, np.ndarray) and not isinstance(guess, cs.DM):
-                    raise ValueError(
-                        "The guess for the field "
-                        + base_name
-                        + field.name
-                        + " is neither an numpy nor a DM array."
-                    )
-
-                if not isinstance(corresponding_value, cs.MX):
-                    raise ValueError(
-                        "The field "
-                        + base_name
-                        + field.name
-                        + "has not been added to opti."
-                    )
-
-                if len(guess.shape) == 0:
-                    continue
-
-                input_shape = (
-                    guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
-                )
-
-                if corresponding_value.shape != input_shape:
-                    raise ValueError(
-                        f"The guess has the field {base_name}{field.name} "
-                        f"but its dimension ({input_shape}) does not match with the"
-                        f" corresponding optimization variable "
-                        f"({corresponding_value.shape})."
-                    )
-
-                self._set_opti_guess(
-                    variable=corresponding_value,
-                    value=guess,
-                )
-                continue
-
-            composite_variable_guess = initial_guess.__getattribute__(field.name)
-
-            if not isinstance(
-                composite_variable_guess, OptimizationObject
-            ) and not isinstance(composite_variable_guess, list):
-                continue
-
-            if not hasattr(corresponding_variable, field.name):
-                raise ValueError(
-                    "The guess has the field "
-                    + base_name
-                    + field.name
-                    + " but it is not present in the optimization structure"
-                )
-
-            self._set_initial_guess_internal(
-                initial_guess=composite_variable_guess,
-                corresponding_variable=corresponding_variable.__getattribute__(
-                    field.name
-                ),
-                base_name=base_name + field.name + ".",
-            )
-            continue
-
-    def _set_list_object_guess_internal(
-        self,
-        base_name: str,
-        corresponding_value: list,
-        field: dataclasses.Field,
-        guess: list,
-    ) -> None:
-        if not isinstance(guess, list):
-            raise ValueError(
-                "The guess for the field "
-                + base_name
-                + field.name
-                + " is supposed to be a list. "
-                + "Received "
-                + str(type(guess))
-                + " instead."
-            )
-        if len(corresponding_value) != len(guess):
-            raise ValueError(
-                "The guess for the field "
-                + base_name
-                + field.name
-                + " is a list of the wrong size. Expected: "
-                + str(len(corresponding_value))
-                + ". Guess: "
-                + str(len(guess))
-            )
-        for i in range(len(corresponding_value)):
-            if not isinstance(corresponding_value[i], cs.MX):
-                raise ValueError(
-                    "The field "
-                    + base_name
-                    + field.name
-                    + "["
-                    + str(i)
-                    + "] has not been added to opti."
-                )
-            value = guess[i]
-            if isinstance(value, float):
-                value = value * np.ones((1, 1))
-
-            if not isinstance(value, np.ndarray):
-                raise ValueError(
-                    "The field "
-                    + base_name
-                    + field.name
-                    + "["
-                    + str(i)
-                    + "] is marked as a variable or a parameter. Its guess "
-                    + "is supposed to be an array (or even a float if scalar)."
-                )
-
-            input_shape = value.shape if len(value.shape) > 1 else (value.shape[0], 1)
-
-            if corresponding_value[i].shape != input_shape:
-                raise ValueError(
-                    "The dimension of the guess for the field "
-                    + base_name
-                    + field.name
-                    + "["
-                    + str(i)
-                    + "] does not match with the corresponding"
-                    + " optimization variable"
-                )
-
-            self._set_opti_guess(
-                variable=corresponding_value[i],
-                value=value,
-            )
-
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
@@ -522,7 +309,8 @@ class OptiSolver(OptimizationSolver):
             assert isinstance(output, OptimizationObject)
             output.from_dict(input_dict=output_dict)
 
-        self._variables = output
+        self._objects = output
+        self._objects_dict = output_dict
 
         fill_initial_guess = (
             kwargs["fill_initial_guess"] if "fill_initial_guess" in kwargs else True
@@ -539,7 +327,7 @@ class OptiSolver(OptimizationSolver):
     def get_optimization_objects(
         self,
     ) -> TOptimizationObject | list[TOptimizationObject]:
-        return self._variables
+        return self._objects
 
     def register_problem(self, problem: Problem) -> None:
         self._problem = problem
@@ -552,9 +340,71 @@ class OptiSolver(OptimizationSolver):
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
-        self._set_initial_guess_internal(
-            initial_guess=initial_guess, corresponding_variable=self._variables
-        )
+
+        is_list = isinstance(initial_guess, list)
+        if is_list and not isinstance(self._objects, list):
+            raise ValueError(
+                "The input guess is a list, but the optimization structure is not"
+            )
+
+        if is_list and len(self._objects) != len(initial_guess):
+            raise ValueError(
+                "The input guess is a list but the optimization structure has"
+                " a different dimension. Expected: "
+                + str(len(self._objects))
+                + " Input: "
+                + str(len(initial_guess))
+            )
+
+        guess_list = initial_guess if is_list else [initial_guess]
+        guess_as_dict = {}
+        for i, elem in enumerate(guess_list):
+            prefix = f"[{i}]." if is_list else ""
+            elem_dict = elem.to_dict(prefix=prefix)
+            guess_as_dict.update(elem_dict)
+
+        for obj_name in guess_as_dict:
+            guess_value = guess_as_dict[obj_name]
+            if guess_value is None:
+                continue
+
+            if not isinstance(guess_value, np.ndarray) and not isinstance(
+                guess_value, cs.DM
+            ):
+                raise ValueError(
+                    f"The guess for the field {obj_name} is neither a numpy nor a"
+                    f" DM array. (Type: {str(type(guess_value))})."
+                )
+
+            if len(guess_value.shape) == 0:
+                continue
+
+            if obj_name not in self._objects_dict:
+                continue
+
+            corresponding_object = self._objects_dict[obj_name]
+
+            if not isinstance(corresponding_object, cs.MX):
+                raise ValueError(f"The field {obj_name} has not been added to opti.")
+
+            input_shape = (
+                guess_value.shape
+                if len(guess_value.shape) > 1
+                else (guess_value.shape[0], 1)
+            )
+
+            if corresponding_object.shape != input_shape:
+                raise ValueError(
+                    f"The guess has the field {obj_name} "
+                    f"but its dimension ({input_shape}) does not match with the"
+                    f" corresponding optimization variable "
+                    f"({obj_name.shape})."
+                )
+
+            self._set_opti_guess(
+                variable=corresponding_object,
+                value=guess_value,
+            )
 
         self._guess = initial_guess
 
@@ -623,7 +473,7 @@ class OptiSolver(OptimizationSolver):
                 )
                 self._output_cost = self._callback.best_cost
                 self._output_solution = self._generate_solution_output(
-                    variables=self._variables,
+                    variables=self._objects,
                     input_solution=self._callback.best_objects,
                 )
                 self._cost_values = (
@@ -658,7 +508,7 @@ class OptiSolver(OptimizationSolver):
 
         self._output_cost = opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(
-            variables=self._variables, input_solution=opti_solution
+            variables=self._objects, input_solution=opti_solution
         )
         self._cost_values = {
             name: float(opti_solution.value(self._cost_expressions[name]))
