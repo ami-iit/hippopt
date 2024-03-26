@@ -69,6 +69,25 @@ class OptimizationObject(abc.ABC):
         return cs.vertcat(*self.to_list())
 
     @staticmethod
+    def _convert_to_np_array(value: Any) -> Any | np.ndarray:
+        output_value = value
+        list_of_float = isinstance(output_value, list) and (
+            len(output_value) == 0
+            or all(isinstance(elem, float) for elem in output_value)
+        )
+        if list_of_float:
+            output_value = np.array(output_value)
+
+        if isinstance(output_value, np.ndarray):
+            if output_value.ndim < 2:
+                output_value = np.expand_dims(output_value, axis=1)
+
+        if isinstance(output_value, float):
+            output_value = output_value * np.ones((1, 1))
+
+        return output_value
+
+    @staticmethod
     def _scan(
         input_object: TOptimizationObject | list[TOptimizationObject],
         name_prefix: str = "",
@@ -159,15 +178,10 @@ class OptimizationObject(abc.ABC):
                         parent_metadata[OptimizationObject.StorageTypeField]
                     )
 
-                value_is_list = isinstance(composite_value, list)
-                list_of_float = value_is_list and (
-                    len(composite_value) == 0
-                    or all(isinstance(elem, float) for elem in composite_value)
+                composite_value = OptimizationObject._convert_to_np_array(
+                    composite_value
                 )
-                if list_of_float:
-                    composite_value = np.array(composite_value)
-                    value_is_list = False
-
+                value_is_list = isinstance(composite_value, list)
                 value_list = composite_value if value_is_list else [composite_value]
                 name_radix = name_prefix + field.name
                 value_from_dict = []
@@ -179,8 +193,11 @@ class OptimizationObject(abc.ABC):
                         value_from_dict.append(input_dict[full_name])
 
                     metadata_dict[full_name] = value_metadata
+
                     output_dict[full_name] = (
-                        composite_value[i] if value_is_list else composite_value
+                        OptimizationObject._convert_to_np_array(composite_value[i])
+                        if value_is_list
+                        else composite_value
                     )
 
                 if len(value_from_dict) > 0:
