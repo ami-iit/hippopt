@@ -193,7 +193,11 @@ class OptimizationObject(abc.ABC):
 
         return output_dict, metadata_dict
 
-    def to_dict(self, prefix: str = "") -> (dict, dict):
+    def to_dict(self, prefix: str = "") -> dict:
+        output_dict, _ = OptimizationObject._scan(input_object=self, name_prefix=prefix)
+        return output_dict
+
+    def to_dicts(self, prefix: str = "") -> (dict, dict):
         output_dict, metadata_dict = OptimizationObject._scan(
             input_object=self, name_prefix=prefix
         )

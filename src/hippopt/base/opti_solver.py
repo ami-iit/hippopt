@@ -478,7 +478,7 @@ class OptiSolver(OptimizationSolver):
         # In case of list, flatten to a single dict
         for i, elem in enumerate(input_list):
             prefix = f"[{i}]." if is_list else ""
-            elem_dict, elem_metadata = elem.to_dict(prefix=prefix)
+            elem_dict, elem_metadata = elem.to_dicts(prefix=prefix)
             input_as_dict.update(elem_dict)
             input_metadata_as_dict.update(elem_metadata)
 
