@@ -180,8 +180,8 @@ class OptiSolver(OptimizationSolver):
     ) -> StorageType:
         try:
             if isinstance(input_solution, dict):
-                return input_solution[variable]
-            return input_solution.value(variable)
+                return np.array(input_solution[variable])
+            return np.array(input_solution.value(variable))
         except Exception as err:  # noqa
             self._logger.debug(
                 "Failed to get the solution for variable "
@@ -201,54 +201,27 @@ class OptiSolver(OptimizationSolver):
         input_solution: cs.OptiSol | dict,
     ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
+        is_list = isinstance(output, list)
 
-        if isinstance(variables, list):
-            for i in range(len(variables)):
-                output[i] = self._generate_solution_output(variables[i], input_solution)
-            return output
-
-        for field in dataclasses.fields(variables):
-            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
-
-            if has_storage_field and (
-                (
-                    field.metadata[OptimizationObject.StorageTypeField]
-                    is Variable.StorageTypeValue
-                )
-                or (
-                    field.metadata[OptimizationObject.StorageTypeField]
-                    is Parameter.StorageTypeValue
-                )
-            ):
-                var = variables.__getattribute__(field.name)
-                if isinstance(var, list):
-                    output_val = []
-                    for el in var:
-                        output_val.append(
-                            np.array(self._get_opti_solution(el, input_solution))
-                        )
-                else:
-                    output_val = np.array(self._get_opti_solution(var, input_solution))
-
-                output.__setattr__(field.name, output_val)
-                continue
-
-            composite_variable = variables.__getattribute__(field.name)
-
-            is_list = isinstance(composite_variable, list)
-            list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                for elem in composite_variable
+        # Get the values from the opti solution
+        output_dict = {}
+        for variable in self._variables_map:
+            output_dict[self._variables_map[variable]] = self._get_opti_solution(
+                variable, input_solution
             )
 
-            if (
-                isinstance(composite_variable, OptimizationObject)
-                or list_of_optimization_objects
-            ):
-                output.__setattr__(
-                    field.name,
-                    self._generate_solution_output(composite_variable, input_solution),
-                )
+        for parameter in self._parameters_map:
+            output_dict[self._parameters_map[parameter]] = self._get_opti_solution(
+                parameter, input_solution
+            )
+
+        # Convert the dict to the output structure
+        if is_list:
+            for i in range(len(output)):
+                output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
+        else:
+            assert isinstance(output, OptimizationObject)
+            output.from_dict(input_dict=output_dict)
 
         return output
 
