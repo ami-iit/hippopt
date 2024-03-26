@@ -159,14 +159,36 @@ class OptimizationObject(abc.ABC):
                         parent_metadata[OptimizationObject.StorageTypeField]
                     )
 
-                full_name = name_prefix + field.name
+                value_is_list = isinstance(composite_value, list)
+                list_of_float = value_is_list and (
+                    len(composite_value) == 0
+                    or all(isinstance(elem, float) for elem in composite_value)
+                )
+                if list_of_float:
+                    composite_value = np.array(composite_value)
+                    value_is_list = False
 
-                if input_dict is not None and full_name in input_dict:
-                    input_value = input_dict[full_name]
-                    input_object.__setattr__(field.name, input_value)
+                value_list = composite_value if value_is_list else [composite_value]
+                name_radix = name_prefix + field.name
+                value_from_dict = []
+                for i, val in enumerate(value_list):
+                    postfix = f"[{i}]" if value_is_list else ""
+                    full_name = name_radix + postfix
 
-                metadata_dict[full_name] = value_metadata
-                output_dict[full_name] = composite_value
+                    if input_dict is not None and full_name in input_dict:
+                        value_from_dict.append(input_dict[full_name])
+
+                    metadata_dict[full_name] = value_metadata
+                    output_dict[full_name] = (
+                        composite_value[i] if value_is_list else composite_value
+                    )
+
+                if len(value_from_dict) > 0:
+                    print(f"Setting {name_radix} with {value_from_dict[0].name()}")
+                    input_object.__setattr__(
+                        field.name,
+                        value_from_dict if value_is_list else value_from_dict[0],
+                    )
 
                 continue
 
