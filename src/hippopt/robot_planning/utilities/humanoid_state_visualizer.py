@@ -4,9 +4,11 @@ import logging
 import pathlib
 import time
 
+import adam.model
 import ffmpeg
 import liecasadi
 import numpy as np
+from adam.model.conversions import to_idyntree_model
 from idyntree.visualize import MeshcatVisualizer
 
 from hippopt.robot_planning.utilities.terrain_visualizer import (
@@ -21,7 +23,7 @@ from hippopt.robot_planning.variables.humanoid import (
 
 @dataclasses.dataclass
 class HumanoidStateVisualizerSettings(TerrainVisualizerSettings):
-    robot_model: str = dataclasses.field(default=None)
+    robot_model: str | adam.model.Model = dataclasses.field(default=None)
     considered_joints: list[str] = dataclasses.field(default=None)
     contact_points: FeetContactPointDescriptors = dataclasses.field(default=None)
     robot_color: list[float] = dataclasses.field(default=None)
@@ -122,12 +124,23 @@ class HumanoidStateVisualizer:
                 self._set_clone_visibility(i, False)
 
     def _allocate_clone(self, index: int) -> None:
-        self._viz.load_model_from_file(
-            model_path=self._settings.robot_model,
-            model_name=f"[{index}]robot",
-            considered_joints=self._settings.considered_joints,
-            color=self._settings.robot_color,
-        )
+
+        if isinstance(self._settings.robot_model, str):
+            self._viz.load_model_from_file(
+                model_path=self._settings.robot_model,
+                model_name=f"[{index}]robot",
+                considered_joints=self._settings.considered_joints,
+                color=self._settings.robot_color,
+            )
+        else:
+            idyntree_model = adam.model.conversions.to_idyntree_model(
+                self._settings.robot_model
+            )
+            self._viz.load_model(
+                model=idyntree_model,
+                model_name=f"[{index}]robot",
+                color=self._settings.robot_color,
+            )
         self._viz.load_sphere(
             radius=self._settings.com_radius,
             shape_name=f"[{index}]CoM",

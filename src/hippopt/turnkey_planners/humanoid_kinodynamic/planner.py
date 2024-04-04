@@ -1,8 +1,14 @@
 import copy
 
 import adam.casadi
+import adam.model
+import adam.numpy
+import adam.parametric.casadi
 import casadi as cs
 import numpy as np
+from adam.parametric.model.parametric_factories.parametric_model import (
+    URDFParametricModelFactory,
+)
 
 import hippopt as hp
 import hippopt.robot_planning as hp_rp
@@ -21,14 +27,26 @@ class Planner:
         if not settings.is_valid():
             raise ValueError("Settings are not valid")
         self.settings = copy.deepcopy(settings)
-        self.kin_dyn_object = adam.casadi.KinDynComputations(
-            urdfstring=self.settings.robot_urdf,
-            joints_name_list=self.settings.joints_name_list,
-            root_link=self.settings.root_link,
-            gravity=self.settings.gravity,
-            f_opts=self.settings.casadi_function_options,
-        )
-        self.numeric_mass = self.kin_dyn_object.get_total_mass()
+        if self.settings.parametric_link_names is not None:
+            self.parametric_model = True
+            self.kin_dyn_object = adam.parametric.casadi.KinDynComputationsParametric(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                links_name_list=self.settings.parametric_link_names,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+        else:
+            self.parametric_model = False
+            self.kin_dyn_object = adam.casadi.KinDynComputations(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+            self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
         self.variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
@@ -184,6 +202,8 @@ class Planner:
             "second_point_name": "p_1",
             "desired_yaw_name": "yd",
             "desired_height_name": "hd",
+            "parametric_link_length_multipliers_name": "pi_l",
+            "parametric_link_densities_name": "pi_d",
             "options": self.settings.casadi_function_options,
         }
         return function_inputs
@@ -261,11 +281,20 @@ class Planner:
         com_kinematics_fun = hp_rp.center_of_mass_position_from_kinematics(
             kindyn_object=self.kin_dyn_object, **function_inputs
         )
-        com_kinematics = com_kinematics_fun(
-            pb=sym.system.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=sym.system.kinematics.joints.positions,
-        )["com_position"]
+        if self.parametric_model:
+            com_kinematics = com_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+                pi_l=sym.parametric_link_length_multipliers,
+                pi_d=sym.parametric_link_densities,
+            )["com_position"]
+        else:
+            com_kinematics = com_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+            )["com_position"]
         problem.add_expression_to_horizon(
             expression=cs.MX(sym.system.com == com_kinematics),
             apply_to_first_elements=False,
@@ -276,14 +305,26 @@ class Planner:
         centroidal_kinematics_fun = hp_rp.centroidal_momentum_from_kinematics(
             kindyn_object=self.kin_dyn_object, **function_inputs
         )
-        centroidal_kinematics = centroidal_kinematics_fun(
-            pb=sym.system.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=sym.system.kinematics.joints.positions,
-            pb_dot=sym.system.kinematics.base.linear_velocity,
-            qb_dot=sym.system.kinematics.base.quaternion_velocity_xyzw,
-            s_dot=sym.system.kinematics.joints.velocities,
-        )["h_g"]
+        if self.parametric_model:
+            centroidal_kinematics = centroidal_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+                pi_l=sym.parametric_link_length_multipliers,
+                pi_d=sym.parametric_link_densities,
+                pb_dot=sym.system.kinematics.base.linear_velocity,
+                qb_dot=sym.system.kinematics.base.quaternion_velocity_xyzw,
+                s_dot=sym.system.kinematics.joints.velocities,
+            )["h_g"]
+        else:
+            centroidal_kinematics = centroidal_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+                pb_dot=sym.system.kinematics.base.linear_velocity,
+                qb_dot=sym.system.kinematics.base.quaternion_velocity_xyzw,
+                s_dot=sym.system.kinematics.joints.velocities,
+            )["h_g"]
         problem.add_expression_to_horizon(
             expression=cs.MX(
                 sym.system.centroidal_momentum[3:]
@@ -321,9 +362,16 @@ class Planner:
             target_frame=left_frame,
             **function_inputs,
         )
-        relative_position = relative_position_fun(
-            s=sym.system.kinematics.joints.positions
-        )["relative_position"]
+        if self.parametric_model:
+            relative_position = relative_position_fun(
+                s=sym.system.kinematics.joints.positions,
+                pi_l=sym.parametric_link_length_multipliers,
+                pi_d=sym.parametric_link_densities,
+            )["relative_position"]
+        else:
+            relative_position = relative_position_fun(
+                s=sym.system.kinematics.joints.positions
+            )["relative_position"]
         problem.add_expression_to_horizon(
             expression=cs.MX(relative_position[1] >= sym.minimum_feet_lateral_distance),
             apply_to_first_elements=False,
@@ -400,12 +448,22 @@ class Planner:
             target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
             **function_inputs,
         )
-        rotation_error_kinematics = rotation_error_kinematics_fun(
-            pb=sym.system.kinematics.base.position,
-            qb=base_quaternion_normalized,
-            s=sym.system.kinematics.joints.positions,
-            qd=sym.references.desired_frame_quaternion_xyzw,
-        )["rotation_error"]
+        if self.parametric_model:
+            rotation_error_kinematics = rotation_error_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=base_quaternion_normalized,
+                s=sym.system.kinematics.joints.positions,
+                pi_l=sym.parametric_link_length_multipliers,
+                pi_d=sym.parametric_link_densities,
+                qd=sym.references.desired_frame_quaternion_xyzw,
+            )["rotation_error"]
+        else:
+            rotation_error_kinematics = rotation_error_kinematics_fun(
+                pb=sym.system.kinematics.base.position,
+                qb=base_quaternion_normalized,
+                s=sym.system.kinematics.joints.positions,
+                qd=sym.references.desired_frame_quaternion_xyzw,
+            )["rotation_error"]
         problem.add_expression_to_horizon(
             expression=cs.sumsqr(cs.trace(rotation_error_kinematics) - 3),
             apply_to_first_elements=False,
@@ -547,12 +605,22 @@ class Planner:
             )
 
         # Consistency between the contact position and the kinematics
-        point_kinematics = point_kinematics_functions[descriptor.foot_frame](
-            pb=sym.system.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=sym.system.kinematics.joints.positions,
-            p_parent=descriptor.position_in_foot_frame,
-        )["point_position"]
+        if self.parametric_model:
+            point_kinematics = point_kinematics_functions[descriptor.foot_frame](
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+                pi_l=sym.parametric_link_length_multipliers,
+                pi_d=sym.parametric_link_densities,
+                p_parent=descriptor.position_in_foot_frame,
+            )["point_position"]
+        else:
+            point_kinematics = point_kinematics_functions[descriptor.foot_frame](
+                pb=sym.system.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=sym.system.kinematics.joints.positions,
+                p_parent=descriptor.position_in_foot_frame,
+            )["point_position"]
         problem.add_expression_to_horizon(
             expression=cs.MX(point.p == point_kinematics),
             apply_to_first_elements=False,
@@ -858,7 +926,19 @@ class Planner:
         )
 
     def _apply_mass_regularization(self, input_var: Variables) -> Variables:
-        assert self.numeric_mass > 0
+        if self.parametric_model:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(
+                input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        assert numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
             if (
@@ -866,19 +946,19 @@ class Planner:
                 and len(output.initial_state.centroidal_momentum.shape) > 0
                 and output.initial_state.centroidal_momentum.shape[0] == 6
             ):
-                output.initial_state.centroidal_momentum /= self.numeric_mass
+                output.initial_state.centroidal_momentum /= numeric_mass
             for point in (
                 output.initial_state.contact_points.left
                 + output.initial_state.contact_points.right
             ):
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         if output.final_state is not None:
             for point in (
                 output.final_state.contact_points.left
                 + output.final_state.contact_points.right
             ):
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         if output.system is None:
             return output
@@ -889,14 +969,26 @@ class Planner:
 
         for system in system_list:
             if system.centroidal_momentum is not None:
-                system.centroidal_momentum /= self.numeric_mass
+                system.centroidal_momentum /= numeric_mass
             for point in system.contact_points.left + system.contact_points.right:
-                point.f /= self.numeric_mass
+                point.f /= numeric_mass
 
         return output
 
     def _undo_mass_regularization(self, input_var: Variables) -> Variables:
-        assert self.numeric_mass > 0
+        if self.parametric_model:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(
+                input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        assert numeric_mass > 0
         output = input_var
         if output.initial_state is not None:
             if (
@@ -904,19 +996,19 @@ class Planner:
                 and len(output.initial_state.centroidal_momentum.shape) > 0
                 and output.initial_state.centroidal_momentum.shape[0] == 6
             ):
-                output.initial_state.centroidal_momentum *= self.numeric_mass
+                output.initial_state.centroidal_momentum *= numeric_mass
             for point in (
                 output.initial_state.contact_points.left
                 + output.initial_state.contact_points.right
             ):
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         if output.final_state is not None:
             for point in (
                 output.final_state.contact_points.left
                 + output.final_state.contact_points.right
             ):
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         if output.system is None:
             return output
@@ -927,9 +1019,9 @@ class Planner:
 
         for system in system_list:
             if system.centroidal_momentum is not None:
-                system.centroidal_momentum *= self.numeric_mass
+                system.centroidal_momentum *= numeric_mass
             for point in system.contact_points.left + system.contact_points.right:
-                point.f *= self.numeric_mass
+                point.f *= numeric_mass
 
         return output
 
@@ -970,3 +1062,22 @@ class Planner:
         output = self.ocp.problem.solve()
         output.values = self._undo_mass_regularization(output.values)
         return output
+
+    def get_adam_model(self) -> adam.model.Model:
+        if self.parametric_model:
+            guess = self.ocp.problem.get_initial_guess()
+            original_length = guess.parametric_link_length_multipliers
+            original_density = guess.parametric_link_densities
+            factory = URDFParametricModelFactory(
+                path=self.settings.robot_urdf,
+                math=adam.numpy.numpy_like.SpatialMath(),
+                links_name_list=self.settings.parametric_link_names,
+                length_multiplier=original_length,
+                densities=original_density,
+            )
+            model = adam.model.Model.build(
+                factory=factory, joints_name_list=self.settings.joints_name_list
+            )
+            return model
+
+        return self.kin_dyn_object.rbdalgos.model

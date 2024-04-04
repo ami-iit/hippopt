@@ -3,8 +3,14 @@ import dataclasses
 import logging
 
 import adam.casadi
+import adam.model
+import adam.numpy
+import adam.parametric.casadi
 import casadi as cs
 import numpy as np
+from adam.parametric.model.parametric_factories.parametric_model import (
+    URDFParametricModelFactory,
+)
 
 import hippopt as hp
 import hippopt.robot_planning as hp_rp
@@ -14,6 +20,7 @@ import hippopt.robot_planning as hp_rp
 class Settings:
     robot_urdf: str = dataclasses.field(default=None)
     joints_name_list: list[str] = dataclasses.field(default=None)
+    parametric_link_names: list[str] = dataclasses.field(default=None)
     contact_points: hp_rp.FeetContactPointDescriptors = dataclasses.field(default=None)
     root_link: str = dataclasses.field(default=None)
 
@@ -151,6 +158,10 @@ class Variables(hp.OptimizationObject):
         cls=hp.Variable, factory=hp_rp.HumanoidState
     )
     mass: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    parametric_link_length_multipliers: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
+    parametric_link_densities: hp.StorageType = hp.default_storage_field(hp.Parameter)
     gravity: hp.StorageType = hp.default_storage_field(hp.Parameter)
     references: References = hp.default_composite_field(
         cls=hp.Parameter, factory=References
@@ -171,8 +182,11 @@ class Variables(hp.OptimizationObject):
     def __post_init__(
         self,
         settings: Settings,
-        kin_dyn_object: adam.casadi.KinDynComputations,
-    ):
+        kin_dyn_object: (
+            adam.casadi.KinDynComputations
+            | adam.parametric.casadi.KinDynComputationsParametric
+        ),
+    ) -> None:
         self.state = hp_rp.HumanoidState(
             contact_point_descriptors=settings.contact_points,
             number_of_joints=len(settings.joints_name_list),
@@ -181,7 +195,26 @@ class Variables(hp.OptimizationObject):
             contact_point_descriptors=settings.contact_points,
             number_of_joints=len(settings.joints_name_list),
         )
-        self.mass = kin_dyn_object.get_total_mass()
+        self.parametric_link_length_multipliers = (
+            np.ones(len(settings.parametric_link_names))
+            if settings.parametric_link_names is not None
+            else 0.0
+        )
+
+        if isinstance(
+            kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+        ):
+            self.parametric_link_densities = kin_dyn_object.get_original_densities()
+            total_mass_fun = kin_dyn_object.get_total_mass()
+            self.mass = float(
+                total_mass_fun(
+                    self.parametric_link_length_multipliers,
+                    self.parametric_link_densities,
+                ).full()
+            )
+        else:
+            self.mass = kin_dyn_object.get_total_mass()
+            self.parametric_link_densities = 0.0
         self.gravity = settings.gravity
         self.static_friction = settings.static_friction
         self.relaxed_complementarity_epsilon = settings.relaxed_complementarity_epsilon
@@ -196,13 +229,26 @@ class Planner:
 
         self.settings = copy.deepcopy(settings)
 
-        self.kin_dyn_object = adam.casadi.KinDynComputations(
-            urdfstring=self.settings.robot_urdf,
-            joints_name_list=self.settings.joints_name_list,
-            root_link=self.settings.root_link,
-            gravity=self.settings.gravity,
-            f_opts=self.settings.casadi_function_options,
-        )
+        if self.settings.parametric_link_names is not None:
+            self.parametric_model = True
+            self.kin_dyn_object = adam.parametric.casadi.KinDynComputationsParametric(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                links_name_list=self.settings.parametric_link_names,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+        else:
+            self.parametric_model = False
+            self.kin_dyn_object = adam.casadi.KinDynComputations(
+                urdfstring=self.settings.robot_urdf,
+                joints_name_list=self.settings.joints_name_list,
+                root_link=self.settings.root_link,
+                gravity=self.settings.gravity,
+                f_opts=self.settings.casadi_function_options,
+            )
+
         structure = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
@@ -306,6 +352,8 @@ class Planner:
             "second_point_name": "p_1",
             "desired_yaw_name": "yd",
             "desired_height_name": "hd",
+            "parametric_link_length_multipliers_name": "pi_l",
+            "parametric_link_densities_name": "pi_d",
             "options": self.settings.casadi_function_options,
         }
         return function_inputs
@@ -331,11 +379,20 @@ class Planner:
         com_kinematics_fun = hp_rp.center_of_mass_position_from_kinematics(
             kindyn_object=self.kin_dyn_object, **function_inputs
         )
-        com_kinematics = com_kinematics_fun(
-            pb=variables.state.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=variables.state.kinematics.joints.positions,
-        )["com_position"]
+        if self.parametric_model:
+            com_kinematics = com_kinematics_fun(
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+                pi_l=variables.parametric_link_length_multipliers,
+                pi_d=variables.parametric_link_densities,
+            )["com_position"]
+        else:
+            com_kinematics = com_kinematics_fun(
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+            )["com_position"]
         problem.add_constraint(
             expression=cs.MX(variables.state.com == com_kinematics),
             name="com_kinematics_consistency",
@@ -404,12 +461,22 @@ class Planner:
             target_frame=self.settings.desired_frame_quaternion_cost_frame_name,
             **function_inputs,
         )
-        rotation_error_kinematics = rotation_error_kinematics_fun(
-            pb=variables.state.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=variables.state.kinematics.joints.positions,
-            qd=variables.references.frame_quaternion_xyzw,
-        )["rotation_error"]
+        if self.parametric_model:
+            rotation_error_kinematics = rotation_error_kinematics_fun(
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+                pi_l=variables.parametric_link_length_multipliers,
+                pi_d=variables.parametric_link_densities,
+                qd=variables.references.frame_quaternion_xyzw,
+            )["rotation_error"]
+        else:
+            rotation_error_kinematics = rotation_error_kinematics_fun(
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+                qd=variables.references.frame_quaternion_xyzw,
+            )["rotation_error"]
         problem.add_cost(
             expression=cs.sumsqr(cs.trace(rotation_error_kinematics) - 3),
             name="frame_rotation_error",
@@ -464,12 +531,22 @@ class Planner:
             )
 
         # Consistency between the contact position and the kinematics
-        point_kinematics = point_kinematics_functions[descriptor.foot_frame](
-            pb=variables.state.kinematics.base.position,
-            qb=normalized_quaternion,
-            s=variables.state.kinematics.joints.positions,
-            p_parent=descriptor.position_in_foot_frame,
-        )["point_position"]
+        if self.parametric_model:
+            point_kinematics = point_kinematics_functions[descriptor.foot_frame](
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+                pi_l=variables.parametric_link_length_multipliers,
+                pi_d=variables.parametric_link_densities,
+                p_parent=descriptor.position_in_foot_frame,
+            )["point_position"]
+        else:
+            point_kinematics = point_kinematics_functions[descriptor.foot_frame](
+                pb=variables.state.kinematics.base.position,
+                qb=normalized_quaternion,
+                s=variables.state.kinematics.joints.positions,
+                p_parent=descriptor.position_in_foot_frame,
+            )["point_position"]
         problem.add_constraint(
             expression=cs.MX(point.p == point_kinematics),
             name=point.p.name() + "_kinematics_consistency",
@@ -572,3 +649,22 @@ class Planner:
 
     def solve(self) -> hp.Output[Variables]:
         return self.op.problem.solve()
+
+    def get_adam_model(self) -> adam.model.Model:
+        if self.parametric_model:
+            guess = self.get_initial_guess()
+            original_length = guess.parametric_link_length_multipliers
+            original_density = guess.parametric_link_densities
+            factory = URDFParametricModelFactory(
+                path=self.settings.robot_urdf,
+                math=adam.numpy.numpy_like.SpatialMath(),
+                links_name_list=self.settings.parametric_link_names,
+                length_multiplier=original_length,
+                densities=original_density,
+            )
+            model = adam.model.Model.build(
+                factory=factory, joints_name_list=self.settings.joints_name_list
+            )
+            return model
+
+        return self.kin_dyn_object.rbdalgos.model
