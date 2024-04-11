@@ -281,3 +281,52 @@ def test_opti_callback():
     problem.add_constraint(variables.x**2 == 10)
 
     problem.solve()
+
+
+def test_opti_to_function():
+    opti_solver = OptiSolver()
+    problem, var = OptimizationProblem.create(
+        input_structure=MyTestVarAndPar(), optimization_solver=opti_solver
+    )
+    initial_guess = MyTestVarAndPar()
+    np.random.seed(123)
+    a = 10.0 * np.random.rand(3, 1) + 0.01
+    b = 20.0 * np.random.rand(3, 1) - 10.0
+    c = 20.0 * np.random.rand(3, 1) - 10.0
+
+    initial_guess.parameter = c
+
+    problem.add_expression(
+        mode=ExpressionType.minimize,
+        expression=(
+            a[k] * cs.power(var.composite.variable[k], 2)
+            + b[k] * var.composite.variable[k]
+            for k in range(3)
+        ),
+    )
+
+    problem.add_expression(
+        mode=ExpressionType.subject_to,
+        expression=(  # noqa
+            var.composite.variable[k] >= var.parameter[k] for k in range(3)
+        ),
+    )
+
+    problem.solver().set_initial_guess(initial_guess=initial_guess)
+    problem.solve()
+
+    c = 20.0 * np.random.rand(3, 1) - 10.0
+    initial_guess.parameter = c
+
+    opti_function = opti_solver.to_function()
+    output_dict = opti_function(**initial_guess.to_dict(prefix="guess."))
+    output = MyTestVarAndPar()
+    output.from_dict(output_dict)
+
+    expected_x = np.zeros((3, 1))
+    for i in range(3):
+        expected = -b[i] / (2 * a[i])
+        expected_x[i] = expected if expected >= c[i] else c[i]
+
+    assert output.composite.variable == pytest.approx(expected_x)
+    assert output.parameter == pytest.approx(c)

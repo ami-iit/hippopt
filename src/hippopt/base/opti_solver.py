@@ -46,6 +46,13 @@ class InitialGuessFailure(Exception):
         )
 
 
+class ToFunctionSolveNotCalled(Exception):
+    def __init__(self):
+        super().__init__(
+            "The solve() method must be called before converting to function."
+        )
+
+
 @dataclasses.dataclass
 class OptiSolver(OptimizationSolver):
     DefaultSolverType: ClassVar[str] = "ipopt"
@@ -580,3 +587,24 @@ class OptiSolver(OptimizationSolver):
 
     def get_free_parameters_names(self) -> list[str]:
         return self._free_parameters
+
+    def to_function(
+        self, name: str = "opti_function", options: dict = None
+    ) -> cs.Function:
+        if self._output_solution is None:
+            # to_function does not seem to work without calling solve() first
+            raise ToFunctionSolveNotCalled
+
+        variables_names = list(self._objects_dict.keys())
+        # Prepend guess to the variable names
+        guess_names = ["guess." + name for name in variables_names]
+        variables_values = list(self._objects_dict.values())
+        options = {} if options is None else options
+        return self._solver.to_function(
+            name,
+            variables_values,
+            variables_values,
+            guess_names,
+            variables_names,
+            options,
+        )
