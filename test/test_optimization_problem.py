@@ -312,12 +312,6 @@ def test_opti_to_function():
         ),
     )
 
-    problem.solver().set_initial_guess(initial_guess=initial_guess)
-    problem.solve()
-
-    c = 20.0 * np.random.rand(3, 1) - 10.0
-    initial_guess.parameter = c
-
     opti_function = opti_solver.to_function()
     output_dict = opti_function(**initial_guess.to_dict(prefix="guess."))
     output = MyTestVarAndPar()
