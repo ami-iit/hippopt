@@ -22,3 +22,6 @@ addopts = "-ra -q"
 testpaths = [
     "test",
 ]
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(message)s"
