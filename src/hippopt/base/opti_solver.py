@@ -596,15 +596,18 @@ class OptiSolver(OptimizationSolver):
         output_variables = []
         output_variables_names = []
 
+        used_variables = []
+        used_variables.extend(cs.symvar(self._solver.f))
+        used_variables.extend(cs.symvar(self._solver.g))
+        used_variables.extend(cs.symvar(self._solver.ubg))
+        used_variables.extend(cs.symvar(self._solver.lbg))
+
+        used_variables_names = [var.name() for var in used_variables]
+
         for var in self._objects_dict:
             mx_var = self._objects_dict[var]
 
-            if (
-                cs.depends_on(self._solver.f, mx_var)
-                or cs.depends_on(self._solver.g, mx_var)
-                or cs.depends_on(self._solver.ubg, mx_var)
-                or cs.depends_on(self._solver.lbg, mx_var)
-            ):
+            if mx_var.name() in used_variables_names:
                 output_variables_names.append(var)
                 output_variables.append(mx_var)
 
