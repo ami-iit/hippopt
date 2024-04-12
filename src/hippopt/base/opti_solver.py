@@ -586,16 +586,34 @@ class OptiSolver(OptimizationSolver):
     ) -> cs.Function:
         self._cost = self._cost if self._cost is not None else cs.MX(0)
         self._solver.minimize(self._cost)
-        variables_names = list(self._objects_dict.keys())
+
         # Prepend guess to the variable names
-        guess_names = ["guess." + name for name in variables_names]
-        variables_values = list(self._objects_dict.values())
+        guess_names = ["guess." + name for name in self._objects_dict]
+        all_variables_values = list(self._objects_dict.values())
+
+        # Workaround for https://github.com/casadi/casadi/issues/3655
+        # Remove from the output variables the ones that are not used in the problem
+        output_variables = []
+        output_variables_names = []
+
+        for var in self._objects_dict:
+            mx_var = self._objects_dict[var]
+
+            if (
+                cs.depends_on(self._solver.f, mx_var)
+                or cs.depends_on(self._solver.g, mx_var)
+                or cs.depends_on(self._solver.ubg, mx_var)
+                or cs.depends_on(self._solver.lbg, mx_var)
+            ):
+                output_variables_names.append(var)
+                output_variables.append(mx_var)
+
         options = {} if options is None else options
         return self._solver.to_function(
             name,
-            variables_values,
-            variables_values,
+            all_variables_values,
+            output_variables,
             guess_names,
-            variables_names,
+            output_variables_names,
             options,
         )
