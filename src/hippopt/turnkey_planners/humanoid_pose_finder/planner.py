@@ -249,7 +249,7 @@ class Planner:
                 f_opts=self.settings.casadi_function_options,
             )
 
-        structure = Variables(
+        self.variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
@@ -261,10 +261,10 @@ class Planner:
         )
 
         self.op = hp.OptimizationProblem.create(
-            input_structure=structure, optimization_solver=self.optimization_solver
+            input_structure=self.variables, optimization_solver=self.optimization_solver
         )
 
-        variables = self.op.variables  # type: Variables
+        sym_variables = self.op.variables  # type: Variables
 
         function_inputs = self._get_function_inputs_dict()
 
@@ -273,7 +273,7 @@ class Planner:
             **function_inputs
         )
         normalized_quaternion = normalized_quaternion_fun(
-            q=variables.state.kinematics.base.quaternion_xyzw
+            q=sym_variables.state.kinematics.base.quaternion_xyzw
         )["quaternion_normalized"]
 
         # Align names used in the terrain function with those in function_inputs
@@ -294,7 +294,8 @@ class Planner:
 
         point_kinematics_functions = {}
         all_contact_points = (
-            variables.state.contact_points.left + variables.state.contact_points.right
+            sym_variables.state.contact_points.left
+            + sym_variables.state.contact_points.right
         )
 
         for i, point in enumerate(all_contact_points):
@@ -321,12 +322,12 @@ class Planner:
         )
 
         self._add_foot_regularization(
-            points=variables.state.contact_points.left,
-            references=variables.references.state.contact_points.left,
+            points=sym_variables.state.contact_points.left,
+            references=sym_variables.references.state.contact_points.left,
         )
         self._add_foot_regularization(
-            points=variables.state.contact_points.right,
-            references=variables.references.state.contact_points.right,
+            points=sym_variables.state.contact_points.right,
+            references=sym_variables.references.state.contact_points.right,
         )
 
     def _get_function_inputs_dict(self):
@@ -673,3 +674,6 @@ class Planner:
             return model
 
         return self.kin_dyn_object.rbdalgos.model
+
+    def get_variables_structure(self) -> Variables:
+        return copy.deepcopy(self.variables)

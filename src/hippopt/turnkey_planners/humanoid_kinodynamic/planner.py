@@ -1088,3 +1088,6 @@ class Planner:
             return model
 
         return self.kin_dyn_object.rbdalgos.model
+
+    def get_variables_structure(self) -> Variables:
+        return copy.deepcopy(self.variables)
