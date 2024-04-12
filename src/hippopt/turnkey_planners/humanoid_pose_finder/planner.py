@@ -253,7 +253,7 @@ class Planner:
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
-        optimization_solver = hp.OptiSolver(
+        self.optimization_solver = hp.OptiSolver(
             inner_solver=self.settings.opti_solver,
             problem_type=self.settings.problem_type,
             options_solver=self.settings.casadi_solver_options,
@@ -261,7 +261,7 @@ class Planner:
         )
 
         self.op = hp.OptimizationProblem.create(
-            input_structure=structure, optimization_solver=optimization_solver
+            input_structure=structure, optimization_solver=self.optimization_solver
         )
 
         variables = self.op.variables  # type: Variables
@@ -649,6 +649,11 @@ class Planner:
 
     def solve(self) -> hp.Output[Variables]:
         return self.op.problem.solve()
+
+    def to_function(
+        self, name: str = "opti_function", options: dict = None
+    ) -> cs.Function:
+        return self.optimization_solver.to_function(name=name, options=options)
 
     def get_adam_model(self) -> adam.model.Model:
         if self.parametric_model:

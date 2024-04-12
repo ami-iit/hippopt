@@ -61,14 +61,16 @@ class Planner:
                 )
             )
 
-        optimization_solver = hp.OptiSolver(
+        self.optimization_solver = hp.OptiSolver(
             inner_solver=self.settings.opti_solver,
             problem_type=self.settings.problem_type,
             options_solver=self.settings.casadi_solver_options,
             options_plugin=self.settings.casadi_opti_options,
             callback_criterion=opti_callback,
         )
-        ocp_solver = hp.MultipleShootingSolver(optimization_solver=optimization_solver)
+        ocp_solver = hp.MultipleShootingSolver(
+            optimization_solver=self.optimization_solver
+        )
 
         self.ocp = hp.OptimalControlProblem.create(
             input_structure=self.variables,
@@ -1062,6 +1064,11 @@ class Planner:
         output = self.ocp.problem.solve()
         output.values = self._undo_mass_regularization(output.values)
         return output
+
+    def to_function(
+        self, name: str = "opti_function", options: dict = None
+    ) -> cs.Function:
+        return self.optimization_solver.to_function(name=name, options=options)
 
     def get_adam_model(self) -> adam.model.Model:
         if self.parametric_model:
