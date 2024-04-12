@@ -266,10 +266,19 @@ def compute_state(
         pf_guess.parametric_link_length_multipliers = (
             pf_parametric_link_length_multipliers
         )
-    pf_input.set_initial_guess(pf_guess)
+    pf_function = pf_input.to_function(
+        name="pose_finder", options={"error_on_fail": True}
+    )
+    pf_guess_dict = pf_guess.to_dict(prefix="guess.")
+    output_pf_dict = pf_function(**pf_guess_dict)
 
-    output_pf = pf_input.solve()
-    return output_pf.values.state
+    for key in output_pf_dict:
+        if isinstance(output_pf_dict[key], cs.DM):
+            output_pf_dict[key] = np.array(output_pf_dict[key])
+
+    output_pf = pf_input.get_variables_structure()
+    output_pf.from_dict(output_pf_dict)
+    return output_pf.state
 
 
 def compute_initial_state(
@@ -538,11 +547,22 @@ if __name__ == "__main__":
         planner_guess.parametric_link_length_multipliers = (
             parametric_link_length_multipliers
         )
-    planner.set_initial_guess(planner_guess)
 
-    output = planner.solve()
+    planner_function = planner.to_function(
+        name="kinodynamic_walking", options={"error_on_fail": True}
+    )
 
-    humanoid_states = [s.to_humanoid_state() for s in output.values.system]
+    initial_guess_dict = planner_guess.to_dict(prefix="guess.")
+    output_dict = planner_function(**initial_guess_dict)
+
+    for key in output_dict:
+        if isinstance(output_dict[key], cs.DM):
+            output_dict[key] = np.array(output_dict[key])
+
+    output = planner.get_variables_structure()
+    output.from_dict(output_dict)
+
+    humanoid_states = [s.to_humanoid_state() for s in output.system]
     left_contact_points = [s.contact_points.left for s in humanoid_states]
     right_contact_points = [s.contact_points.right for s in humanoid_states]
 
@@ -554,7 +574,7 @@ if __name__ == "__main__":
 
     visualizer.visualize(
         states=humanoid_states,
-        timestep_s=output.values.dt,
+        timestep_s=output.dt,
         time_multiplier=1.0,
         save=True,
         file_name_stem="humanoid_walking_periodic_sensitivity",
