@@ -272,9 +272,9 @@ def compute_state(
     pf_guess_dict = pf_guess.to_dict(prefix="guess.")
     output_pf_dict = pf_function(**pf_guess_dict)
 
-    for key in output_pf_dict:
-        if isinstance(output_pf_dict[key], cs.DM):
-            output_pf_dict[key] = np.array(output_pf_dict[key])
+    for k in output_pf_dict:
+        if isinstance(output_pf_dict[k], cs.DM):
+            output_pf_dict[k] = np.array(output_pf_dict[k])
 
     output_pf = pf_input.get_variables_structure()
     output_pf.from_dict(output_pf_dict)
@@ -553,7 +553,13 @@ if __name__ == "__main__":
     )
 
     initial_guess_dict = planner_guess.to_dict(prefix="guess.")
-    output_dict = planner_function(**initial_guess_dict)
+    initial_guess_dict_pruned = {}
+    for key in initial_guess_dict:
+        if isinstance(initial_guess_dict[key], np.ndarray) or isinstance(
+            initial_guess_dict[key], cs.DM
+        ):
+            initial_guess_dict_pruned[key] = initial_guess_dict[key]
+    output_dict = planner_function(**initial_guess_dict_pruned)
 
     for key in output_dict:
         if isinstance(output_dict[key], cs.DM):
