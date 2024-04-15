@@ -573,6 +573,9 @@ if __name__ == "__main__":
     right_contact_points = [s.contact_points.right for s in humanoid_states]
 
     visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
+    planner.set_initial_guess(
+        planner_guess
+    )  # This is to update the values of multipliers and densities
     visualizer_settings.robot_model = planner.get_adam_model()
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     print("Press [Enter] to visualize the solution.")
