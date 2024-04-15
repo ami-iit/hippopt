@@ -406,10 +406,10 @@ class OptiSolver(OptimizationSolver):
                 value=guess_value,
             )
 
-        self._guess = initial_guess
+        self._guess = copy.deepcopy(initial_guess)
 
     def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
-        return self._guess
+        return copy.deepcopy(self._guess)
 
     def set_opti_options(
         self,
