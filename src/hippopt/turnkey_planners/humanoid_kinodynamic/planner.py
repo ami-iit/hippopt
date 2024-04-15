@@ -941,7 +941,9 @@ class Planner:
         else:
             numeric_mass = self.numeric_mass
 
-        assert numeric_mass > 0
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
         output = input_var
         if output.initial_state is not None:
             if (
@@ -991,7 +993,9 @@ class Planner:
         else:
             numeric_mass = self.numeric_mass
 
-        assert numeric_mass > 0
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
         output = input_var
         if output.initial_state is not None:
             if (
@@ -1069,7 +1073,39 @@ class Planner:
     def to_function(
         self, name: str = "opti_function", options: dict = None
     ) -> cs.Function:
-        return self.optimization_solver.to_function(name=name, options=options)
+
+        inner_function = self.optimization_solver.to_function(
+            name=name + "_internal", options=options
+        )
+        variable_names = inner_function.name_in()
+        variables_list = []
+        variables_sym = {}
+        for n in variable_names:
+            variables_sym[n] = cs.MX.sym(n, inner_function.size_in(n))
+            variables_list.append(variables_sym[n])
+
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(input_dict=variables_sym, prefix="guess.")
+        mass_regularized_vars = self._apply_mass_regularization(optimization_structure)
+        output_dict = inner_function(**mass_regularized_vars.to_dict(prefix="guess."))
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(input_dict=output_dict)
+        mass_regularized_output = self._undo_mass_regularization(optimization_structure)
+        mass_regularized_output_dict = mass_regularized_output.to_dict()
+
+        output_values = []
+        output_names = []
+        for n in output_dict:
+            output_values.append(mass_regularized_output_dict[n])
+            output_names.append(n)
+
+        return cs.Function(
+            name, variables_list, output_values, variable_names, output_names, options
+        )
 
     def get_adam_model(self) -> adam.model.Model:
         if self.parametric_model:
