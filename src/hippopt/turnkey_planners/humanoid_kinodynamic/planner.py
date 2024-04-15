@@ -48,7 +48,7 @@ class Planner:
             )
             self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
-        self.variables = Variables(
+        variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
@@ -73,11 +73,12 @@ class Planner:
         )
 
         self.ocp = hp.OptimalControlProblem.create(
-            input_structure=self.variables,
+            input_structure=variables,
             optimal_control_solver=ocp_solver,
             horizon=self.settings.horizon_length,
         )
 
+        self.variables = ocp_solver.get_optimization_structure()
         sym = self.ocp.symbolic_structure  # type: Variables
 
         function_inputs = self._get_function_inputs_dict()

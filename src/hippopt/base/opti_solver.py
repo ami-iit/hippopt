@@ -86,6 +86,9 @@ class OptiSolver(OptimizationSolver):
     _objects: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
+    _objects_structure: TOptimizationObject | list[TOptimizationObject] = (
+        dataclasses.field(default=None)
+    )
     _objects_dict: dict[str, cs.MX] = dataclasses.field(default=None)
     _problem: Problem = dataclasses.field(default=None)
     _guess: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
@@ -250,6 +253,7 @@ class OptiSolver(OptimizationSolver):
             raise ValueError(
                 "The input structure is neither an optimization object nor a list."
             )
+        self._objects_structure = copy.deepcopy(input_structure)
         output = copy.deepcopy(input_structure)
         is_list = isinstance(output, list)
         input_list = output if is_list else [output]
@@ -328,6 +332,11 @@ class OptiSolver(OptimizationSolver):
         self,
     ) -> TOptimizationObject | list[TOptimizationObject]:
         return self._objects
+
+    def get_optimization_structure(
+        self,
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._objects_structure
 
     def register_problem(self, problem: Problem) -> None:
         self._problem = problem
