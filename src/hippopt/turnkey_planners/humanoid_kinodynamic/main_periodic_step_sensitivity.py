@@ -1,3 +1,4 @@
+import copy
 import logging
 
 import casadi as cs
@@ -232,7 +233,7 @@ def compute_state(
     assert len(input_settings.joints_name_list) == len(desired_joints)
 
     pf_ref = pose_finder.References(
-        contact_point_descriptors=pf_settings.contact_points,
+        contact_point_descriptors=input_settings.contact_points,
         number_of_joints=len(desired_joints),
     )
 
@@ -388,6 +389,80 @@ def get_references(
     return output_list
 
 
+def get_guess(
+    input_settings: walking_settings.Settings,
+    input_contact_phases: hp_rp.FeetContactPhasesDescriptor(),
+    variables_structure: walking_variables.Variables,
+    input_parametric_link_densities: list[float] | None = None,
+    input_parametric_link_length_multipliers: list[float] | None = None,
+) -> walking_variables.Variables:
+    pf_settings = get_pose_finder_settings(input_settings=input_settings)
+    pf = pose_finder.Planner(settings=pf_settings)
+    initial_state = compute_initial_state(
+        input_settings=input_settings,
+        pf_input=pf,
+        contact_guess=input_contact_phases,
+        pf_parametric_link_densities=input_parametric_link_densities,
+        pf_parametric_link_length_multipliers=input_parametric_link_length_multipliers,
+    )
+    final_state = compute_final_state(
+        input_settings=input_settings,
+        pf_input=pf,
+        contact_guess=input_contact_phases,
+        pf_parametric_link_densities=input_parametric_link_densities,
+        pf_parametric_link_length_multipliers=input_parametric_link_length_multipliers,
+    )
+    final_state.centroidal_momentum = np.zeros((6, 1))
+    middle_state = compute_middle_state(
+        input_settings=input_settings,
+        pf_input=pf,
+        contact_guess=input_contact_phases,
+        pf_parametric_link_densities=input_parametric_link_densities,
+        pf_parametric_link_length_multipliers=input_parametric_link_length_multipliers,
+    )
+    first_half_guess_length = input_settings.horizon_length // 2
+    first_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=initial_state,
+        final_state=middle_state,
+        contact_phases=input_contact_phases,
+        contact_descriptor=input_settings.contact_points,
+        number_of_points=first_half_guess_length,
+        dt=input_settings.time_step,
+    )
+    second_half_guess_length = input_settings.horizon_length - first_half_guess_length
+    second_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=middle_state,
+        final_state=final_state,
+        contact_phases=input_contact_phases,
+        contact_descriptor=input_settings.contact_points,
+        number_of_points=second_half_guess_length,
+        dt=input_settings.time_step,
+        t0=first_half_guess_length * input_settings.time_step,
+    )
+    state_guess = first_half_guess + second_half_guess
+
+    references = get_references(
+        input_settings=planner_settings,
+        desired_states=state_guess,
+    )
+
+    output_guess = copy.deepcopy(variables_structure)
+    output_guess.references = references
+    output_guess.system = [
+        walking_variables.ExtendedHumanoid.from_humanoid_state(s) for s in state_guess
+    ]
+    output_guess.initial_state = initial_state
+    output_guess.final_state = final_state
+    if input_parametric_link_densities is not None:
+        output_guess.parametric_link_densities = input_parametric_link_densities
+    if input_parametric_link_length_multipliers is not None:
+        output_guess.parametric_link_length_multipliers = (
+            input_parametric_link_length_multipliers
+        )
+
+    return output_guess
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
@@ -424,11 +499,6 @@ if __name__ == "__main__":
         1.0,
         2.0,
     ]
-
-    planner = walking_planner.Planner(settings=planner_settings)
-
-    pf_settings = get_pose_finder_settings(input_settings=planner_settings)
-    pf = pose_finder.Planner(settings=pf_settings)
 
     horizon = planner_settings.horizon_length * planner_settings.time_step
 
@@ -481,74 +551,15 @@ if __name__ == "__main__":
         ),
     ]
 
-    initial_state = compute_initial_state(
+    planner = walking_planner.Planner(settings=planner_settings)
+
+    guess = get_guess(
         input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
+        input_contact_phases=contact_phases_guess,
+        variables_structure=planner.get_variables_structure(),
+        input_parametric_link_densities=parametric_link_densities,
+        input_parametric_link_length_multipliers=parametric_link_length_multipliers,
     )
-
-    final_state = compute_final_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
-    )
-    final_state.centroidal_momentum = np.zeros((6, 1))
-
-    middle_state = compute_middle_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
-    )
-
-    first_half_guess_length = planner_settings.horizon_length // 2
-    first_half_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=initial_state,
-        final_state=middle_state,
-        contact_phases=contact_phases_guess,
-        contact_descriptor=planner_settings.contact_points,
-        number_of_points=first_half_guess_length,
-        dt=planner_settings.time_step,
-    )
-
-    second_half_guess_length = planner_settings.horizon_length - first_half_guess_length
-    second_half_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=middle_state,
-        final_state=final_state,
-        contact_phases=contact_phases_guess,
-        contact_descriptor=planner_settings.contact_points,
-        number_of_points=second_half_guess_length,
-        dt=planner_settings.time_step,
-        t0=first_half_guess_length * planner_settings.time_step,
-    )
-
-    guess = first_half_guess + second_half_guess
-
-    print("Starting the planner...")
-
-    references = get_references(
-        input_settings=planner_settings,
-        desired_states=guess,
-    )
-
-    planner.set_references(references)
-    planner_guess = planner.get_initial_guess()
-    planner_guess.system = [
-        walking_variables.ExtendedHumanoid.from_humanoid_state(s) for s in guess
-    ]
-    planner_guess.initial_state = initial_state
-    planner_guess.final_state = final_state
-    if parametric_link_densities is not None:
-        planner_guess.parametric_link_densities = parametric_link_densities
-    if parametric_link_length_multipliers is not None:
-        planner_guess.parametric_link_length_multipliers = (
-            parametric_link_length_multipliers
-        )
 
     planner_function = planner.to_function(
         input_name_prefix="in.",
@@ -556,8 +567,9 @@ if __name__ == "__main__":
         options={"error_on_fail": True},
     )
 
-    initial_guess_dict = planner_guess.to_dict(prefix="in.")
+    initial_guess_dict = guess.to_dict(prefix="in.")
     initial_guess_dict_pruned = {}
+    # Remove None values from the dictionary
     for key in initial_guess_dict:
         if isinstance(initial_guess_dict[key], np.ndarray) or isinstance(
             initial_guess_dict[key], cs.DM
