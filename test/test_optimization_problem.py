@@ -312,7 +312,7 @@ def test_opti_to_function():
         ),
     )
 
-    opti_function = opti_solver.to_function()
+    opti_function = opti_solver.to_function(input_name_prefix="guess.")
     output_dict = opti_function(**initial_guess.to_dict(prefix="guess."))
     output = MyTestVarAndPar()
     output.from_dict(output_dict)

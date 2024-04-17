@@ -591,13 +591,16 @@ class OptiSolver(OptimizationSolver):
         return self._free_parameters
 
     def to_function(
-        self, name: str = "opti_function", options: dict = None
+        self,
+        input_name_prefix: str,
+        function_name: str = "opti_function",
+        options: dict = None,
     ) -> cs.Function:
         self._cost = self._cost if self._cost is not None else cs.MX(0)
         self._solver.minimize(self._cost)
 
-        # Prepend guess to the variable names
-        guess_names = ["guess." + name for name in self._objects_dict]
+        # Prepend input_name_prefix to the variable names
+        guess_names = [input_name_prefix + name for name in self._objects_dict]
         all_variables_values = list(self._objects_dict.values())
 
         # Workaround for https://github.com/casadi/casadi/issues/3655
@@ -622,7 +625,7 @@ class OptiSolver(OptimizationSolver):
 
         options = {} if options is None else options
         return self._solver.to_function(
-            name,
+            function_name,
             all_variables_values,
             output_variables,
             guess_names,

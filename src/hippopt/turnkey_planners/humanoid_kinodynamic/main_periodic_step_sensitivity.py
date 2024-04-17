@@ -267,9 +267,11 @@ def compute_state(
             pf_parametric_link_length_multipliers
         )
     pf_function = pf_input.to_function(
-        name="pose_finder", options={"error_on_fail": True}
+        input_name_prefix="pf_in.",
+        function_name="pose_finder",
+        options={"error_on_fail": True},
     )
-    pf_guess_dict = pf_guess.to_dict(prefix="guess.")
+    pf_guess_dict = pf_guess.to_dict(prefix="pf_in.")
     output_pf_dict = pf_function(**pf_guess_dict)
 
     for k in output_pf_dict:
@@ -549,10 +551,12 @@ if __name__ == "__main__":
         )
 
     planner_function = planner.to_function(
-        name="kinodynamic_walking", options={"error_on_fail": True}
+        input_name_prefix="in.",
+        function_name="kinodynamic_walking",
+        options={"error_on_fail": True},
     )
 
-    initial_guess_dict = planner_guess.to_dict(prefix="guess.")
+    initial_guess_dict = planner_guess.to_dict(prefix="in.")
     initial_guess_dict_pruned = {}
     for key in initial_guess_dict:
         if isinstance(initial_guess_dict[key], np.ndarray) or isinstance(

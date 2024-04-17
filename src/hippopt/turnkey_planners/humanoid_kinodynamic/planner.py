@@ -1071,11 +1071,16 @@ class Planner:
         return output
 
     def to_function(
-        self, name: str = "opti_function", options: dict = None
+        self,
+        input_name_prefix: str,
+        function_name: str = "opti_function",
+        options: dict = None,
     ) -> cs.Function:
 
         inner_function = self.optimization_solver.to_function(
-            name=name + "_internal", options=options
+            input_name_prefix=input_name_prefix,
+            function_name=function_name + "_internal",
+            options=options,
         )
         variable_names = inner_function.name_in()
         variables_list = []
@@ -1087,9 +1092,13 @@ class Planner:
         optimization_structure = copy.deepcopy(
             self.optimization_solver.get_optimization_objects()
         )
-        optimization_structure.from_dict(input_dict=variables_sym, prefix="guess.")
+        optimization_structure.from_dict(
+            input_dict=variables_sym, prefix=input_name_prefix
+        )
         mass_regularized_vars = self._apply_mass_regularization(optimization_structure)
-        output_dict = inner_function(**mass_regularized_vars.to_dict(prefix="guess."))
+        output_dict = inner_function(
+            **mass_regularized_vars.to_dict(prefix=input_name_prefix)
+        )
         optimization_structure = copy.deepcopy(
             self.optimization_solver.get_optimization_objects()
         )
@@ -1104,7 +1113,12 @@ class Planner:
             output_names.append(n)
 
         return cs.Function(
-            name, variables_list, output_values, variable_names, output_names, options
+            function_name,
+            variables_list,
+            output_values,
+            variable_names,
+            output_names,
+            options,
         )
 
     def get_adam_model(self) -> adam.model.Model:
