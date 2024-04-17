@@ -1,6 +1,6 @@
 import copy
-import math
 
+import casadi as cs
 import liecasadi
 import numpy as np
 
@@ -26,13 +26,10 @@ def linear_interpolator(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    initial = np.array(initial)
-    final = np.array(final)
-
-    if len(initial.shape) < 2:
+    if isinstance(initial, np.ndarray) and len(initial.shape) < 2:
         initial = np.expand_dims(initial, axis=1)
 
-    if len(final.shape) < 2:
+    if isinstance(final, np.ndarray) and len(final.shape) < 2:
         final = np.expand_dims(final, axis=1)
 
     if (
@@ -57,26 +54,24 @@ def quaternion_slerp(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    initial = np.array(initial)
-    final = np.array(final)
-
-    if len(initial.shape) < 2:
+    if isinstance(initial, np.ndarray) and len(initial.shape) < 2:
         initial = np.expand_dims(initial, axis=1)
 
-    if len(final.shape) < 2:
+    if isinstance(final, np.ndarray) and len(final.shape) < 2:
         final = np.expand_dims(final, axis=1)
 
     dot = initial.T @ final
-    angle = math.acos(dot)
+    angle = cs.acos(dot)
 
     t = np.linspace(start=0.0, stop=1.0, num=number_of_points)
     output = []
     for t_i in t:
-        output.append(
-            liecasadi.Quaternion.slerp_step(initial, final, t_i).coeffs()
-            if abs(angle) > 1e-6
-            else initial
+        value = cs.if_else(
+            cs.fabs(angle) > 1e-6,
+            liecasadi.Quaternion.slerp_step(initial, final, t_i).coeffs(),
+            initial,
         )
+        output.append(value)
     return output
 
 
