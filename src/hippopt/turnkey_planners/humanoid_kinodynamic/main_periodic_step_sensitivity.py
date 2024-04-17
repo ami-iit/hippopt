@@ -276,7 +276,7 @@ def compute_state(
 
     for k in output_pf_dict:
         if isinstance(output_pf_dict[k], cs.DM):
-            output_pf_dict[k] = np.array(output_pf_dict[k])
+            output_pf_dict[k] = output_pf_dict[k].full().flatten()
 
     output_pf = pf_input.get_variables_structure()
     output_pf.from_dict(output_pf_dict)
@@ -567,7 +567,7 @@ if __name__ == "__main__":
 
     for key in output_dict:
         if isinstance(output_dict[key], cs.DM):
-            output_dict[key] = np.array(output_dict[key])
+            output_dict[key] = output_dict[key].full().flatten()
 
     output = planner.get_variables_structure()
     output.from_dict(output_dict)
@@ -577,9 +577,7 @@ if __name__ == "__main__":
     right_contact_points = [s.contact_points.right for s in humanoid_states]
 
     visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
-    planner.set_initial_guess(
-        planner_guess
-    )  # This is to update the values of multipliers and densities
+    planner.set_initial_guess(output)  # Update the values of multipliers and densities
     visualizer_settings.robot_model = planner.get_adam_model()
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     print("Press [Enter] to visualize the solution.")
