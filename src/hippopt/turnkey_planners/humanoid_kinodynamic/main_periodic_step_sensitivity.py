@@ -229,10 +229,10 @@ def get_guess_function(
     assert len(input_settings.joints_name_list) == len(input_desired_joints)
     assert len(input_settings.parametric_link_names)
 
-    link_length_multipliers_symbolic = cs.MX.sym(
+    pf_link_length_multipliers_sym = cs.MX.sym(
         "link_length_multipliers", len(input_settings.parametric_link_names)
     )
-    link_densities_symbolic = cs.MX.sym(
+    pf_link_densities_sym = cs.MX.sym(
         "link_densities", len(input_settings.parametric_link_names)
     )
 
@@ -255,8 +255,8 @@ def get_guess_function(
     )
     pf_ref.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
     pf_ref.state.kinematics.joints.positions = desired_joints
-    pf_input.parametric_link_length_multipliers = link_length_multipliers_symbolic
-    pf_input.parametric_link_densities = link_densities_symbolic
+    pf_input.parametric_link_length_multipliers = pf_link_length_multipliers_sym
+    pf_input.parametric_link_densities = pf_link_densities_sym
 
     # Initial state
     desired_left_foot_pose = input_contact_phases.left[0].transform
@@ -380,16 +380,16 @@ def get_guess_function(
     ]
     output_guess.initial_state = initial_state
     output_guess.final_state = final_state
-    output_guess.parametric_link_length_multipliers = link_length_multipliers_symbolic
-    output_guess.parametric_link_densities = link_densities_symbolic
+    output_guess.parametric_link_length_multipliers = pf_link_length_multipliers_sym
+    output_guess.parametric_link_densities = pf_link_densities_sym
 
     output_values = []
     output_names = []
     guess_dict = output_guess.to_dict()
     for k in guess_dict:
-        value = guess_dict[k]
-        if isinstance(value, cs.MX):
-            output_values.append(value)
+        val = guess_dict[k]
+        if isinstance(val, cs.MX):
+            output_values.append(val)
             output_names.append(k)
 
     options = options or {}
@@ -397,13 +397,73 @@ def get_guess_function(
     return (
         cs.Function(
             "planner_guess",
-            [link_length_multipliers_symbolic, link_densities_symbolic],
+            [pf_link_length_multipliers_sym, pf_link_densities_sym],
             output_values,
             ["link_length_multipliers", "link_densities"],
             output_names,
             options,
         ),
         output_guess,
+    )
+
+
+def get_full_output_function(
+    input_settings: walking_settings.Settings,
+    input_desired_joints: list[float],
+    input_contact_phases: hp_rp.FeetContactPhasesDescriptor(),
+    input_planner: walking_planner.Planner,
+    options: dict | None = None,
+):
+    link_length_multipliers_sym = cs.MX.sym(
+        "link_length_multipliers", len(input_settings.parametric_link_names)
+    )
+    link_densities_sym = cs.MX.sym(
+        "link_densities", len(input_settings.parametric_link_names)
+    )
+    planner_function = input_planner.to_function(
+        input_name_prefix="in.",
+        function_name="kinodynamic_walking",
+        options={"error_on_fail": True},
+    )
+    guess_function, guess = get_guess_function(
+        input_settings=input_settings,
+        input_desired_joints=input_desired_joints,
+        input_contact_phases=input_contact_phases,
+        variables_structure=input_planner.get_variables_structure(),
+    )
+    output_guess_dict = guess_function(
+        link_length_multipliers=link_length_multipliers_sym,
+        link_densities=link_densities_sym,
+    )
+    guess.from_dict(output_guess_dict)
+    initial_guess_dict = guess.to_dict(prefix="in.")
+    initial_guess_dict_pruned = {}
+    # Remove None values from the dictionary
+    for k in initial_guess_dict:
+        if (
+            isinstance(initial_guess_dict[k], np.ndarray)
+            or isinstance(initial_guess_dict[k], cs.DM)
+            or isinstance(initial_guess_dict[k], cs.MX)
+        ):
+            initial_guess_dict_pruned[k] = initial_guess_dict[k]
+    output_dict = planner_function(**initial_guess_dict_pruned)
+    full_output_values = []
+    full_output_names = []
+    for k in output_dict:
+        val = output_dict[k]
+        if isinstance(val, cs.MX):
+            full_output_values.append(val)
+            full_output_names.append(k)
+
+    options = options or {}
+
+    return cs.Function(
+        "periodic_step_sensitivity",
+        [link_length_multipliers_sym, link_densities_sym],
+        full_output_values,
+        ["link_length_multipliers", "link_densities"],
+        full_output_names,
+        options,
     )
 
 
@@ -525,44 +585,24 @@ if __name__ == "__main__":
 
     planner = walking_planner.Planner(settings=planner_settings)
 
-    guess_function, guess = get_guess_function(
+    full_function = get_full_output_function(
         input_settings=planner_settings,
         input_desired_joints=desired_joints,
         input_contact_phases=contact_phases_guess,
-        variables_structure=planner.get_variables_structure(),
+        input_planner=planner,
     )
 
-    output_guess_dict = guess_function(
+    computed_output = full_function(
         link_length_multipliers=parametric_link_length_multipliers,
         link_densities=parametric_link_densities,
     )
 
-    guess.from_dict(output_guess_dict)
-
-    planner_function = planner.to_function(
-        input_name_prefix="in.",
-        function_name="kinodynamic_walking",
-        options={"error_on_fail": True},
-    )
-
-    initial_guess_dict = guess.to_dict(prefix="in.")
-    initial_guess_dict_pruned = {}
-    # Remove None values from the dictionary
-    for key in initial_guess_dict:
-        if (
-            isinstance(initial_guess_dict[key], np.ndarray)
-            or isinstance(initial_guess_dict[key], cs.DM)
-            or isinstance(initial_guess_dict[key], cs.MX)
-        ):
-            initial_guess_dict_pruned[key] = initial_guess_dict[key]
-    output_dict = planner_function(**initial_guess_dict_pruned)
-
-    for key in output_dict:
-        if isinstance(output_dict[key], cs.DM):
-            output_dict[key] = output_dict[key].full().flatten()
+    for key in computed_output:
+        if isinstance(computed_output[key], cs.DM):
+            computed_output[key] = computed_output[key].full().flatten()
 
     output = planner.get_variables_structure()
-    output.from_dict(output_dict)
+    output.from_dict(computed_output)
 
     humanoid_states = [s.to_humanoid_state() for s in output.system]
     left_contact_points = [s.contact_points.left for s in humanoid_states]
