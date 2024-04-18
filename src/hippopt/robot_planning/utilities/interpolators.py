@@ -349,7 +349,11 @@ def kinematic_tree_state_interpolator(
     final_state: KinematicTreeState,
     number_of_points: int,
 ) -> list[KinematicTreeState]:
-    if len(initial_state.positions) != len(final_state.positions):
+    if (
+        isinstance(initial_state.positions, np.ndarray)
+        and isinstance(final_state.positions, np.ndarray)
+        and len(initial_state.positions) != len(final_state.positions)
+    ):
         raise ValueError(
             f"Initial state has {len(initial_state.positions)} joints, "
             f"but final state has {len(final_state.positions)} joints."
@@ -427,9 +431,15 @@ def humanoid_state_interpolator(
     for points, kin, com in zip(
         contact_points_interpolation, kinematics_interpolation, com_interpolation
     ):
+        joints = initial_state.kinematics.joints.positions
+        number_of_joints = (
+            joints.shape[0] * joints.shape[1]
+            if hasattr(joints, "shape") and len(joints.shape) == 2
+            else len(joints)
+        )
         output_state = HumanoidState(
             contact_point_descriptors=contact_descriptor,
-            number_of_joints=len(initial_state.kinematics.joints.positions),
+            number_of_joints=number_of_joints,
         )
         output_state.contact_points = points
         output_state.kinematics = kin
