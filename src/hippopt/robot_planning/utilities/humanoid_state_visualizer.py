@@ -310,7 +310,7 @@ class HumanoidStateVisualizer:
                     )
                     fps = 1.0 / (sum(timestep_s) / len(timestep_s))
                 else:
-                    fps = float(1.0 / timestep_s[0])
+                    fps = float(1.0 / timestep_s.item())
             elif isinstance(timestep_s, float):
                 fps = 1.0 / timestep_s
             else:
