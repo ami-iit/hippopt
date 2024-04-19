@@ -251,6 +251,8 @@ class HumanoidStateVisualizer:
             or _timestep_s.size == 1
         ):
             single_step = _timestep_s if _timestep_s is not None else 0.0
+            if isinstance(single_step, np.ndarray):
+                single_step = single_step.item()
             _timestep_s = [single_step] * len(states)
 
         if len(_timestep_s) != len(states):
