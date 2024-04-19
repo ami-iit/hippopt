@@ -647,23 +647,20 @@ if __name__ == "__main__":
         [(yz - average_com_yz) ** 2 for yz in com_yz_positions]
     ) / len(com_yz_positions)
 
-    com_yz_variability_function = cs.Function(
-        "com_yz_variability",
-        [link_length_multipliers_symbolic, link_densities_symbolic],
-        [com_yz_variability],
-        ["link_length_multipliers", "link_densities"],
-        ["com_yz_variability_length_sensitivity"],
+    com_yz_variability_jacobian = cs.jacobian(
+        com_yz_variability,
+        cs.vertcat(link_length_multipliers_symbolic, link_densities_symbolic),
     )
 
-    jac = com_yz_variability_function.jacobian()
+    com_yz_variability_jacobian_function = cs.Function(
+        "com_yz_variability_jacobian",
+        [link_length_multipliers_symbolic, link_densities_symbolic],
+        [com_yz_variability_jacobian],
+        {"error_on_fail": False},
+    )
 
-    test = jac(
-        parametric_link_length_multipliers,
-        parametric_link_densities,
-        com_yz_variability_function(
-            parametric_link_length_multipliers,
-            parametric_link_densities,
-        ),
+    test = com_yz_variability_jacobian_function(
+        parametric_link_length_multipliers, parametric_link_densities
     )
 
     print(test)
