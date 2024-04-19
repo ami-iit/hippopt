@@ -111,7 +111,7 @@ def get_planner_settings() -> walking_settings.Settings:
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
     settings.periodicity_expression_type = hippopt.ExpressionType.subject_to
     settings.casadi_function_options = {"cse": True}
-    settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": True}
+    settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": False}
     settings.casadi_solver_options = {
         "max_iter": 4000,
         "linear_solver": "mumps",
@@ -592,33 +592,78 @@ if __name__ == "__main__":
         input_planner=planner,
     )
 
-    computed_output = full_function(
-        link_length_multipliers=parametric_link_length_multipliers,
-        link_densities=parametric_link_densities,
+    # computed_output = full_function(
+    #     link_length_multipliers=parametric_link_length_multipliers,
+    #     link_densities=parametric_link_densities,
+    # )
+    #
+    # for key in computed_output:
+    #     if isinstance(computed_output[key], cs.DM):
+    #         computed_output[key] = computed_output[key].full().flatten()
+    #
+    # output = planner.get_variables_structure()
+    # output.from_dict(computed_output)
+    #
+    # humanoid_states = [s.to_humanoid_state() for s in output.system]
+    # left_contact_points = [s.contact_points.left for s in humanoid_states]
+    # right_contact_points = [s.contact_points.right for s in humanoid_states]
+    #
+    # visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
+    # planner.set_initial_guess(output)  # Update the values of multipliers and densities
+    # visualizer_settings.robot_model = planner.get_adam_model()
+    # visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    # print("Press [Enter] to visualize the solution.")
+    # input()
+    #
+    # visualizer.visualize(
+    #     states=humanoid_states,
+    #     timestep_s=output.dt,
+    #     time_multiplier=1.0,
+    #     save=False,
+    #     file_name_stem="humanoid_walking_periodic_sensitivity",
+    # )
+
+    link_length_multipliers_symbolic = cs.MX.sym(
+        "link_length_multipliers", len(planner_settings.parametric_link_names)
+    )
+    link_densities_symbolic = cs.MX.sym(
+        "link_densities", len(planner_settings.parametric_link_names)
     )
 
-    for key in computed_output:
-        if isinstance(computed_output[key], cs.DM):
-            computed_output[key] = computed_output[key].full().flatten()
-
-    output = planner.get_variables_structure()
-    output.from_dict(computed_output)
-
-    humanoid_states = [s.to_humanoid_state() for s in output.system]
-    left_contact_points = [s.contact_points.left for s in humanoid_states]
-    right_contact_points = [s.contact_points.right for s in humanoid_states]
-
-    visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
-    planner.set_initial_guess(output)  # Update the values of multipliers and densities
-    visualizer_settings.robot_model = planner.get_adam_model()
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    print("Press [Enter] to visualize the solution.")
-    input()
-
-    visualizer.visualize(
-        states=humanoid_states,
-        timestep_s=output.dt,
-        time_multiplier=1.0,
-        save=True,
-        file_name_stem="humanoid_walking_periodic_sensitivity",
+    symbolic_output_dict = full_function(
+        link_length_multipliers=link_length_multipliers_symbolic,
+        link_densities=link_densities_symbolic,
     )
+
+    symbolic_output = planner.get_variables_structure()
+    symbolic_output.from_dict(symbolic_output_dict)
+
+    # Compute the variability of the CoM position
+    com_yz_positions = [s.com[1:] for s in symbolic_output.system]
+
+    average_com_yz = sum(com_yz_positions) / len(com_yz_positions)
+
+    com_yz_variability = sum(
+        [(yz - average_com_yz) ** 2 for yz in com_yz_positions]
+    ) / len(com_yz_positions)
+
+    com_yz_variability_function = cs.Function(
+        "com_yz_variability",
+        [link_length_multipliers_symbolic, link_densities_symbolic],
+        [com_yz_variability],
+        ["link_length_multipliers", "link_densities"],
+        ["com_yz_variability_length_sensitivity"],
+    )
+
+    jac = com_yz_variability_function.jacobian()
+
+    test = jac(
+        parametric_link_length_multipliers,
+        parametric_link_densities,
+        com_yz_variability_function(
+            parametric_link_length_multipliers,
+            parametric_link_densities,
+        ),
+    )
+
+    print(test)
