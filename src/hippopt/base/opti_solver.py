@@ -179,8 +179,9 @@ class OptiSolver(OptimizationSolver):
     ) -> StorageType:
         try:
             if isinstance(input_solution, dict):
-                return np.array(input_solution[variable])
-            return np.array(input_solution.value(variable))
+                value = input_solution[variable]
+            else:
+                value = input_solution.value(variable)
         except Exception as err:  # noqa
             self._logger.debug(
                 "Failed to get the solution for variable "
@@ -189,6 +190,9 @@ class OptiSolver(OptimizationSolver):
                 + str(err)
             )
             return None
+        if isinstance(value, cs.DM):
+            return value.full().flatten()
+        return value
 
     def _generate_solution_output(
         self,
