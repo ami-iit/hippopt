@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import logging
+from typing import Any
 
 import adam.casadi
 import adam.model
@@ -661,6 +662,16 @@ class Planner:
             input_name_prefix=input_name_prefix,
             function_name=function_name,
             options=options,
+        )
+
+    def change_opti_options(
+        self,
+        inner_solver: str = None,
+        options_solver: dict[str, Any] = None,
+        options_plugin: dict[str, Any] = None,
+    ) -> None:
+        self.optimization_solver.set_opti_options(
+            inner_solver, options_solver, options_plugin
         )
 
     def get_adam_model(self) -> adam.model.Model:
