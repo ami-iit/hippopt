@@ -114,7 +114,7 @@ def get_planner_settings() -> walking_settings.Settings:
     settings.casadi_opti_options = {"expand": True, "detect_simple_bounds": False}
     settings.casadi_solver_options = {
         "max_iter": 4000,
-        "linear_solver": "mumps",
+        "linear_solver": "ma57",
         "alpha_for_y": "dual-and-full",
         "fast_step_computation": "yes",
         "hessian_approximation": "limited-memory",
@@ -623,44 +623,62 @@ if __name__ == "__main__":
     #     file_name_stem="humanoid_walking_periodic_sensitivity",
     # )
 
-    link_length_multipliers_symbolic = cs.MX.sym(
-        "link_length_multipliers", len(planner_settings.parametric_link_names)
+    ipopt_output_dict = full_function(
+        link_length_multipliers=parametric_link_length_multipliers,
+        link_densities=parametric_link_densities,
     )
-    link_densities_symbolic = cs.MX.sym(
-        "link_densities", len(planner_settings.parametric_link_names)
+    ipopt_output = planner.get_variables_structure()
+    ipopt_output.from_dict(ipopt_output_dict)
+
+    # MOVE TO SQP METHOD
+    planner.change_opti_options()
+    opts = {"qpsol": "qrqp"}
+    # opts["qpsol_options"] = {}
+    # opts["qpsol_options"]["print_iter"] = False
+    # opts["print_status"] = False
+    # opts["print_iteration"] = False
+    # opts["print_time"] = False
+    planner.change_opti_options(
+        inner_solver="sqpmethod",
+        options_solver={},
+        options_plugin=opts,
     )
+    planner.set_initial_guess(ipopt_output)
+    planner.solve()
 
-    symbolic_output_dict = full_function(
-        link_length_multipliers=link_length_multipliers_symbolic,
-        link_densities=link_densities_symbolic,
-    )
+    # GET AGAIN THE FUNCTION
+    # EVALUATE AGAIN THE FUNCTION SETTING THE SYMBOLIC VARIABLES BUT USING THE VALUES FROM THE PREVIOUS EVALUATION
 
-    symbolic_output = planner.get_variables_structure()
-    symbolic_output.from_dict(symbolic_output_dict)
-
-    # Compute the variability of the CoM position
-    com_yz_positions = [s.com[1:] for s in symbolic_output.system]
-
-    average_com_yz = sum(com_yz_positions) / len(com_yz_positions)
-
-    com_yz_variability = sum(
-        [(yz - average_com_yz) ** 2 for yz in com_yz_positions]
-    ) / len(com_yz_positions)
-
-    com_yz_variability_jacobian = cs.jacobian(
-        com_yz_variability,
-        cs.vertcat(link_length_multipliers_symbolic, link_densities_symbolic),
-    )
-
-    com_yz_variability_jacobian_function = cs.Function(
-        "com_yz_variability_jacobian",
-        [link_length_multipliers_symbolic, link_densities_symbolic],
-        [com_yz_variability_jacobian],
-        {"error_on_fail": False},
-    )
-
-    test = com_yz_variability_jacobian_function(
-        parametric_link_length_multipliers, parametric_link_densities
-    )
-
-    print(test)
+    # link_length_multipliers_symbolic = cs.MX.sym(
+    #     "link_length_multipliers", len(planner_settings.parametric_link_names)
+    # )
+    # link_densities_symbolic = cs.MX.sym(
+    #     "link_densities", len(planner_settings.parametric_link_names)
+    # )
+    #
+    # # Compute the variability of the CoM position
+    # com_yz_positions = [s.com[1:] for s in symbolic_output.system]
+    #
+    # average_com_yz = sum(com_yz_positions) / len(com_yz_positions)
+    #
+    # com_yz_variability = sum(
+    #     [(yz - average_com_yz) ** 2 for yz in com_yz_positions]
+    # ) / len(com_yz_positions)
+    #
+    # com_yz_variability_jacobian = cs.jacobian(
+    #     com_yz_variability,
+    #     cs.vertcat(link_length_multipliers_symbolic, link_densities_symbolic),
+    # )
+    #
+    # com_yz_variability_jacobian_function = cs.Function(
+    #     "com_yz_variability_jacobian",
+    #     [link_length_multipliers_symbolic, link_densities_symbolic],
+    #     [com_yz_variability_jacobian],
+    #     {"error_on_fail": False},
+    # )
+    #
+    # test = com_yz_variability_jacobian_function(
+    #     parametric_link_length_multipliers, parametric_link_densities
+    # )
+    #
+    # print(test)
