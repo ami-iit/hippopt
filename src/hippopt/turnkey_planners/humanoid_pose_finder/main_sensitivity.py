@@ -175,8 +175,7 @@ if __name__ == "__main__":
         ]
     )
 
-    initial_guess = planner.get_initial_guess()
-    initial_guess.parametric_link_densities = [
+    parametric_link_densities = [
         1578.8230690646876,
         687.9855671524874,
         568.2817642184916,
@@ -186,7 +185,7 @@ if __name__ == "__main__":
         844.6779189491116,
         628.0724496264946,
     ]
-    initial_guess.parametric_link_length_multipliers = [
+    parametric_link_length_multipliers = [
         1.0,
         1.0,
         1.0,
@@ -196,6 +195,11 @@ if __name__ == "__main__":
         1.0,
         2.0,
     ]
+    initial_guess = planner.get_initial_guess()
+    initial_guess.parametric_link_length_multipliers = (
+        parametric_link_length_multipliers
+    )
+    initial_guess.parametric_link_densities = parametric_link_densities
     initial_guess.references = references
     planner.set_initial_guess(initial_guess)
     output_ipopt = planner.solve()
@@ -204,18 +208,46 @@ if __name__ == "__main__":
         options_solver={},
         options_plugin={"qpsol": "qrqp"},
     )
-    planner.set_initial_guess(output_ipopt.values)
-    output = planner.solve()
+    # planner.set_initial_guess(output_ipopt.values)
 
-    visualizer_settings = hp_rp.HumanoidStateVisualizerSettings()
-    visualizer_settings.robot_model = planner.get_adam_model()
-    visualizer_settings.considered_joints = planner_settings.joints_name_list
-    visualizer_settings.contact_points = planner_settings.contact_points
-    visualizer_settings.terrain = planner_settings.terrain
-    visualizer_settings.working_folder = "./"
+    planner_function = planner.to_function(input_name_prefix="guess.")
 
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    visualizer.visualize(output.values.state)  # noqa
+    parametric_link_length_multipliers_sym = cs.MX.sym(
+        "parametric_link_length_multipliers",
+        len(planner_settings.parametric_link_names),
+    )
+    parametric_link_densities_sym = cs.MX.sym(
+        "parametric_link_densities", len(planner_settings.parametric_link_names)
+    )
 
-    print("Press [Enter] to exit.")
-    input()
+    initial_guess = output_ipopt.values
+    initial_guess.parametric_link_length_multipliers = (
+        parametric_link_length_multipliers_sym
+    )
+    initial_guess.parametric_link_densities = parametric_link_densities_sym
+    initial_guess_dict = output_ipopt.values.to_dict(prefix="guess.")
+
+    output_dict = planner_function(**initial_guess_dict)
+    output = planner.get_variables_structure()
+    output.from_dict(output_dict)
+    com_height = output.state.com[2]
+
+    com_height_function = cs.Function(
+        "com_height_function",
+        [parametric_link_length_multipliers_sym, parametric_link_densities_sym],
+        [com_height],
+    )
+
+    com_height = com_height_function(
+        parametric_link_length_multipliers,
+        parametric_link_densities,
+    )
+
+    com_height_jacobian_function = com_height_function.jacobian()
+    link_jacobian, density_jacobian = com_height_jacobian_function(
+        parametric_link_length_multipliers, parametric_link_densities, com_height
+    )
+
+    print(f"Com Height: {com_height}")
+    print(f"Link Jacobian: {link_jacobian}")
+    print(f"Density Jacobian: {density_jacobian}")
