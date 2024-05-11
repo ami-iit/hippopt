@@ -79,9 +79,6 @@ class HumanoidStateVisualizerSettings(TerrainVisualizerSettings):
         if self.contact_points is None:
             logger.error("contact_points is not specified.")
             ok = False
-        if len(self.robot_color) != 4:
-            logger.error("robot_color is not specified correctly.")
-            ok = False
         if len(self.com_color) != 4:
             logger.error("com_color is not specified correctly.")
             ok = False
@@ -379,3 +376,7 @@ class HumanoidStateVisualizer:
             self._visualize_single_state(
                 states=states, save=save, file_name_stem=file_name_stem
             )
+
+    def change_link_color(self, link_name: str, color: list[float]) -> None:
+        for i in range(self._number_of_clones):
+            self._viz.set_link_color(f"[{i}]robot", link_name, color)
