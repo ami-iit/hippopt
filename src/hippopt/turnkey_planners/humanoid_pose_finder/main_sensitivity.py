@@ -77,8 +77,8 @@ if __name__ == "__main__":
 
     planner_settings.parametric_link_names = [
         "r_upper_arm",
-        "r_forearm",
-        "l_hip_3",
+        "l_upper_arm",
+        "r_lower_leg",
         "l_lower_leg",
         "root_link",
         "torso_1",
@@ -177,8 +177,8 @@ if __name__ == "__main__":
 
     parametric_link_densities = [
         1578.8230690646876,
-        687.9855671524874,
-        568.2817642184916,
+        1578.8230690646876,
+        1907.2410446310623,
         1907.2410446310623,
         2013.8319822728106,
         1134.0550335996697,
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         1.0,
         1.0,
         1.0,
-        2.0,
+        1.0,
     ]
     initial_guess = planner.get_initial_guess()
     initial_guess.parametric_link_length_multipliers = (
@@ -251,3 +251,47 @@ if __name__ == "__main__":
     print(f"Com Height: {com_height}")
     print(f"Link Jacobian: {link_jacobian}")
     print(f"Density Jacobian: {density_jacobian}")
+
+    visualizer_settings = hp_rp.HumanoidStateVisualizerSettings()
+    visualizer_settings.robot_model = planner.get_adam_model()
+    visualizer_settings.considered_joints = planner_settings.joints_name_list
+    visualizer_settings.contact_points = planner_settings.contact_points
+    visualizer_settings.terrain = planner_settings.terrain
+    visualizer_settings.working_folder = "./"
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+
+    min_sensitivity = np.min(link_jacobian)
+    print("Min length sensitivity: ", min_sensitivity)
+    max_sensitivity = np.max(link_jacobian)
+    print("Max length sensitivity: ", max_sensitivity)
+
+    for i, link in enumerate(planner_settings.parametric_link_names):
+        sensitivity = link_jacobian[i].full().item()
+        alpha = (sensitivity - min_sensitivity) / (max_sensitivity - min_sensitivity)
+        visualizer.change_link_color(link, [alpha, 1 - alpha, 0.0, 1])
+
+    visualizer.visualize(
+        states=output_ipopt.values.state, save=True, file_name_stem="length_sensitivity"
+    )
+
+    print("Press [Enter] to visualize density sensitivity.")
+    input()
+
+    min_sensitivity = np.min(density_jacobian)
+    print("Min density sensitivity: ", min_sensitivity)
+    max_sensitivity = np.max(density_jacobian)
+    print("Max density sensitivity: ", max_sensitivity)
+
+    for i, link in enumerate(planner_settings.parametric_link_names):
+        sensitivity = density_jacobian[i].full().item()
+        alpha = (sensitivity - min_sensitivity) / (max_sensitivity - min_sensitivity)
+        visualizer.change_link_color(link, [alpha, 1 - alpha, 0.0, 1])
+
+    visualizer.visualize(
+        states=output_ipopt.values.state,
+        save=True,
+        file_name_stem="density_sensitivity",
+    )
+
+    print("Press [Enter] to close.")
+    input()
