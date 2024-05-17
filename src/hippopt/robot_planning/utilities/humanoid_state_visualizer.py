@@ -208,6 +208,7 @@ class HumanoidStateVisualizer:
         self,
         states: list[HumanoidState],
         save: bool,
+        quiet: bool,
         file_name_stem: str,
     ) -> None:
         if len(states) > self._number_of_clones:
@@ -229,11 +230,12 @@ class HumanoidStateVisualizer:
             self._set_clone_visibility(i, False)
 
         if save:
-            self._logger.info(
-                f"Saving image {file_name_stem}.png. "
-                "Make sure to have the visualizer open, "
-                "otherwise the process will hang."
-            )
+            if not quiet:
+                self._logger.info(
+                    f"Saving image {file_name_stem}.png. "
+                    "Make sure to have the visualizer open, "
+                    "otherwise the process will hang."
+                )
             image = self._viz.viewer.get_image()
             image.save(file_name_stem + ".png")
 
@@ -286,6 +288,7 @@ class HumanoidStateVisualizer:
             self._visualize_single_state(
                 visualized_states,
                 save=save,
+                quiet=True,
                 file_name_stem=f"{folder_name}/{frame_prefix}{i-number_of_clones:03}",
             )
             end = time.time()
@@ -379,7 +382,7 @@ class HumanoidStateVisualizer:
             )
         else:
             self._visualize_single_state(
-                states=states, save=save, file_name_stem=file_name_stem
+                states=states, save=save, quiet=False, file_name_stem=file_name_stem
             )
 
     def change_link_color(self, link_name: str, color: list[float]) -> None:
