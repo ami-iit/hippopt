@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 import adam.casadi
 import adam.model
@@ -48,7 +49,7 @@ class Planner:
             )
             self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
-        self.variables = Variables(
+        variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
         )
 
@@ -61,21 +62,24 @@ class Planner:
                 )
             )
 
-        optimization_solver = hp.OptiSolver(
+        self.optimization_solver = hp.OptiSolver(
             inner_solver=self.settings.opti_solver,
             problem_type=self.settings.problem_type,
             options_solver=self.settings.casadi_solver_options,
             options_plugin=self.settings.casadi_opti_options,
             callback_criterion=opti_callback,
         )
-        ocp_solver = hp.MultipleShootingSolver(optimization_solver=optimization_solver)
+        ocp_solver = hp.MultipleShootingSolver(
+            optimization_solver=self.optimization_solver
+        )
 
         self.ocp = hp.OptimalControlProblem.create(
-            input_structure=self.variables,
+            input_structure=variables,
             optimal_control_solver=ocp_solver,
             horizon=self.settings.horizon_length,
         )
 
+        self.variables = ocp_solver.get_optimization_structure()
         sym = self.ocp.symbolic_structure  # type: Variables
 
         function_inputs = self._get_function_inputs_dict()
@@ -938,7 +942,9 @@ class Planner:
         else:
             numeric_mass = self.numeric_mass
 
-        assert numeric_mass > 0
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
         output = input_var
         if output.initial_state is not None:
             if (
@@ -988,7 +994,9 @@ class Planner:
         else:
             numeric_mass = self.numeric_mass
 
-        assert numeric_mass > 0
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
         output = input_var
         if output.initial_state is not None:
             if (
@@ -1063,6 +1071,67 @@ class Planner:
         output.values = self._undo_mass_regularization(output.values)
         return output
 
+    def to_function(
+        self,
+        input_name_prefix: str,
+        function_name: str = "opti_function",
+        options: dict = None,
+    ) -> cs.Function:
+
+        inner_function = self.optimization_solver.to_function(
+            input_name_prefix=input_name_prefix,
+            function_name=function_name + "_internal",
+            options=options,
+        )
+        variable_names = inner_function.name_in()
+        variables_list = []
+        variables_sym = {}
+        for n in variable_names:
+            variables_sym[n] = cs.MX.sym(n, inner_function.size_in(n))
+            variables_list.append(variables_sym[n])
+
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(
+            input_dict=variables_sym, prefix=input_name_prefix
+        )
+        mass_regularized_vars = self._apply_mass_regularization(optimization_structure)
+        output_dict = inner_function(
+            **mass_regularized_vars.to_dict(prefix=input_name_prefix)
+        )
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(input_dict=output_dict)
+        mass_regularized_output = self._undo_mass_regularization(optimization_structure)
+        mass_regularized_output_dict = mass_regularized_output.to_dict()
+
+        output_values = []
+        output_names = []
+        for n in output_dict:
+            output_values.append(mass_regularized_output_dict[n])
+            output_names.append(n)
+
+        return cs.Function(
+            function_name,
+            variables_list,
+            output_values,
+            variable_names,
+            output_names,
+            options,
+        )
+
+    def change_opti_options(
+        self,
+        inner_solver: str = None,
+        options_solver: dict[str, Any] = None,
+        options_plugin: dict[str, Any] = None,
+    ) -> None:
+        self.optimization_solver.set_opti_options(
+            inner_solver, options_solver, options_plugin
+        )
+
     def get_adam_model(self) -> adam.model.Model:
         if self.parametric_model:
             guess = self.ocp.problem.get_initial_guess()
@@ -1081,3 +1150,6 @@ class Planner:
             return model
 
         return self.kin_dyn_object.rbdalgos.model
+
+    def get_variables_structure(self) -> Variables:
+        return copy.deepcopy(self.variables)

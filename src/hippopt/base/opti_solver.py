@@ -83,9 +83,13 @@ class OptiSolver(OptimizationSolver):
     _output_cost: float = dataclasses.field(default=None)
     _cost_values: dict[str, float] = dataclasses.field(default=None)
     _constraint_values: dict[str, np.ndarray] = dataclasses.field(default=None)
-    _variables: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
+    _objects: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
     )
+    _objects_structure: TOptimizationObject | list[TOptimizationObject] = (
+        dataclasses.field(default=None)
+    )
+    _objects_dict: dict[str, cs.MX] = dataclasses.field(default=None)
     _problem: Problem = dataclasses.field(default=None)
     _guess: TOptimizationObject | list[TOptimizationObject] = dataclasses.field(
         default=None
@@ -138,19 +142,17 @@ class OptiSolver(OptimizationSolver):
         if value is None:
             raise ValueError("Field " + name + " is tagged as storage, but it is None.")
 
-        if isinstance(value, np.ndarray):
-            if value.ndim > 2:
-                raise ValueError(
-                    "Field " + name + " has number of dimensions greater than 2."
-                )
-            if value.ndim == 0:
-                raise ValueError("Field " + name + " is a zero-dimensional vector.")
+        if not isinstance(value, np.ndarray):
+            raise ValueError(
+                f"Field {name} is tagged as storage, but it is not an array "
+                f"(it is a {str(type(value))})."
+            )
 
-            if value.ndim < 2:
-                value = np.expand_dims(value, axis=1)
-
-        if isinstance(value, float):
-            value = value * np.ones((1, 1))
+        if value.ndim != 2:
+            raise ValueError(
+                f"Field {name} has number of dimensions different from 2 "
+                f"(input: {value.ndim})."
+            )
 
         if value.shape[0] * value.shape[1] == 0:
             raise ValueError("Field " + name + " has a zero dimension.")
@@ -172,135 +174,14 @@ class OptiSolver(OptimizationSolver):
 
         raise ValueError("Unsupported input storage type")
 
-    def _generate_objects_from_instance(
-        self,
-        input_structure: TOptimizationObject,
-        parent_metadata: dict,
-        base_name: str,
-    ) -> TOptimizationObject:
-        output = copy.deepcopy(input_structure)
-
-        for field in dataclasses.fields(output):
-            composite_value = output.__getattribute__(field.name)
-
-            is_list = isinstance(composite_value, list)
-            list_of_optimization_objects = (
-                is_list
-                and len(composite_value) > 0
-                and all(
-                    isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                    for elem in composite_value
-                )
-            )
-            list_of_float = is_list and (
-                len(composite_value) == 0
-                or all(isinstance(elem, float) for elem in composite_value)
-            )
-            if list_of_float:
-                composite_value = np.array(composite_value)
-                is_list = False
-
-            if (
-                isinstance(composite_value, OptimizationObject)
-                or list_of_optimization_objects
-            ):
-                new_parent_metadata = parent_metadata
-                has_composite_metadata = (
-                    OptimizationObject.CompositeTypeField in field.metadata
-                    and field.metadata[OptimizationObject.CompositeTypeField]
-                    is not None
-                )
-                if has_composite_metadata:
-                    composite_metadata = field.metadata[
-                        OptimizationObject.CompositeTypeField
-                    ]
-                    use_old_metadata = (
-                        parent_metadata is not None
-                        and OptimizationObject.OverrideIfCompositeField
-                        in composite_metadata
-                        and composite_metadata[
-                            OptimizationObject.OverrideIfCompositeField
-                        ]
-                    )
-
-                    if not use_old_metadata:
-                        new_parent_metadata = composite_metadata
-
-                output.__setattr__(
-                    field.name,
-                    self.generate_optimization_objects(
-                        input_structure=composite_value,
-                        fill_initial_guess=False,
-                        _parent_metadata=new_parent_metadata,
-                        _base_name=base_name + field.name + ".",
-                    ),
-                )
-                continue
-
-            if OptimizationObject.StorageTypeField in field.metadata:
-                value_list = composite_value if is_list else [composite_value]
-                output_value = []
-                for value in value_list:
-                    should_override = (
-                        OptimizationObject.OverrideIfCompositeField in field.metadata
-                        and field.metadata[OptimizationObject.OverrideIfCompositeField]
-                    )
-                    parent_can_override = (
-                        parent_metadata is not None
-                        and OptimizationObject.StorageTypeField in parent_metadata
-                    )
-                    if should_override and parent_can_override:
-                        storage_type = parent_metadata[
-                            OptimizationObject.StorageTypeField
-                        ]
-                    else:
-                        storage_type = field.metadata[
-                            OptimizationObject.StorageTypeField
-                        ]
-
-                    output_value.append(
-                        self._generate_opti_object(
-                            storage_type=storage_type,
-                            name=base_name + field.name,
-                            value=value,
-                        )
-                    )
-
-                output.__setattr__(
-                    field.name, output_value if is_list else output_value[0]
-                )
-                continue
-
-        self._variables = output
-        return output
-
-    def _generate_objects_from_list(
-        self,
-        input_structure: list[TOptimizationObject],
-        parent_metadata: dict,
-        base_name: str,
-    ) -> list[TOptimizationObject]:
-        assert isinstance(input_structure, list)
-
-        output = copy.deepcopy(input_structure)
-        for i in range(len(output)):
-            output[i] = self.generate_optimization_objects(
-                input_structure=output[i],
-                fill_initial_guess=False,
-                _parent_metadata=parent_metadata,
-                _base_name=base_name + "[" + str(i) + "].",
-            )
-
-        self._variables = output
-        return output
-
     def _get_opti_solution(
         self, variable: cs.MX, input_solution: cs.OptiSol | dict
     ) -> StorageType:
         try:
             if isinstance(input_solution, dict):
-                return input_solution[variable]
-            return input_solution.value(variable)
+                value = input_solution[variable]
+            else:
+                value = input_solution.value(variable)
         except Exception as err:  # noqa
             self._logger.debug(
                 "Failed to get the solution for variable "
@@ -309,6 +190,9 @@ class OptiSolver(OptimizationSolver):
                 + str(err)
             )
             return None
+        if isinstance(value, cs.DM):
+            return value.full().flatten()
+        return value
 
     def _generate_solution_output(
         self,
@@ -320,54 +204,27 @@ class OptiSolver(OptimizationSolver):
         input_solution: cs.OptiSol | dict,
     ) -> TOptimizationObject | list[TOptimizationObject]:
         output = copy.deepcopy(variables)
+        is_list = isinstance(output, list)
 
-        if isinstance(variables, list):
-            for i in range(len(variables)):
-                output[i] = self._generate_solution_output(variables[i], input_solution)
-            return output
-
-        for field in dataclasses.fields(variables):
-            has_storage_field = OptimizationObject.StorageTypeField in field.metadata
-
-            if has_storage_field and (
-                (
-                    field.metadata[OptimizationObject.StorageTypeField]
-                    is Variable.StorageTypeValue
-                )
-                or (
-                    field.metadata[OptimizationObject.StorageTypeField]
-                    is Parameter.StorageTypeValue
-                )
-            ):
-                var = variables.__getattribute__(field.name)
-                if isinstance(var, list):
-                    output_val = []
-                    for el in var:
-                        output_val.append(
-                            np.array(self._get_opti_solution(el, input_solution))
-                        )
-                else:
-                    output_val = np.array(self._get_opti_solution(var, input_solution))
-
-                output.__setattr__(field.name, output_val)
-                continue
-
-            composite_variable = variables.__getattribute__(field.name)
-
-            is_list = isinstance(composite_variable, list)
-            list_of_optimization_objects = is_list and all(
-                isinstance(elem, OptimizationObject) or isinstance(elem, list)
-                for elem in composite_variable
+        # Get the values from the opti solution
+        output_dict = {}
+        for variable in self._variables_map:
+            output_dict[self._variables_map[variable]] = self._get_opti_solution(
+                variable, input_solution
             )
 
-            if (
-                isinstance(composite_variable, OptimizationObject)
-                or list_of_optimization_objects
-            ):
-                output.__setattr__(
-                    field.name,
-                    self._generate_solution_output(composite_variable, input_solution),
-                )
+        for parameter in self._parameters_map:
+            output_dict[self._parameters_map[parameter]] = self._get_opti_solution(
+                parameter, input_solution
+            )
+
+        # Convert the dict to the output structure
+        if is_list:
+            for i in range(len(output)):
+                output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
+        else:
+            assert isinstance(output, OptimizationObject)
+            output.from_dict(input_dict=output_dict)
 
         return output
 
@@ -391,203 +248,6 @@ class OptiSolver(OptimizationSolver):
 
         return
 
-    def _set_initial_guess_internal(
-        self,
-        initial_guess: (
-            TOptimizationObject
-            | list[TOptimizationObject]
-            | list[list[TOptimizationObject]]
-        ),
-        corresponding_variable: (
-            TOptimizationObject
-            | list[TOptimizationObject]
-            | list[list[TOptimizationObject]]
-        ),
-        base_name: str = "",
-    ) -> None:
-        if isinstance(initial_guess, list):
-            if not isinstance(corresponding_variable, list):
-                raise ValueError(
-                    "The input guess is a list, but the specified variable "
-                    + base_name
-                    + " is not"
-                )
-
-            if len(corresponding_variable) != len(initial_guess):
-                raise ValueError(
-                    "The input guess is a list but the variable "
-                    + base_name
-                    + " has a different dimension. Expected: "
-                    + str(len(corresponding_variable))
-                    + " Input: "
-                    + str(len(initial_guess))
-                )
-
-            for i in range(len(corresponding_variable)):
-                self._set_initial_guess_internal(
-                    initial_guess=initial_guess[i],
-                    corresponding_variable=corresponding_variable[i],
-                    base_name=base_name + "[" + str(i) + "].",
-                )
-            return
-
-        # Check that the initial guess is an optimization object
-        if not isinstance(initial_guess, OptimizationObject):
-            raise ValueError(
-                "The initial guess for the variable "
-                + base_name
-                + " is not an optimization object."
-                + " It is of type "
-                + str(type(initial_guess))
-            )
-
-        for field in dataclasses.fields(initial_guess):
-            guess = initial_guess.__getattribute__(field.name)
-
-            if guess is None:
-                continue
-
-            if OptimizationObject.StorageTypeField in field.metadata:
-                if not hasattr(corresponding_variable, field.name):
-                    raise ValueError(
-                        "The guess has the field "
-                        + base_name
-                        + field.name
-                        + " but it is not present in the optimization parameters"
-                    )
-
-                corresponding_value = corresponding_variable.__getattribute__(
-                    field.name
-                )
-
-                if isinstance(corresponding_value, list):
-                    self._set_list_object_guess_internal(
-                        base_name, corresponding_value, field, guess
-                    )
-                    continue
-
-                if isinstance(guess, float):
-                    guess = guess * np.ones((1, 1))
-
-                if isinstance(guess, list) and all(
-                    isinstance(elem, float) or isinstance(elem, int) for elem in guess
-                ):
-                    guess = np.array(guess)
-
-                if not isinstance(guess, np.ndarray) and not isinstance(guess, cs.DM):
-                    raise ValueError(
-                        "The guess for the field "
-                        + base_name
-                        + field.name
-                        + " is neither an numpy nor a DM array."
-                    )
-
-                if len(guess.shape) == 0:
-                    continue
-
-                input_shape = (
-                    guess.shape if len(guess.shape) > 1 else (guess.shape[0], 1)
-                )
-
-                if corresponding_value.shape != input_shape:
-                    raise ValueError(
-                        f"The guess has the field {base_name}{field.name} "
-                        f"but its dimension ({input_shape}) does not match with the"
-                        f" corresponding optimization variable "
-                        f"({corresponding_value.shape})."
-                    )
-
-                self._set_opti_guess(
-                    variable=corresponding_value,
-                    value=guess,
-                )
-                continue
-
-            composite_variable_guess = initial_guess.__getattribute__(field.name)
-
-            if not isinstance(
-                composite_variable_guess, OptimizationObject
-            ) and not isinstance(composite_variable_guess, list):
-                continue
-
-            if not hasattr(corresponding_variable, field.name):
-                raise ValueError(
-                    "The guess has the field "
-                    + base_name
-                    + field.name
-                    + " but it is not present in the optimization structure"
-                )
-
-            self._set_initial_guess_internal(
-                initial_guess=composite_variable_guess,
-                corresponding_variable=corresponding_variable.__getattribute__(
-                    field.name
-                ),
-                base_name=base_name + field.name + ".",
-            )
-            continue
-
-    def _set_list_object_guess_internal(
-        self,
-        base_name: str,
-        corresponding_value: list,
-        field: dataclasses.Field,
-        guess: list,
-    ) -> None:
-        if not isinstance(guess, list):
-            raise ValueError(
-                "The guess for the field "
-                + base_name
-                + field.name
-                + " is supposed to be a list. "
-                + "Received "
-                + str(type(guess))
-                + " instead."
-            )
-        if len(corresponding_value) != len(guess):
-            raise ValueError(
-                "The guess for the field "
-                + base_name
-                + field.name
-                + " is a list of the wrong size. Expected: "
-                + str(len(corresponding_value))
-                + ". Guess: "
-                + str(len(guess))
-            )
-        for i in range(len(corresponding_value)):
-            value = guess[i]
-            if isinstance(value, float):
-                value = value * np.ones((1, 1))
-
-            if not isinstance(value, np.ndarray):
-                raise ValueError(
-                    "The field "
-                    + base_name
-                    + field.name
-                    + "["
-                    + str(i)
-                    + "] is marked as a variable or a parameter. Its guess "
-                    + "is supposed to be an array (or even a float if scalar)."
-                )
-
-            input_shape = value.shape if len(value.shape) > 1 else (value.shape[0], 1)
-
-            if corresponding_value[i].shape != input_shape:
-                raise ValueError(
-                    "The dimension of the guess for the field "
-                    + base_name
-                    + field.name
-                    + "["
-                    + str(i)
-                    + "] does not match with the corresponding"
-                    + " optimization variable"
-                )
-
-            self._set_opti_guess(
-                variable=corresponding_value[i],
-                value=value,
-            )
-
     def generate_optimization_objects(
         self, input_structure: TOptimizationObject | list[TOptimizationObject], **kwargs
     ) -> TOptimizationObject | list[TOptimizationObject]:
@@ -597,25 +257,68 @@ class OptiSolver(OptimizationSolver):
             raise ValueError(
                 "The input structure is neither an optimization object nor a list."
             )
+        self._objects_structure = copy.deepcopy(input_structure)
+        output = copy.deepcopy(input_structure)
+        is_list = isinstance(output, list)
+        input_list = output if is_list else [output]
+        input_as_dict = {}
+        input_metadata_as_dict = {}
+        output_dict = {}
 
-        parent_metadata = (
-            kwargs["_parent_metadata"] if "_parent_metadata" in kwargs else None
-        )
+        # In case of list, flatten to a single dict
+        for i, elem in enumerate(input_list):
+            prefix = f"[{i}]." if is_list else ""
+            elem_dict, elem_metadata = elem.to_dicts(prefix=prefix)
+            input_as_dict.update(elem_dict)
+            input_metadata_as_dict.update(elem_metadata)
 
-        base_name = kwargs["_base_name"] if "_base_name" in kwargs else ""
+        reverse_input_dict = {}
+        duplicates = {}
+        for obj_name in input_as_dict:
+            value = input_as_dict[obj_name]
+            if value is None or isinstance(value, float):
+                continue
+            value_id = id(value)
+            if value_id in reverse_input_dict:
+                if value_id not in duplicates:
+                    duplicates[value_id] = []
+                duplicates[value_id].append(obj_name)
+            else:
+                reverse_input_dict[value_id] = obj_name
 
-        if isinstance(input_structure, OptimizationObject):
-            output = self._generate_objects_from_instance(
-                input_structure=input_structure,
-                parent_metadata=parent_metadata,
-                base_name=base_name,
+        duplicates_string = ""
+        for value_id in duplicates:
+            duplicates_string += (
+                f"{reverse_input_dict[value_id]} is duplicated in the "
+                f"following fields: {duplicates[value_id]}\n"
             )
+        if len(duplicates):
+            raise ValueError(
+                "The following fields share the same object as value:\n"
+                + duplicates_string
+                + "This can cause issues when assigning a new value to these fields."
+            )
+
+        # For each element of the dict, create an opti object
+        for obj_name in input_as_dict:
+            value_id = input_as_dict[obj_name]
+            storage_type = input_metadata_as_dict[obj_name][
+                OptimizationObject.StorageTypeField
+            ]
+            output_dict[obj_name] = self._generate_opti_object(
+                storage_type=storage_type, name=obj_name, value=value_id
+            )
+
+        # Convert the dict to the output structure
+        if is_list:
+            for i in range(len(output)):
+                output[i].from_dict(input_dict=output_dict, prefix=f"[{str(i)}].")
         else:
-            output = self._generate_objects_from_list(
-                input_structure=input_structure,
-                parent_metadata=parent_metadata,
-                base_name=base_name,
-            )
+            assert isinstance(output, OptimizationObject)
+            output.from_dict(input_dict=output_dict)
+
+        self._objects = output
+        self._objects_dict = output_dict
 
         fill_initial_guess = (
             kwargs["fill_initial_guess"] if "fill_initial_guess" in kwargs else True
@@ -632,7 +335,12 @@ class OptiSolver(OptimizationSolver):
     def get_optimization_objects(
         self,
     ) -> TOptimizationObject | list[TOptimizationObject]:
-        return self._variables
+        return self._objects
+
+    def get_optimization_structure(
+        self,
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._objects_structure
 
     def register_problem(self, problem: Problem) -> None:
         self._problem = problem
@@ -645,14 +353,76 @@ class OptiSolver(OptimizationSolver):
     def set_initial_guess(
         self, initial_guess: TOptimizationObject | list[TOptimizationObject]
     ) -> None:
-        self._set_initial_guess_internal(
-            initial_guess=initial_guess, corresponding_variable=self._variables
-        )
 
-        self._guess = initial_guess
+        is_list = isinstance(initial_guess, list)
+        if is_list and not isinstance(self._objects, list):
+            raise ValueError(
+                "The input guess is a list, but the optimization structure is not"
+            )
+
+        if is_list and len(self._objects) != len(initial_guess):
+            raise ValueError(
+                "The input guess is a list but the optimization structure has"
+                " a different dimension. Expected: "
+                + str(len(self._objects))
+                + " Input: "
+                + str(len(initial_guess))
+            )
+
+        guess_list = initial_guess if is_list else [initial_guess]
+        guess_as_dict = {}
+        for i, elem in enumerate(guess_list):
+            prefix = f"[{i}]." if is_list else ""
+            elem_dict = elem.to_dict(prefix=prefix)
+            guess_as_dict.update(elem_dict)
+
+        for obj_name in guess_as_dict:
+            guess_value = guess_as_dict[obj_name]
+            if guess_value is None:
+                continue
+
+            if not isinstance(guess_value, np.ndarray) and not isinstance(
+                guess_value, cs.DM
+            ):
+                raise ValueError(
+                    f"The guess for the field {obj_name} is neither a numpy nor a"
+                    f" DM array. (Type: {str(type(guess_value))})."
+                )
+
+            if len(guess_value.shape) == 0:
+                continue
+
+            if obj_name not in self._objects_dict:
+                continue
+
+            corresponding_object = self._objects_dict[obj_name]
+
+            if not isinstance(corresponding_object, cs.MX):
+                raise ValueError(f"The field {obj_name} has not been added to opti.")
+
+            input_shape = (
+                guess_value.shape
+                if len(guess_value.shape) > 1
+                else (guess_value.shape[0], 1)
+            )
+
+            if corresponding_object.shape != input_shape:
+                raise ValueError(
+                    f"The guess has the field {obj_name} "
+                    f"but its dimension ({input_shape}) does not match with the"
+                    f" corresponding optimization variable "
+                    f"({obj_name.shape})."
+                )
+
+            self._set_opti_guess(
+                variable=corresponding_object,
+                value=guess_value,
+            )
+
+        self._guess = copy.deepcopy(initial_guess)
 
     def get_initial_guess(self) -> TOptimizationObject | list[TOptimizationObject]:
-        return self._guess
+        return copy.deepcopy(self._guess)
 
     def set_opti_options(
         self,
@@ -716,7 +486,7 @@ class OptiSolver(OptimizationSolver):
                 )
                 self._output_cost = self._callback.best_cost
                 self._output_solution = self._generate_solution_output(
-                    variables=self._variables,
+                    variables=self._objects,
                     input_solution=self._callback.best_objects,
                 )
                 self._cost_values = (
@@ -751,7 +521,7 @@ class OptiSolver(OptimizationSolver):
 
         self._output_cost = opti_solution.value(self._cost)
         self._output_solution = self._generate_solution_output(
-            variables=self._variables, input_solution=opti_solution
+            variables=self._objects, input_solution=opti_solution
         )
         self._cost_values = {
             name: float(opti_solution.value(self._cost_expressions[name]))
@@ -823,3 +593,46 @@ class OptiSolver(OptimizationSolver):
 
     def get_free_parameters_names(self) -> list[str]:
         return self._free_parameters
+
+    def to_function(
+        self,
+        input_name_prefix: str,
+        function_name: str = "opti_function",
+        options: dict = None,
+    ) -> cs.Function:
+        self._cost = self._cost if self._cost is not None else cs.MX(0)
+        self._solver.minimize(self._cost)
+
+        # Prepend input_name_prefix to the variable names
+        guess_names = [input_name_prefix + name for name in self._objects_dict]
+        all_variables_values = list(self._objects_dict.values())
+
+        # Workaround for https://github.com/casadi/casadi/issues/3655
+        # Remove from the output variables the ones that are not used in the problem
+        output_variables = []
+        output_variables_names = []
+
+        used_variables = []
+        used_variables.extend(cs.symvar(self._solver.f))
+        used_variables.extend(cs.symvar(self._solver.g))
+        used_variables.extend(cs.symvar(self._solver.ubg))
+        used_variables.extend(cs.symvar(self._solver.lbg))
+
+        used_variables_names = [var.name() for var in used_variables]
+
+        for var in self._objects_dict:
+            mx_var = self._objects_dict[var]
+
+            if mx_var.name() in used_variables_names:
+                output_variables_names.append(var)
+                output_variables.append(mx_var)
+
+        options = {} if options is None else options
+        return self._solver.to_function(
+            function_name,
+            all_variables_values,
+            output_variables,
+            guess_names,
+            output_variables_names,
+            options,
+        )
