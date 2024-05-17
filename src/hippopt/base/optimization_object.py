@@ -1,7 +1,7 @@
 import abc
 import dataclasses
 from enum import Enum
-from typing import Any, ClassVar, Type, TypeVar
+from typing import Any, Callable, ClassVar, Type, TypeVar
 
 import casadi as cs
 import numpy as np
@@ -31,6 +31,11 @@ class OptimizationObject(abc.ABC):
         TimeExpansion=TimeExpansion.List,
         OverrideIfComposite=False,
     )
+    IsValueFilter: ClassVar[Callable[[str, Any, dict], bool]] = (
+        lambda _, value, __: isinstance(value, np.ndarray)
+        or isinstance(value, cs.DM)
+        or isinstance(value, cs.MX)
+    )
 
     @staticmethod
     def _convert_to_np_array(value: Any) -> Any | np.ndarray:
@@ -58,6 +63,7 @@ class OptimizationObject(abc.ABC):
         name_prefix: str = "",
         parent_metadata: dict | None = None,
         input_dict: dict | None = None,
+        output_filter: Callable[[str, Any, dict], bool] | None = None,
     ) -> (dict, dict):
         output_dict = {}
         metadata_dict = {}
@@ -72,6 +78,7 @@ class OptimizationObject(abc.ABC):
                     name_prefix=name_prefix + f"[{str(i)}].",
                     parent_metadata=parent_metadata,
                     input_dict=input_dict,
+                    output_filter=output_filter,
                 )
                 output_dict.update(inner_dict)
                 metadata_dict.update(inner_metadata)
@@ -122,6 +129,7 @@ class OptimizationObject(abc.ABC):
                     name_prefix=name_prefix + field.name + separator,
                     parent_metadata=new_parent_metadata,
                     input_dict=input_dict,
+                    output_filter=output_filter,
                 )
                 output_dict.update(inner_dict)
                 metadata_dict.update(inner_metadata)
@@ -157,13 +165,18 @@ class OptimizationObject(abc.ABC):
                     if input_dict is not None and full_name in input_dict:
                         value_from_dict.append(input_dict[full_name])
 
-                    metadata_dict[full_name] = value_metadata
-
-                    output_dict[full_name] = (
+                    output_value = (
                         OptimizationObject._convert_to_np_array(composite_value[i])
                         if value_is_list
                         else composite_value
                     )
+
+                    if output_filter is not None:
+                        if not output_filter(full_name, output_value, value_metadata):
+                            continue
+
+                    metadata_dict[full_name] = value_metadata
+                    output_dict[full_name] = output_value
 
                 if len(value_from_dict) > 0:
                     input_object.__setattr__(
@@ -175,13 +188,23 @@ class OptimizationObject(abc.ABC):
 
         return output_dict, metadata_dict
 
-    def to_dict(self, prefix: str = "") -> dict:
-        output_dict, _ = OptimizationObject._scan(input_object=self, name_prefix=prefix)
+    def to_dict(
+        self,
+        prefix: str = "",
+        output_filter: Callable[[str, Any, dict], bool] | None = None,
+    ) -> dict:
+        output_dict, _ = OptimizationObject._scan(
+            input_object=self, name_prefix=prefix, output_filter=output_filter
+        )
         return output_dict
 
-    def to_dicts(self, prefix: str = "") -> (dict, dict):
+    def to_dicts(
+        self,
+        prefix: str = "",
+        output_filter: Callable[[str, Any, dict], bool] | None = None,
+    ) -> (dict, dict):
         output_dict, metadata_dict = OptimizationObject._scan(
-            input_object=self, name_prefix=prefix
+            input_object=self, name_prefix=prefix, output_filter=output_filter
         )
         return output_dict, metadata_dict
 
