@@ -36,6 +36,9 @@ class OptimizationObject(abc.ABC):
         or isinstance(value, cs.DM)
         or isinstance(value, cs.MX)
     )
+    DMConversion: ClassVar[Callable[[str, Any], Any]] = lambda _, value: (
+        value.full().flatten() if isinstance(value, cs.DM) else value
+    )
 
     @staticmethod
     def _convert_to_np_array(value: Any) -> Any | np.ndarray:
@@ -64,6 +67,7 @@ class OptimizationObject(abc.ABC):
         parent_metadata: dict | None = None,
         input_dict: dict | None = None,
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        input_conversion: Callable[[str, Any], Any] | None = None,
     ) -> (dict, dict):
         output_dict = {}
         metadata_dict = {}
@@ -79,6 +83,7 @@ class OptimizationObject(abc.ABC):
                     parent_metadata=parent_metadata,
                     input_dict=input_dict,
                     output_filter=output_filter,
+                    input_conversion=input_conversion,
                 )
                 output_dict.update(inner_dict)
                 metadata_dict.update(inner_metadata)
@@ -130,6 +135,7 @@ class OptimizationObject(abc.ABC):
                     parent_metadata=new_parent_metadata,
                     input_dict=input_dict,
                     output_filter=output_filter,
+                    input_conversion=input_conversion,
                 )
                 output_dict.update(inner_dict)
                 metadata_dict.update(inner_metadata)
@@ -163,7 +169,12 @@ class OptimizationObject(abc.ABC):
                     full_name = name_radix + postfix
 
                     if input_dict is not None and full_name in input_dict:
-                        value_from_dict.append(input_dict[full_name])
+                        converted_input = (
+                            input_conversion(full_name, input_dict[full_name])
+                            if input_conversion is not None
+                            else input_dict[full_name]
+                        )
+                        value_from_dict.append(converted_input)
 
                     output_value = (
                         OptimizationObject._convert_to_np_array(composite_value[i])
@@ -208,9 +219,17 @@ class OptimizationObject(abc.ABC):
         )
         return output_dict, metadata_dict
 
-    def from_dict(self, input_dict: dict, prefix: str = "") -> None:
+    def from_dict(
+        self,
+        input_dict: dict,
+        prefix: str = "",
+        input_conversion: Callable[[str, Any], Any] | None = None,
+    ) -> None:
         OptimizationObject._scan(
-            input_object=self, name_prefix=prefix, input_dict=input_dict
+            input_object=self,
+            name_prefix=prefix,
+            input_dict=input_dict,
+            input_conversion=input_conversion,
         )
 
     def to_list(self) -> list:

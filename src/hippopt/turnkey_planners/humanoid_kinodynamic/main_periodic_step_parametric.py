@@ -590,12 +590,10 @@ if __name__ == "__main__":
         link_densities=parametric_link_densities,
     )
 
-    for key in computed_output:
-        if isinstance(computed_output[key], cs.DM):
-            computed_output[key] = computed_output[key].full().flatten()
-
     output = planner.get_variables_structure()
-    output.from_dict(computed_output)
+    output.from_dict(
+        computed_output, input_conversion=hippopt.OptimizationObject.DMConversion
+    )
 
     humanoid_states = [s.to_humanoid_state() for s in output.system]
     left_contact_points = [s.contact_points.left for s in humanoid_states]
