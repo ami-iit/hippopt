@@ -229,6 +229,11 @@ class HumanoidStateVisualizer:
             self._set_clone_visibility(i, False)
 
         if save:
+            self._logger.info(
+                f"Saving image {file_name_stem}.png. "
+                "Make sure to have the visualizer open, "
+                "otherwise the process will hang."
+            )
             image = self._viz.viewer.get_image()
             image.save(file_name_stem + ".png")
 
@@ -380,3 +385,7 @@ class HumanoidStateVisualizer:
     def change_link_color(self, link_name: str, color: list[float]) -> None:
         for i in range(self._number_of_clones):
             self._viz.set_link_color(f"[{i}]robot", link_name, color)
+
+    def change_model_color(self, color: list[float]) -> None:
+        for i in range(self._number_of_clones):
+            self._viz.set_model_color(f"[{i}]robot", color)
