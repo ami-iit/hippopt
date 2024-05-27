@@ -32,6 +32,12 @@ def test_planar_terrain():
 
     assert (expected_orientation == output).all()  # noqa
 
+    transform_fun = planar_terrain.transform_function()
+    expected_transform = np.eye(4)
+
+    output = transform_fun(dummy_point).full()
+    assert (expected_transform == output).all()  # noqa
+
     assert planar_terrain.get_name() == "PlanarTerrain"
 
     other = hippopt.robot_planning.PlanarTerrain(name="other")
