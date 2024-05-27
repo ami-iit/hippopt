@@ -9,6 +9,7 @@ class TerrainDescriptor(abc.ABC):
     _height_function: cs.Function | None = dataclasses.field(default=None)
     _normal_direction_function: cs.Function | None = dataclasses.field(default=None)
     _orientation_function: cs.Function | None = dataclasses.field(default=None)
+    _transform_function: cs.Function | None = dataclasses.field(default=None)
     _point_position_name: str = dataclasses.field(default="point_position")
     _name: str = dataclasses.field(default=None)
     _options: dict = dataclasses.field(default_factory=dict)
@@ -78,6 +79,25 @@ class TerrainDescriptor(abc.ABC):
             self._options,
         )
 
+    def create_transform_function(self) -> cs.Function:
+        point_position = cs.MX.sym(self.get_point_position_name(), 3)
+        height = self.height_function()(point_position)
+        rotation = self.orientation_function()(point_position)
+
+        point_on_surface = cs.vertcat(point_position[:2], point_position[2] - height)
+        top_rows = cs.horzcat(rotation, point_on_surface)
+        fourth_row = cs.DM.eye(4)[3, :]
+        transform_matrix = cs.vertcat(top_rows, fourth_row)
+
+        return cs.Function(
+            "terrain_transform",
+            [point_position],
+            [transform_matrix],
+            [self.get_point_position_name()],
+            ["plane_transform"],
+            self._options,
+        )
+
     def height_function(self) -> cs.Function:
         if not isinstance(self._height_function, cs.Function):
             self._height_function = self.create_height_function()
@@ -96,6 +116,12 @@ class TerrainDescriptor(abc.ABC):
 
         return self._orientation_function
 
+    def transform_function(self) -> cs.Function:
+        if not isinstance(self._transform_function, cs.Function):
+            self._transform_function = self.create_transform_function()
+
+        return self._transform_function
+
     def get_point_position_name(self) -> str:
         return self._point_position_name
 
@@ -109,3 +135,4 @@ class TerrainDescriptor(abc.ABC):
         self._height_function = None
         self._normal_direction_function = None
         self._orientation_function = None
+        self._transform_function = None
