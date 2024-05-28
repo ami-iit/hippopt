@@ -1,3 +1,4 @@
+import copy
 import logging
 
 import casadi as cs
@@ -12,22 +13,6 @@ import hippopt.turnkey_planners.humanoid_kinodynamic.planner as walking_planner
 import hippopt.turnkey_planners.humanoid_kinodynamic.settings as walking_settings
 import hippopt.turnkey_planners.humanoid_kinodynamic.variables as walking_variables
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
-
-
-def get_ramp(
-    length: float, width: float, height: float, normal_direction: np.ndarray
-) -> hp_rp.TerrainDescriptor:
-    first_step_origin = np.array([1.5 * length, 0.0, 0.0])
-
-    terrain = hp_rp.SmoothTerrain.step(
-        length=2 * length,
-        width=width,
-        height=height,
-        position=first_step_origin,
-        top_normal_direction=normal_direction,
-    )
-    terrain.set_name(f"ramp_{length}_{width}_{height}")
-    return terrain
 
 
 def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.Settings:
@@ -69,8 +54,8 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     )
     idyntree_model = idyntree_model_loader.model()
     settings.root_link = "root_link"
-    settings.horizon_length = 50
-    settings.time_step = 0.1
+    settings.horizon_length = 20
+    settings.time_step = 0.05
     settings.contact_points = hp_rp.FeetContactPointDescriptors()
     settings.contact_points.left = hp_rp.ContactPointDescriptor.rectangular_foot(
         foot_frame="l_sole",
@@ -88,8 +73,8 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.dcc_gain = 150.0
     settings.dcc_epsilon = 0.01
     settings.static_friction = 0.3
-    settings.maximum_velocity_control = [2.0, 2.0, 5.0]
-    settings.maximum_force_derivative = [500.0, 500.0, 500.0]
+    settings.maximum_velocity_control = [20.0, 20.0, 50.0]
+    settings.maximum_force_derivative = [5000.0, 5000.0, 5000.0]
     settings.maximum_angular_momentum = 5.0
     settings.minimum_com_height = 0.3
     settings.minimum_feet_lateral_distance = 0.1
@@ -309,53 +294,13 @@ def compute_initial_state(
     return output_state
 
 
-def compute_second_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    contact_guess: hp_rp.FeetContactPhasesDescriptor,
-) -> hp_rp.HumanoidState:
-    desired_left_foot_pose = contact_guess.left[0].transform
-    desired_right_foot_pose = contact_guess.right[1].transform
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] += 0.7
-    return compute_state(
-        input_settings=input_settings,
-        pf_input=pf_input,
-        desired_com_position=desired_com_position,
-        desired_left_foot_pose=desired_left_foot_pose,
-        desired_right_foot_pose=desired_right_foot_pose,
-    )
-
-
-def compute_third_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    contact_guess: hp_rp.FeetContactPhasesDescriptor,
-) -> hp_rp.HumanoidState:
-    desired_left_foot_pose = contact_guess.left[1].transform
-    desired_right_foot_pose = contact_guess.right[1].transform
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] += 0.7
-    return compute_state(
-        input_settings=input_settings,
-        pf_input=pf_input,
-        desired_com_position=desired_com_position,
-        desired_left_foot_pose=desired_left_foot_pose,
-        desired_right_foot_pose=desired_right_foot_pose,
-    )
-
-
 def compute_final_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
     contact_guess: hp_rp.FeetContactPhasesDescriptor,
 ) -> hp_rp.HumanoidState:
     desired_left_foot_pose = contact_guess.left[1].transform
-    desired_right_foot_pose = contact_guess.right[2].transform
+    desired_right_foot_pose = contact_guess.right[1].transform
     desired_com_position = (
         desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
     ) / 2.0
@@ -387,7 +332,7 @@ def get_references(
         output_reference.joint_regularization = desired_states[
             i
         ].kinematics.joints.positions
-        output_reference.com_linear_velocity = [0.1, 0.0, 0.0]
+        output_reference.com_linear_velocity = [1.0, 0.0, 0.0]
         output_list.append(output_reference)
 
     return output_list
@@ -396,19 +341,10 @@ def get_references(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    step_length = 0.9
-    step_height = 0.1
-    swing_height = 0.1
-    top_normal_direction = np.array([-0.2, 0.0, 1.0])
+    jump_length = 0.2
+    jump_height = 0.05
 
-    ramp = get_ramp(
-        length=step_length / 2,
-        width=0.8,
-        height=step_height,
-        normal_direction=top_normal_direction,
-    )
-
-    planner_settings = get_planner_settings(terrain=ramp)
+    planner_settings = get_planner_settings(hp_rp.PlanarTerrain())
     planner = walking_planner.Planner(settings=planner_settings)
 
     pf_settings = get_pose_finder_settings(input_settings=planner_settings)
@@ -419,62 +355,50 @@ if __name__ == "__main__":
     contact_phases_guess = hp_rp.FeetContactPhasesDescriptor()
     contact_phases_guess.left = [
         hp_rp.FootContactPhaseDescriptor(
-            transform=liecasadi.SE3.from_matrix(
-                ramp.transform_function()(np.array([0.0, 0.1, 0.0])).full()
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([step_length / 2, 0.1, swing_height + 2 * step_height]),
+                np.array([jump_length / 2, 0.1, jump_height]),
                 liecasadi.SO3.Identity(),
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
-            deactivation_time=horizon * 3.0 / 7.0,
+            deactivation_time=horizon / 3.0,
         ),
         hp_rp.FootContactPhaseDescriptor(
-            transform=liecasadi.SE3.from_matrix(
-                ramp.transform_function()(np.array([step_length, 0.1, 0.0])).full()
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([jump_length, 0.1, 0.0]),
+                liecasadi.SO3.Identity(),
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
-            activation_time=horizon * 4.0 / 7.0,
+            activation_time=horizon * 2.0 / 3.0,
             deactivation_time=None,
         ),
     ]
 
     contact_phases_guess.right = [
         hp_rp.FootContactPhaseDescriptor(
-            transform=liecasadi.SE3.from_matrix(
-                ramp.transform_function()(np.array([0.0, -0.1, 0.0])).full()
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([0.0, -0.1, 0.0]), liecasadi.SO3.Identity()
             ),
             mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.25 * step_length, -0.1, swing_height + step_height]),
+                np.array([jump_length / 2, -0.1, jump_height]),
                 liecasadi.SO3.Identity(),
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
-            deactivation_time=horizon / 7.0,
+            deactivation_time=horizon / 3.0,
         ),
         hp_rp.FootContactPhaseDescriptor(
-            transform=liecasadi.SE3.from_matrix(
-                ramp.transform_function()(
-                    np.array([0.5 * step_length, -0.1, 0.0])
-                ).full()
-            ),
-            mid_swing_transform=liecasadi.SE3.from_translation_and_rotation(
-                np.array([0.75 * step_length, -0.1, swing_height + 2 * step_height]),
+            transform=liecasadi.SE3.from_translation_and_rotation(
+                np.array([jump_length, -0.1, 0.0]),
                 liecasadi.SO3.Identity(),
-            ),
-            force=np.array([0, 0, 100.0]),
-            activation_time=horizon * 2.0 / 7.0,
-            deactivation_time=horizon * 5.0 / 7.0,
-        ),
-        hp_rp.FootContactPhaseDescriptor(
-            transform=liecasadi.SE3.from_matrix(
-                ramp.transform_function()(np.array([step_length, -0.1, 0.0])).full()
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
-            activation_time=horizon * 6.0 / 7.0,
+            activation_time=horizon * 2.0 / 3.0,
             deactivation_time=None,
         ),
     ]
@@ -495,23 +419,19 @@ if __name__ == "__main__":
     )
     final_state.centroidal_momentum = np.zeros((6, 1))
 
-    second_state = compute_second_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-    )
+    middle_state = copy.deepcopy(initial_state)
+    middle_state.com[0] += jump_length / 2
+    middle_state.com[2] += jump_height
+    middle_state.kinematics.base.position[0] += jump_length / 2
+    middle_state.kinematics.base.position[2] += jump_height
+    for point in middle_state.contact_points.left + middle_state.contact_points.right:
+        point.p[0] += jump_length / 2
+        point.p[2] += jump_height
 
-    third_state = compute_third_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-    )
-
-    # Until the middle of the second double support phase
-    first_part_guess_length = (planner_settings.horizon_length * 5) // 14
+    first_part_guess_length = planner_settings.horizon_length // 2
     first_part_guess = hp_rp.humanoid_state_interpolator(
         initial_state=initial_state,
-        final_state=second_state,
+        final_state=middle_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=first_part_guess_length,
@@ -519,10 +439,10 @@ if __name__ == "__main__":
     )
 
     # Until the middle of the third double support phase
-    second_part_guess_length = (planner_settings.horizon_length * 2) // 7
+    second_part_guess_length = planner_settings.horizon_length - first_part_guess_length
     second_part_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=second_state,
-        final_state=third_state,
+        initial_state=middle_state,
+        final_state=final_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=second_part_guess_length,
@@ -530,24 +450,7 @@ if __name__ == "__main__":
         t0=first_part_guess_length * planner_settings.time_step,
     )
 
-    # Remaining part
-    third_part_guess_length = (
-        planner_settings.horizon_length
-        - first_part_guess_length
-        - second_part_guess_length
-    )
-    third_part_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=third_state,
-        final_state=final_state,
-        contact_phases=contact_phases_guess,
-        contact_descriptor=planner_settings.contact_points,
-        number_of_points=third_part_guess_length,
-        dt=planner_settings.time_step,
-        t0=(first_part_guess_length + second_part_guess_length)
-        * planner_settings.time_step,
-    )
-
-    guess = first_part_guess + second_part_guess + third_part_guess
+    guess = first_part_guess + second_part_guess
 
     print("Press [Enter] to visualize the initial guess.")
     input()
@@ -557,7 +460,7 @@ if __name__ == "__main__":
         timestep_s=planner_settings.time_step,
         time_multiplier=1.0,
         save=True,
-        file_name_stem="humanoid_walking_ramp_guess",
+        file_name_stem="humanoid_single_jump_flat_guess",
     )
 
     print("Starting the planner...")
@@ -589,7 +492,7 @@ if __name__ == "__main__":
         timestep_s=output.values.dt,
         time_multiplier=1.0,
         save=True,
-        file_name_stem="humanoid_walking_ramp",
+        file_name_stem="humanoid_single_jump_flat",
     )
 
     plotter_settings = hp_rp.FootContactStatePlotterSettings()
