@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 
 import casadi as cs
 import idyntree.bindings as idyntree
@@ -71,10 +72,10 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     )
     settings.planar_dcc_height_multiplier = 10.0
     settings.dcc_gain = 150.0
-    settings.dcc_epsilon = 0.01
+    settings.dcc_epsilon = 0.1
     settings.static_friction = 0.3
-    settings.maximum_velocity_control = [20.0, 20.0, 50.0]
-    settings.maximum_force_derivative = [5000.0, 5000.0, 5000.0]
+    settings.maximum_velocity_control = [5.0, 5.0, 10.0]
+    settings.maximum_force_derivative = [400.0, 400.0, 2000.0]
     settings.maximum_angular_momentum = 5.0
     settings.minimum_com_height = 0.3
     settings.minimum_feet_lateral_distance = 0.1
@@ -343,6 +344,7 @@ if __name__ == "__main__":
 
     jump_length = 0.2
     jump_height = 0.05
+    jump_percentage = 0.25
 
     planner_settings = get_planner_settings(hp_rp.PlanarTerrain())
     planner = walking_planner.Planner(settings=planner_settings)
@@ -364,7 +366,7 @@ if __name__ == "__main__":
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
-            deactivation_time=horizon / 3.0,
+            deactivation_time=(1.0 - jump_percentage) * horizon / 2.0,
         ),
         hp_rp.FootContactPhaseDescriptor(
             transform=liecasadi.SE3.from_translation_and_rotation(
@@ -373,7 +375,7 @@ if __name__ == "__main__":
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
-            activation_time=horizon * 2.0 / 3.0,
+            activation_time=(1.0 + jump_percentage) * horizon / 2.0,
             deactivation_time=None,
         ),
     ]
@@ -389,7 +391,7 @@ if __name__ == "__main__":
             ),
             force=np.array([0, 0, 100.0]),
             activation_time=None,
-            deactivation_time=horizon / 3.0,
+            deactivation_time=(1.0 - jump_percentage) * horizon / 2.0,
         ),
         hp_rp.FootContactPhaseDescriptor(
             transform=liecasadi.SE3.from_translation_and_rotation(
@@ -398,7 +400,7 @@ if __name__ == "__main__":
             ),
             mid_swing_transform=None,
             force=np.array([0, 0, 100.0]),
-            activation_time=horizon * 2.0 / 3.0,
+            activation_time=(1.0 + jump_percentage) * horizon / 2.0,
             deactivation_time=None,
         ),
     ]
@@ -428,21 +430,24 @@ if __name__ == "__main__":
         point.p[0] += jump_length / 2
         point.p[2] += jump_height
 
-    first_part_guess_length = planner_settings.horizon_length // 2
+    first_part_guess_length = math.floor(
+        planner_settings.horizon_length * (1.0 - jump_percentage) / 2.0
+    )
     first_part_guess = hp_rp.humanoid_state_interpolator(
         initial_state=initial_state,
-        final_state=middle_state,
+        final_state=initial_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=first_part_guess_length,
         dt=planner_settings.time_step,
     )
 
-    # Until the middle of the third double support phase
-    second_part_guess_length = planner_settings.horizon_length - first_part_guess_length
+    second_part_guess_length = math.floor(
+        planner_settings.horizon_length * jump_percentage / 2.0
+    )
     second_part_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=middle_state,
-        final_state=final_state,
+        initial_state=initial_state,
+        final_state=middle_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=second_part_guess_length,
@@ -450,7 +455,40 @@ if __name__ == "__main__":
         t0=first_part_guess_length * planner_settings.time_step,
     )
 
-    guess = first_part_guess + second_part_guess
+    third_part_guess_length = math.floor(
+        planner_settings.horizon_length * jump_percentage / 2.0
+    )
+    third_part_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=middle_state,
+        final_state=final_state,
+        contact_phases=contact_phases_guess,
+        contact_descriptor=planner_settings.contact_points,
+        number_of_points=third_part_guess_length,
+        dt=planner_settings.time_step,
+        t0=(first_part_guess_length + second_part_guess_length)
+        * planner_settings.time_step,
+    )
+
+    fourth_part_guess_length = (
+        planner_settings.horizon_length
+        - first_part_guess_length
+        - second_part_guess_length
+        - third_part_guess_length
+    )
+    fourth_part_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=final_state,
+        final_state=final_state,
+        contact_phases=contact_phases_guess,
+        contact_descriptor=planner_settings.contact_points,
+        number_of_points=fourth_part_guess_length,
+        dt=planner_settings.time_step,
+        t0=(
+            first_part_guess_length + second_part_guess_length + third_part_guess_length
+        )
+        * planner_settings.time_step,
+    )
+
+    guess = first_part_guess + second_part_guess + third_part_guess + fourth_part_guess
 
     print("Press [Enter] to visualize the initial guess.")
     input()
