@@ -70,12 +70,12 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
         y_length=0.1,
         top_left_point_position=np.array([0.116, 0.05, 0.0]),
     )
-    settings.planar_dcc_height_multiplier = 10.0
+    settings.planar_dcc_height_multiplier = 8.0
     settings.dcc_gain = 150.0
     settings.dcc_epsilon = 1.0
     settings.static_friction = 0.9
-    settings.maximum_velocity_control = [5.0, 5.0, 10.0]
-    settings.maximum_force_derivative = [400.0, 400.0, 500.0]
+    settings.maximum_velocity_control = [2.0, 2.0, 10.0]
+    settings.maximum_force_derivative = [400.0, 400.0, 1000.0]
     settings.maximum_angular_momentum = 10.0
     settings.minimum_com_height = 0.1
     settings.minimum_feet_lateral_distance = 0.1
@@ -560,16 +560,16 @@ if __name__ == "__main__":
 
     guess = first_part_guess + second_part_guess + third_part_guess + fourth_part_guess
 
-    print("Press [Enter] to visualize the initial guess.")
-    input()
-
-    visualizer.visualize(
-        states=guess,
-        timestep_s=planner_settings.time_step,
-        time_multiplier=1.0,
-        save=True,
-        file_name_stem="humanoid_single_jump_flat_guess",
-    )
+    # print("Press [Enter] to visualize the initial guess.")
+    # input()
+    #
+    # visualizer.visualize(
+    #     states=guess,
+    #     timestep_s=planner_settings.time_step,
+    #     time_multiplier=1.0,
+    #     save=True,
+    #     file_name_stem="humanoid_single_jump_flat_guess",
+    # )
 
     print("Starting the planner...")
 
