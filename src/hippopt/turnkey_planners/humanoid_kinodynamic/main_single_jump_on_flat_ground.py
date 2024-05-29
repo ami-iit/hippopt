@@ -73,13 +73,13 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.planar_dcc_height_multiplier = 10.0
     settings.dcc_gain = 150.0
     settings.dcc_epsilon = 1.0
-    settings.static_friction = 0.3
+    settings.static_friction = 0.9
     settings.maximum_velocity_control = [5.0, 5.0, 10.0]
-    settings.maximum_force_derivative = [400.0, 400.0, 2000.0]
-    settings.maximum_angular_momentum = 5.0
-    settings.minimum_com_height = 0.3
+    settings.maximum_force_derivative = [400.0, 400.0, 500.0]
+    settings.maximum_angular_momentum = 10.0
+    settings.minimum_com_height = 0.1
     settings.minimum_feet_lateral_distance = 0.1
-    settings.maximum_feet_relative_height = 0.5
+    settings.maximum_feet_relative_height = 0.005
     settings.maximum_joint_positions = cs.inf * np.ones(number_of_joints)
     settings.minimum_joint_positions = -cs.inf * np.ones(number_of_joints)
     for i in range(number_of_joints):
@@ -87,8 +87,8 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
         if joint.hasPosLimits():
             settings.maximum_joint_positions[i] = joint.getMaxPosLimit(i)
             settings.minimum_joint_positions[i] = joint.getMinPosLimit(i)
-    settings.maximum_joint_velocities = np.ones(number_of_joints) * 2.0
-    settings.minimum_joint_velocities = np.ones(number_of_joints) * -2.0
+    settings.maximum_joint_velocities = np.ones(number_of_joints) * 20.0
+    settings.minimum_joint_velocities = np.ones(number_of_joints) * -20.0
     settings.joint_regularization_cost_weights = np.ones(number_of_joints)
     settings.joint_regularization_cost_weights[:3] = 0.1  # torso
     settings.joint_regularization_cost_weights[3:11] = 10.0  # arms
@@ -105,7 +105,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
     settings.swing_foot_height_cost_multiplier = 0.0
     settings.contact_velocity_control_cost_multiplier = 5.0
-    settings.contact_force_control_cost_multiplier = 0.0001
+    settings.contact_force_control_cost_multiplier = 0.1
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
     settings.use_opti_callback = True
     settings.opti_callback_save_costs = False
