@@ -72,7 +72,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     )
     settings.planar_dcc_height_multiplier = 10.0
     settings.dcc_gain = 150.0
-    settings.dcc_epsilon = 0.1
+    settings.dcc_epsilon = 1.0
     settings.static_friction = 0.3
     settings.maximum_velocity_control = [5.0, 5.0, 10.0]
     settings.maximum_force_derivative = [400.0, 400.0, 2000.0]
@@ -103,7 +103,7 @@ def get_planner_settings(terrain: hp_rp.TerrainDescriptor) -> walking_settings.S
     settings.joint_regularization_cost_multiplier = 1.0
     settings.force_regularization_cost_multiplier = 100.0
     settings.foot_yaw_regularization_cost_multiplier = 2000.0
-    settings.swing_foot_height_cost_multiplier = 10.0
+    settings.swing_foot_height_cost_multiplier = 0.0
     settings.contact_velocity_control_cost_multiplier = 5.0
     settings.contact_force_control_cost_multiplier = 0.0001
     settings.final_state_expression_type = hippopt.ExpressionType.subject_to
@@ -295,6 +295,64 @@ def compute_initial_state(
     return output_state
 
 
+def compute_second_state(
+    input_settings: walking_settings.Settings,
+    pf_input: pose_finder.Planner,
+    contact_guess: hp_rp.FeetContactPhasesDescriptor,
+) -> walking_variables.ExtendedHumanoidState:
+    desired_left_foot_pose = contact_guess.left[0].transform
+    desired_right_foot_pose = contact_guess.right[0].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] += 0.3
+    output_pf = compute_state(
+        input_settings=input_settings,
+        pf_input=pf_input,
+        desired_com_position=desired_com_position,
+        desired_left_foot_pose=desired_left_foot_pose,
+        desired_right_foot_pose=desired_right_foot_pose,
+    )
+
+    output_state = walking_variables.ExtendedHumanoidState()
+    output_state.contact_points = output_pf.contact_points
+    output_state.kinematics = output_pf.kinematics
+    output_state.com = output_pf.com
+
+    output_state.centroidal_momentum = np.zeros((6, 1))
+
+    return output_state
+
+
+def compute_third_state(
+    input_settings: walking_settings.Settings,
+    pf_input: pose_finder.Planner,
+    contact_guess: hp_rp.FeetContactPhasesDescriptor,
+) -> walking_variables.ExtendedHumanoidState:
+    desired_left_foot_pose = contact_guess.left[1].transform
+    desired_right_foot_pose = contact_guess.right[1].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] += 0.3
+    output_pf = compute_state(
+        input_settings=input_settings,
+        pf_input=pf_input,
+        desired_com_position=desired_com_position,
+        desired_left_foot_pose=desired_left_foot_pose,
+        desired_right_foot_pose=desired_right_foot_pose,
+    )
+
+    output_state = walking_variables.ExtendedHumanoidState()
+    output_state.contact_points = output_pf.contact_points
+    output_state.kinematics = output_pf.kinematics
+    output_state.com = output_pf.com
+
+    output_state.centroidal_momentum = np.zeros((6, 1))
+
+    return output_state
+
+
 def compute_final_state(
     input_settings: walking_settings.Settings,
     pf_input: pose_finder.Planner,
@@ -342,8 +400,8 @@ def get_references(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    jump_length = 0.2
-    jump_height = 0.05
+    jump_length = 0.4
+    jump_height = 0.2
     jump_percentage = 0.25
 
     planner_settings = get_planner_settings(hp_rp.PlanarTerrain())
@@ -414,6 +472,18 @@ if __name__ == "__main__":
         contact_guess=contact_phases_guess,
     )
 
+    second_state = compute_second_state(
+        input_settings=planner_settings,
+        pf_input=pf,
+        contact_guess=contact_phases_guess,
+    )
+
+    third_state = compute_third_state(
+        input_settings=planner_settings,
+        pf_input=pf,
+        contact_guess=contact_phases_guess,
+    )
+
     final_state = compute_final_state(
         input_settings=planner_settings,
         pf_input=pf,
@@ -435,7 +505,7 @@ if __name__ == "__main__":
     )
     first_part_guess = hp_rp.humanoid_state_interpolator(
         initial_state=initial_state,
-        final_state=initial_state,
+        final_state=second_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=first_part_guess_length,
@@ -446,7 +516,7 @@ if __name__ == "__main__":
         planner_settings.horizon_length * jump_percentage / 2.0
     )
     second_part_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=initial_state,
+        initial_state=second_state,
         final_state=middle_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
@@ -460,7 +530,7 @@ if __name__ == "__main__":
     )
     third_part_guess = hp_rp.humanoid_state_interpolator(
         initial_state=middle_state,
-        final_state=final_state,
+        final_state=third_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
         number_of_points=third_part_guess_length,
@@ -476,7 +546,7 @@ if __name__ == "__main__":
         - third_part_guess_length
     )
     fourth_part_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=final_state,
+        initial_state=third_state,
         final_state=final_state,
         contact_phases=contact_phases_guess,
         contact_descriptor=planner_settings.contact_points,
