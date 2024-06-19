@@ -211,6 +211,14 @@ def test_to_dict_filtered():
     assert "aggregated.scalar" not in test_var_as_dict
 
 
+def test_to_dict_converted():
+    test_var = AggregateClass()
+    test_var_as_dict = test_var.to_dict(
+        output_conversion=lambda _, value: (42 if isinstance(value, float) else value),
+    )
+    assert test_var_as_dict["aggregated.scalar"] == 42
+
+
 def test_from_dict_converted():
     test_var = AggregateClass()
     test_var_as_dict = test_var.to_dict()
