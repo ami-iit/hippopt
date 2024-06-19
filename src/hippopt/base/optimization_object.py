@@ -68,6 +68,7 @@ class OptimizationObject(abc.ABC):
         input_dict: dict | None = None,
         output_filter: Callable[[str, Any, dict], bool] | None = None,
         input_conversion: Callable[[str, Any], Any] | None = None,
+        output_conversion: Callable[[str, Any], Any] | None = None,
         output_flat: bool = True,
     ) -> tuple[dict, dict] | tuple[list, list]:
         output_dict = {}
@@ -95,6 +96,7 @@ class OptimizationObject(abc.ABC):
                     input_dict=input_dict,
                     output_filter=output_filter,
                     input_conversion=input_conversion,
+                    output_conversion=output_conversion,
                     output_flat=output_flat,
                 )
                 output_dict.update(inner_dict)
@@ -155,6 +157,7 @@ class OptimizationObject(abc.ABC):
                     input_dict=input_dict,
                     output_filter=output_filter,
                     input_conversion=input_conversion,
+                    output_conversion=output_conversion,
                     output_flat=output_flat,
                 )
 
@@ -183,10 +186,10 @@ class OptimizationObject(abc.ABC):
                         parent_metadata[OptimizationObject.StorageTypeField]
                     )
 
-                composite_value = OptimizationObject._convert_to_np_array(
+                composite_value_edited = OptimizationObject._convert_to_np_array(
                     composite_value
                 )
-                value_is_list = isinstance(composite_value, list)
+                value_is_list = isinstance(composite_value_edited, list)
                 value_list = composite_value if value_is_list else [composite_value]
                 name_radix = name_prefix + field.name if output_flat else field.name
                 value_from_dict = []
@@ -208,10 +211,16 @@ class OptimizationObject(abc.ABC):
                         value_from_dict.append(converted_input)
 
                     output_value = (
-                        OptimizationObject._convert_to_np_array(composite_value[i])
-                        if value_is_list
-                        else composite_value
+                        composite_value[i] if value_is_list else composite_value
                     )
+
+                    output_value = (
+                        output_conversion(full_name, output_value)
+                        if output_conversion is not None
+                        else output_value
+                    )
+
+                    output_value = OptimizationObject._convert_to_np_array(output_value)
 
                     if output_filter is not None:
                         if not output_filter(full_name, output_value, value_metadata):
@@ -243,12 +252,14 @@ class OptimizationObject(abc.ABC):
         self,
         prefix: str = "",
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        output_conversion: Callable[[str, Any], Any] | None = None,
         flatten: bool = True,
     ) -> dict:
         output_dict, _ = OptimizationObject._scan(
             input_object=self,
             name_prefix=prefix,
             output_filter=output_filter,
+            output_conversion=output_conversion,
             output_flat=flatten,
         )
         return output_dict
@@ -257,12 +268,14 @@ class OptimizationObject(abc.ABC):
         self,
         prefix: str = "",
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        output_conversion: Callable[[str, Any], Any] | None = None,
         flatten: bool = True,
     ) -> (dict, dict):
         output_dict, metadata_dict = OptimizationObject._scan(
             input_object=self,
             name_prefix=prefix,
             output_filter=output_filter,
+            output_conversion=output_conversion,
             output_flat=flatten,
         )
         return output_dict, metadata_dict
@@ -283,16 +296,27 @@ class OptimizationObject(abc.ABC):
     def to_list(
         self,
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        output_conversion: Callable[[str, Any], Any] | None = None,
     ) -> list:
         output_list = []
-        as_dict = self.to_dict(output_filter=output_filter)
+        as_dict = self.to_dict(
+            output_filter=output_filter, output_conversion=output_conversion
+        )
         for key in sorted(as_dict.keys()):
             output_list.append(as_dict[key])
 
         return output_list
 
-    def to_mx(self) -> cs.MX:
-        return cs.vertcat(*self.to_list())
+    def to_mx(
+        self,
+        output_filter: Callable[[str, Any, dict], bool] | None = None,
+        output_conversion: Callable[[str, Any], Any] | None = None,
+    ) -> cs.MX:
+        return cs.vertcat(
+            *self.to_list(
+                output_filter=output_filter, output_conversion=output_conversion
+            )
+        )
 
     @classmethod
     def default_storage_metadata(cls, **kwargs) -> dict:
