@@ -18,7 +18,7 @@ hippopt is an open-source framework for generating whole-body trajectories for l
 ## Installation
 It is suggested to use [``mamba``](https://github.com/conda-forge/miniforge).
 ```bash
-conda install -c conda-forge -c robotology python=3.11 casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib resolve-robotics-uri-py
+conda install -c conda-forge -c robotology python=3.11 casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib resolve-robotics-uri-py hdf5storage
 pip install --no-deps -e .[all]
 ```
 

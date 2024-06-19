@@ -37,7 +37,7 @@ jobs:
       - name: Dependencies
         shell: bash -l {0}
         run: |
-          mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib resolve-robotics-uri-py git
+          mamba install python=${{ matrix.python }} casadi pytest liecasadi adam-robotics idyntree meshcat-python ffmpeg-python matplotlib resolve-robotics-uri-py git hdf5storage
           mamba list
 
       - name: Install
