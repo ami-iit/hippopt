@@ -68,25 +68,42 @@ class OptimizationObject(abc.ABC):
         input_dict: dict | None = None,
         output_filter: Callable[[str, Any, dict], bool] | None = None,
         input_conversion: Callable[[str, Any], Any] | None = None,
-    ) -> (dict, dict):
+        output_flat: bool = True,
+    ) -> tuple[dict, dict] | tuple[list, list]:
         output_dict = {}
         metadata_dict = {}
         if isinstance(input_object, list):
-            assert all(
+            if not all(
                 isinstance(elem, OptimizationObject) or isinstance(elem, list)
                 for elem in input_object
-            )
+            ):
+                raise ValueError(
+                    "The input object is a list, but not all elements are"
+                    " OptimizationObject instances."
+                )
+            output_list = []
+            output_metadata_list = []
+            if not output_flat and name_prefix != "":
+                output_dict[name_prefix] = output_list
+                metadata_dict[name_prefix] = output_metadata_list
+
             for i, elem in enumerate(input_object):
                 inner_dict, inner_metadata = OptimizationObject._scan(
                     input_object=elem,
-                    name_prefix=name_prefix + f"[{str(i)}].",
+                    name_prefix=name_prefix + f"[{str(i)}]." if output_flat else "",
                     parent_metadata=parent_metadata,
                     input_dict=input_dict,
                     output_filter=output_filter,
                     input_conversion=input_conversion,
+                    output_flat=output_flat,
                 )
                 output_dict.update(inner_dict)
+                output_list.append(inner_dict)
                 metadata_dict.update(inner_metadata)
+                output_metadata_list.append(inner_metadata)
+
+            if not output_flat and name_prefix == "":
+                return output_list, output_metadata_list
             return output_dict, metadata_dict
 
         assert isinstance(input_object, OptimizationObject)
@@ -131,14 +148,23 @@ class OptimizationObject(abc.ABC):
                 separator = "" if list_of_optimization_objects else "."
                 inner_dict, inner_metadata = OptimizationObject._scan(
                     input_object=composite_value,
-                    name_prefix=name_prefix + field.name + separator,
+                    name_prefix=(
+                        name_prefix + field.name + separator if output_flat else ""
+                    ),
                     parent_metadata=new_parent_metadata,
                     input_dict=input_dict,
                     output_filter=output_filter,
                     input_conversion=input_conversion,
+                    output_flat=output_flat,
                 )
-                output_dict.update(inner_dict)
-                metadata_dict.update(inner_metadata)
+
+                if output_flat:
+                    output_dict.update(inner_dict)
+                    metadata_dict.update(inner_metadata)
+                else:
+                    output_dict[field.name] = inner_dict
+                    metadata_dict[field.name] = inner_metadata
+
                 continue
 
             if OptimizationObject.StorageTypeField in field.metadata:
@@ -162,10 +188,15 @@ class OptimizationObject(abc.ABC):
                 )
                 value_is_list = isinstance(composite_value, list)
                 value_list = composite_value if value_is_list else [composite_value]
-                name_radix = name_prefix + field.name
+                name_radix = name_prefix + field.name if output_flat else field.name
                 value_from_dict = []
+
+                if not output_flat and value_is_list:
+                    output_dict[field.name] = []
+                    metadata_dict[field.name] = []
+
                 for i, val in enumerate(value_list):
-                    postfix = f"[{i}]" if value_is_list else ""
+                    postfix = f"[{i}]" if value_is_list and output_flat else ""
                     full_name = name_radix + postfix
 
                     if input_dict is not None and full_name in input_dict:
@@ -186,8 +217,12 @@ class OptimizationObject(abc.ABC):
                         if not output_filter(full_name, output_value, value_metadata):
                             continue
 
-                    metadata_dict[full_name] = value_metadata
-                    output_dict[full_name] = output_value
+                    if not output_flat and value_is_list:
+                        output_dict[full_name].append(output_value)
+                        metadata_dict[full_name].append(value_metadata)
+                    else:
+                        output_dict[full_name] = output_value
+                        metadata_dict[full_name] = value_metadata
 
                 if len(value_from_dict) > 0:
                     input_object.__setattr__(
@@ -197,15 +232,24 @@ class OptimizationObject(abc.ABC):
 
                 continue
 
+        if not output_flat and name_prefix != "":
+            nested_output = {name_prefix: output_dict}
+            nested_metadata = {name_prefix: metadata_dict}
+            return nested_output, nested_metadata
+
         return output_dict, metadata_dict
 
     def to_dict(
         self,
         prefix: str = "",
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        flatten: bool = True,
     ) -> dict:
         output_dict, _ = OptimizationObject._scan(
-            input_object=self, name_prefix=prefix, output_filter=output_filter
+            input_object=self,
+            name_prefix=prefix,
+            output_filter=output_filter,
+            output_flat=flatten,
         )
         return output_dict
 
@@ -213,9 +257,13 @@ class OptimizationObject(abc.ABC):
         self,
         prefix: str = "",
         output_filter: Callable[[str, Any, dict], bool] | None = None,
+        flatten: bool = True,
     ) -> (dict, dict):
         output_dict, metadata_dict = OptimizationObject._scan(
-            input_object=self, name_prefix=prefix, output_filter=output_filter
+            input_object=self,
+            name_prefix=prefix,
+            output_filter=output_filter,
+            output_flat=flatten,
         )
         return output_dict, metadata_dict
 
@@ -232,9 +280,12 @@ class OptimizationObject(abc.ABC):
             input_conversion=input_conversion,
         )
 
-    def to_list(self) -> list:
+    def to_list(
+        self,
+        output_filter: Callable[[str, Any, dict], bool] | None = None,
+    ) -> list:
         output_list = []
-        as_dict = self.to_dict()
+        as_dict = self.to_dict(output_filter=output_filter)
         for key in sorted(as_dict.keys()):
             output_list.append(as_dict[key])
 
