@@ -55,6 +55,14 @@ class Output(Generic[TGenericOptimizationObject]):
         self.cost_values = _cost_values
         self.constraint_multipliers = _constraint_multipliers
 
+    def to_dict(self) -> dict:
+        return {
+            "values": self.values.to_dict(flatten=False),
+            "cost_value": self.cost_value,
+            "cost_values": self.cost_values,
+            "constraint_multipliers": self.constraint_multipliers,
+        }
+
 
 @dataclasses.dataclass
 class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
