@@ -1,6 +1,7 @@
 import logging
 
 import casadi as cs
+import hdf5storage
 import idyntree.bindings as idyntree
 import liecasadi
 import numpy as np
@@ -590,6 +591,20 @@ if __name__ == "__main__":
         time_multiplier=1.0,
         save=True,
         file_name_stem="humanoid_walking_ramp",
+    )
+
+    print("Saving data to humanoid_walking_ramp.mat")
+
+    humanoid_walking_ramp = {
+        "output": output.to_dict(),
+        "guess": planner_guess.to_dict(
+            flatten=False, output_conversion=hippopt.OptimizationObject.DMConversion
+        ),
+    }
+    hdf5storage.savemat(
+        file_name="humanoid_walking_ramp.mat",
+        mdict=humanoid_walking_ramp,
+        truncate_existing=True,
     )
 
     plotter_settings = hp_rp.FootContactStatePlotterSettings()
