@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 
 import casadi as cs
@@ -77,6 +78,30 @@ def test_generate_objects():
     assert (len(opti_var.to_list())) == len(test_var_as_list)
     expected_len = 7 + 3 * 7 + 3
     assert opti_var.to_mx().shape == (expected_len, 1)
+    as_dict = opti_var.to_dict()
+    assert all(
+        expected in as_dict
+        for expected in [
+            "aggregated.variable",
+            "aggregated.parameter",
+            "aggregated.scalar",
+            "other_parameter",
+            "aggregated_list[0].variable",
+            "aggregated_list[0].parameter",
+            "aggregated_list[0].scalar",
+            "aggregated_list[1].variable",
+            "aggregated_list[1].parameter",
+            "aggregated_list[1].scalar",
+            "aggregated_list[2].variable",
+            "aggregated_list[2].parameter",
+            "aggregated_list[2].scalar",
+        ]
+    )
+    assert "other" not in as_dict
+    dict_copy = copy.deepcopy(as_dict)
+    dict_copy["aggregated.scalar"] = 7.0
+    opti_var.from_dict(dict_copy)
+    assert opti_var.aggregated.scalar == 7.0
 
 
 def test_generate_objects_list():
@@ -199,5 +224,19 @@ def test_generate_nested_overridable_class():
     assert opti_var.composite.composite.not_overridable.shape == (1, 1)
     assert (
         solver.get_object_type(opti_var.composite.composite.not_overridable)
+        == Variable.StorageTypeValue
+    )
+
+    _, metadata_dict = test_var.to_dicts()
+    assert (
+        metadata_dict["composite.composite.overridable"][
+            OptimizationObject.StorageTypeField
+        ]
+        == Parameter.StorageTypeValue
+    )
+    assert (
+        metadata_dict["composite.composite.not_overridable"][
+            OptimizationObject.StorageTypeField
+        ]
         == Variable.StorageTypeValue
     )

@@ -1,6 +1,6 @@
 import copy
-import math
 
+import casadi as cs
 import liecasadi
 import numpy as np
 
@@ -26,13 +26,10 @@ def linear_interpolator(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    initial = np.array(initial)
-    final = np.array(final)
-
-    if len(initial.shape) < 2:
+    if isinstance(initial, np.ndarray) and len(initial.shape) < 2:
         initial = np.expand_dims(initial, axis=1)
 
-    if len(final.shape) < 2:
+    if isinstance(final, np.ndarray) and len(final.shape) < 2:
         final = np.expand_dims(final, axis=1)
 
     if (
@@ -57,26 +54,24 @@ def quaternion_slerp(
 ) -> list[StorageType]:
     assert not isinstance(initial, list) and not isinstance(final, list)
 
-    initial = np.array(initial)
-    final = np.array(final)
-
-    if len(initial.shape) < 2:
+    if isinstance(initial, np.ndarray) and len(initial.shape) < 2:
         initial = np.expand_dims(initial, axis=1)
 
-    if len(final.shape) < 2:
+    if isinstance(final, np.ndarray) and len(final.shape) < 2:
         final = np.expand_dims(final, axis=1)
 
     dot = initial.T @ final
-    angle = math.acos(dot)
+    angle = cs.acos(dot)
 
     t = np.linspace(start=0.0, stop=1.0, num=number_of_points)
     output = []
     for t_i in t:
-        output.append(
-            liecasadi.Quaternion.slerp_step(initial, final, t_i).coeffs()
-            if abs(angle) > 1e-6
-            else initial
+        value = cs.if_else(
+            cs.fabs(angle) > 1e-6,
+            liecasadi.Quaternion.slerp_step(initial, final, t_i).coeffs(),
+            initial,
         )
+        output.append(value)
     return output
 
 
@@ -354,7 +349,11 @@ def kinematic_tree_state_interpolator(
     final_state: KinematicTreeState,
     number_of_points: int,
 ) -> list[KinematicTreeState]:
-    if len(initial_state.positions) != len(final_state.positions):
+    if (
+        isinstance(initial_state.positions, np.ndarray)
+        and isinstance(final_state.positions, np.ndarray)
+        and len(initial_state.positions) != len(final_state.positions)
+    ):
         raise ValueError(
             f"Initial state has {len(initial_state.positions)} joints, "
             f"but final state has {len(final_state.positions)} joints."
@@ -432,9 +431,15 @@ def humanoid_state_interpolator(
     for points, kin, com in zip(
         contact_points_interpolation, kinematics_interpolation, com_interpolation
     ):
+        joints = initial_state.kinematics.joints.positions
+        number_of_joints = (
+            joints.shape[0] * joints.shape[1]
+            if hasattr(joints, "shape") and len(joints.shape) == 2
+            else len(joints)
+        )
         output_state = HumanoidState(
             contact_point_descriptors=contact_descriptor,
-            number_of_joints=len(initial_state.kinematics.joints.positions),
+            number_of_joints=number_of_joints,
         )
         output_state.contact_points = points
         output_state.kinematics = kin

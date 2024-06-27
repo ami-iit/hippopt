@@ -169,7 +169,13 @@ class FloatingBaseSystem(OptimizationObject):
     def from_floating_base_system_state(
         state: FloatingBaseSystemState,
     ) -> TFloatingBaseSystem:
-        output = FloatingBaseSystem(number_of_joints=len(state.joints.positions))
+        joints = state.joints.positions
+        number_of_joints = (
+            joints.shape[0] * joints.shape[1]
+            if hasattr(joints, "shape") and len(joints.shape) == 2
+            else len(joints)
+        )
+        output = FloatingBaseSystem(number_of_joints=number_of_joints)
         output.base.position = state.base.position
         output.base.quaternion_xyzw = state.base.quaternion_xyzw
         output.base.linear_velocity = None

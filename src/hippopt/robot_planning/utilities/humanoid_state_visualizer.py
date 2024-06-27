@@ -79,9 +79,6 @@ class HumanoidStateVisualizerSettings(TerrainVisualizerSettings):
         if self.contact_points is None:
             logger.error("contact_points is not specified.")
             ok = False
-        if len(self.robot_color) != 4:
-            logger.error("robot_color is not specified correctly.")
-            ok = False
         if len(self.com_color) != 4:
             logger.error("com_color is not specified correctly.")
             ok = False
@@ -211,6 +208,7 @@ class HumanoidStateVisualizer:
         self,
         states: list[HumanoidState],
         save: bool,
+        quiet: bool,
         file_name_stem: str,
     ) -> None:
         if len(states) > self._number_of_clones:
@@ -232,6 +230,12 @@ class HumanoidStateVisualizer:
             self._set_clone_visibility(i, False)
 
         if save:
+            if not quiet:
+                self._logger.info(
+                    f"Saving image {file_name_stem}.png. "
+                    "Make sure to have the visualizer open, "
+                    "otherwise the process will hang."
+                )
             image = self._viz.viewer.get_image()
             image.save(file_name_stem + ".png")
 
@@ -251,6 +255,8 @@ class HumanoidStateVisualizer:
             or _timestep_s.size == 1
         ):
             single_step = _timestep_s if _timestep_s is not None else 0.0
+            if isinstance(single_step, np.ndarray):
+                single_step = single_step.item()
             _timestep_s = [single_step] * len(states)
 
         if len(_timestep_s) != len(states):
@@ -282,6 +288,7 @@ class HumanoidStateVisualizer:
             self._visualize_single_state(
                 visualized_states,
                 save=save,
+                quiet=True,
                 file_name_stem=f"{folder_name}/{frame_prefix}{i-number_of_clones:03}",
             )
             end = time.time()
@@ -310,7 +317,7 @@ class HumanoidStateVisualizer:
                     )
                     fps = 1.0 / (sum(timestep_s) / len(timestep_s))
                 else:
-                    fps = 1.0 / timestep_s
+                    fps = float(1.0 / timestep_s.item())
             elif isinstance(timestep_s, float):
                 fps = 1.0 / timestep_s
             else:
@@ -375,5 +382,13 @@ class HumanoidStateVisualizer:
             )
         else:
             self._visualize_single_state(
-                states=states, save=save, file_name_stem=file_name_stem
+                states=states, save=save, quiet=False, file_name_stem=file_name_stem
             )
+
+    def change_link_color(self, link_name: str, color: list[float]) -> None:
+        for i in range(self._number_of_clones):
+            self._viz.set_link_color(f"[{i}]robot", link_name, color)
+
+    def change_model_color(self, color: list[float]) -> None:
+        for i in range(self._number_of_clones):
+            self._viz.set_model_color(f"[{i}]robot", color)

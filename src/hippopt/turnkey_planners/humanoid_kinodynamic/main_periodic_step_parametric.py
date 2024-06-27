@@ -1,3 +1,4 @@
+import copy
 import logging
 
 import casadi as cs
@@ -193,166 +194,6 @@ def get_visualizer_settings(
     return output_viz_settings
 
 
-def compute_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    desired_com_position: np.ndarray,
-    desired_left_foot_pose: liecasadi.SE3,
-    desired_right_foot_pose: liecasadi.SE3,
-    pf_parametric_link_densities: list[float] | None,
-    pf_parametric_link_length_multipliers: list[float] | None,
-) -> hp_rp.HumanoidState:
-    desired_joints = np.deg2rad(
-        [
-            7,
-            0.12,
-            -0.01,
-            12.0,
-            7.0,
-            -12.0,
-            40.769,
-            12.0,
-            7.0,
-            -12.0,
-            40.769,
-            5.76,
-            1.61,
-            -0.31,
-            -31.64,
-            -20.52,
-            -1.52,
-            5.76,
-            1.61,
-            -0.31,
-            -31.64,
-            -20.52,
-            -1.52,
-        ]
-    )
-    assert len(input_settings.joints_name_list) == len(desired_joints)
-
-    pf_ref = pose_finder.References(
-        contact_point_descriptors=pf_settings.contact_points,
-        number_of_joints=len(desired_joints),
-    )
-
-    pf_ref.state.com = desired_com_position
-    pf_ref.state.contact_points.left = (
-        hp_rp.FootContactState.from_parent_frame_transform(
-            descriptor=input_settings.contact_points.left,
-            transform=desired_left_foot_pose,
-        )
-    )
-    pf_ref.state.contact_points.right = (
-        hp_rp.FootContactState.from_parent_frame_transform(
-            descriptor=input_settings.contact_points.right,
-            transform=desired_right_foot_pose,
-        )
-    )
-
-    pf_ref.state.kinematics.base.quaternion_xyzw = (
-        liecasadi.SO3.Identity().as_quat().coeffs()
-    )
-
-    pf_ref.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
-
-    pf_ref.state.kinematics.joints.positions = desired_joints
-
-    pf_guess = pf_input.get_initial_guess()
-    pf_guess.references = pf_ref
-    if pf_parametric_link_densities is not None:
-        pf_guess.parametric_link_densities = pf_parametric_link_densities
-    if pf_parametric_link_length_multipliers is not None:
-        pf_guess.parametric_link_length_multipliers = (
-            pf_parametric_link_length_multipliers
-        )
-    pf_input.set_initial_guess(pf_guess)
-
-    output_pf = pf_input.solve()
-    return output_pf.values.state
-
-
-def compute_initial_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    contact_guess: hp_rp.FeetContactPhasesDescriptor,
-    pf_parametric_link_densities: list[float] | None,
-    pf_parametric_link_length_multipliers: list[float] | None,
-) -> walking_variables.ExtendedHumanoidState:
-    desired_left_foot_pose = contact_guess.left[0].transform
-    desired_right_foot_pose = contact_guess.right[0].transform
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] = 0.7
-    output_pf = compute_state(
-        input_settings=input_settings,
-        pf_input=pf_input,
-        desired_com_position=desired_com_position,
-        desired_left_foot_pose=desired_left_foot_pose,
-        desired_right_foot_pose=desired_right_foot_pose,
-        pf_parametric_link_densities=pf_parametric_link_densities,
-        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
-    )
-
-    output_state = walking_variables.ExtendedHumanoidState()
-    output_state.contact_points = output_pf.contact_points
-    output_state.kinematics = output_pf.kinematics
-    output_state.com = output_pf.com
-
-    output_state.centroidal_momentum = np.zeros((6, 1))
-
-    return output_state
-
-
-def compute_middle_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    contact_guess: hp_rp.FeetContactPhasesDescriptor,
-    pf_parametric_link_densities: list[float] | None,
-    pf_parametric_link_length_multipliers: list[float] | None,
-) -> hp_rp.HumanoidState:
-    desired_left_foot_pose = contact_guess.left[1].transform
-    desired_right_foot_pose = contact_guess.right[0].transform
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] = 0.7
-    return compute_state(
-        input_settings=input_settings,
-        pf_input=pf_input,
-        desired_com_position=desired_com_position,
-        desired_left_foot_pose=desired_left_foot_pose,
-        desired_right_foot_pose=desired_right_foot_pose,
-        pf_parametric_link_densities=pf_parametric_link_densities,
-        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
-    )
-
-
-def compute_final_state(
-    input_settings: walking_settings.Settings,
-    pf_input: pose_finder.Planner,
-    contact_guess: hp_rp.FeetContactPhasesDescriptor,
-    pf_parametric_link_densities: list[float] | None,
-    pf_parametric_link_length_multipliers: list[float] | None,
-) -> hp_rp.HumanoidState:
-    desired_left_foot_pose = contact_guess.left[1].transform
-    desired_right_foot_pose = contact_guess.right[1].transform
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] = 0.7
-    return compute_state(
-        input_settings=input_settings,
-        pf_input=pf_input,
-        desired_com_position=desired_com_position,
-        desired_left_foot_pose=desired_left_foot_pose,
-        desired_right_foot_pose=desired_right_foot_pose,
-        pf_parametric_link_densities=pf_parametric_link_densities,
-        pf_parametric_link_length_multipliers=pf_parametric_link_length_multipliers,
-    )
-
-
 def get_references(
     input_settings: walking_settings.Settings,
     desired_states: list[hp_rp.HumanoidState],
@@ -375,6 +216,248 @@ def get_references(
         output_list.append(output_reference)
 
     return output_list
+
+
+def get_guess_function(
+    input_settings: walking_settings.Settings,
+    input_desired_joints: list[float],
+    input_contact_phases: hp_rp.FeetContactPhasesDescriptor(),
+    variables_structure: walking_variables.Variables,
+    options: dict | None = None,
+) -> (cs.Function, walking_variables.Variables):
+
+    assert len(input_settings.joints_name_list) == len(input_desired_joints)
+    assert len(input_settings.parametric_link_names)
+
+    pf_link_length_multipliers_sym = cs.MX.sym(
+        "link_length_multipliers", len(input_settings.parametric_link_names)
+    )
+    pf_link_densities_sym = cs.MX.sym(
+        "link_densities", len(input_settings.parametric_link_names)
+    )
+
+    pf_settings = get_pose_finder_settings(input_settings=input_settings)
+    pf = pose_finder.Planner(settings=pf_settings)
+    pf_function = pf.to_function(
+        input_name_prefix="pf_in.",
+        function_name="pose_finder",
+        options={"error_on_fail": True},
+    )
+
+    pf_input = pf.get_variables_structure()
+
+    pf_ref = pose_finder.References(
+        contact_point_descriptors=input_settings.contact_points,
+        number_of_joints=len(desired_joints),
+    )
+    pf_ref.state.kinematics.base.quaternion_xyzw = (
+        liecasadi.SO3.Identity().as_quat().coeffs()
+    )
+    pf_ref.frame_quaternion_xyzw = liecasadi.SO3.Identity().as_quat().coeffs()
+    pf_ref.state.kinematics.joints.positions = desired_joints
+    pf_input.parametric_link_length_multipliers = pf_link_length_multipliers_sym
+    pf_input.parametric_link_densities = pf_link_densities_sym
+
+    # Initial state
+    desired_left_foot_pose = input_contact_phases.left[0].transform
+    desired_right_foot_pose = input_contact_phases.right[0].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] = 0.7
+    pf_ref.state.com = desired_com_position
+    pf_ref.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
+    )
+    pf_ref.state.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+    pf_input.references = pf_ref
+
+    output_pf_dict = pf_function(**pf_input.to_dict(prefix="pf_in."))
+    output_pf = pf.get_variables_structure()
+    output_pf.from_dict(output_pf_dict)
+
+    initial_state = walking_variables.ExtendedHumanoidState()
+    initial_state.contact_points = output_pf.state.contact_points
+    initial_state.kinematics = output_pf.state.kinematics
+    initial_state.com = output_pf.state.com
+    initial_state.centroidal_momentum = np.zeros((6, 1))
+
+    # Final state
+    desired_left_foot_pose = input_contact_phases.left[1].transform
+    desired_right_foot_pose = input_contact_phases.right[1].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] = 0.7
+
+    pf_ref.state.com = desired_com_position
+    pf_ref.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
+    )
+    pf_ref.state.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+    pf_input.references = pf_ref
+
+    output_pf_dict = pf_function(**pf_input.to_dict(prefix="pf_in."))
+    output_pf = pf.get_variables_structure()
+    output_pf.from_dict(output_pf_dict)
+    final_state = output_pf.state
+    final_state.centroidal_momentum = np.zeros((6, 1))
+
+    # Middle state
+    desired_left_foot_pose = input_contact_phases.left[1].transform
+    desired_right_foot_pose = input_contact_phases.right[0].transform
+    desired_com_position = (
+        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
+    ) / 2.0
+    desired_com_position[2] = 0.7
+    pf_ref.state.com = desired_com_position
+    pf_ref.state.contact_points.left = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.left,
+            transform=desired_left_foot_pose,
+        )
+    )
+    pf_ref.state.contact_points.right = (
+        hp_rp.FootContactState.from_parent_frame_transform(
+            descriptor=input_settings.contact_points.right,
+            transform=desired_right_foot_pose,
+        )
+    )
+    pf_input.references = pf_ref
+
+    output_pf_dict = pf_function(**pf_input.to_dict(prefix="pf_in."))
+    output_pf = pf.get_variables_structure()
+    output_pf.from_dict(output_pf_dict)
+    middle_state = output_pf.state
+
+    # Interpolation
+    first_half_guess_length = input_settings.horizon_length // 2
+    first_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=initial_state,
+        final_state=middle_state,
+        contact_phases=input_contact_phases,
+        contact_descriptor=input_settings.contact_points,
+        number_of_points=first_half_guess_length,
+        dt=input_settings.time_step,
+    )
+    second_half_guess_length = input_settings.horizon_length - first_half_guess_length
+    second_half_guess = hp_rp.humanoid_state_interpolator(
+        initial_state=middle_state,
+        final_state=final_state,
+        contact_phases=input_contact_phases,
+        contact_descriptor=input_settings.contact_points,
+        number_of_points=second_half_guess_length,
+        dt=input_settings.time_step,
+        t0=first_half_guess_length * input_settings.time_step,
+    )
+    state_guess = first_half_guess + second_half_guess
+
+    references = get_references(
+        input_settings=planner_settings,
+        desired_states=state_guess,
+    )
+
+    output_guess = copy.deepcopy(variables_structure)
+    output_guess.references = references
+    output_guess.system = [
+        walking_variables.ExtendedHumanoid.from_humanoid_state(s) for s in state_guess
+    ]
+    output_guess.initial_state = initial_state
+    output_guess.final_state = final_state
+    output_guess.parametric_link_length_multipliers = pf_link_length_multipliers_sym
+    output_guess.parametric_link_densities = pf_link_densities_sym
+
+    output_values = []
+    output_names = []
+    guess_dict = output_guess.to_dict()
+    for k in guess_dict:
+        val = guess_dict[k]
+        if isinstance(val, cs.MX):
+            output_values.append(val)
+            output_names.append(k)
+
+    options = options or {}
+
+    return (
+        cs.Function(
+            "planner_guess",
+            [pf_link_length_multipliers_sym, pf_link_densities_sym],
+            output_values,
+            ["link_length_multipliers", "link_densities"],
+            output_names,
+            options,
+        ),
+        output_guess,
+    )
+
+
+def get_full_output_function(
+    input_settings: walking_settings.Settings,
+    input_desired_joints: list[float],
+    input_contact_phases: hp_rp.FeetContactPhasesDescriptor(),
+    input_planner: walking_planner.Planner,
+    options: dict | None = None,
+):
+    link_length_multipliers_sym = cs.MX.sym(
+        "link_length_multipliers", len(input_settings.parametric_link_names)
+    )
+    link_densities_sym = cs.MX.sym(
+        "link_densities", len(input_settings.parametric_link_names)
+    )
+    planner_function = input_planner.to_function(
+        input_name_prefix="in.",
+        function_name="kinodynamic_walking",
+        options={"error_on_fail": True},
+    )
+    guess_function, guess = get_guess_function(
+        input_settings=input_settings,
+        input_desired_joints=input_desired_joints,
+        input_contact_phases=input_contact_phases,
+        variables_structure=input_planner.get_variables_structure(),
+    )
+    output_guess_dict = guess_function(
+        link_length_multipliers=link_length_multipliers_sym,
+        link_densities=link_densities_sym,
+    )
+    guess.from_dict(output_guess_dict)
+    initial_guess_dict = guess.to_dict(
+        prefix="in.", output_filter=hippopt.OptimizationObject.IsValueFilter
+    )
+    output_dict = planner_function(**initial_guess_dict)
+    full_output_values = []
+    full_output_names = []
+    for k in output_dict:
+        val = output_dict[k]
+        if isinstance(val, cs.MX):
+            full_output_values.append(val)
+            full_output_names.append(k)
+
+    options = options or {}
+
+    return cs.Function(
+        "periodic_step_sensitivity",
+        [link_length_multipliers_sym, link_densities_sym],
+        full_output_values,
+        ["link_length_multipliers", "link_densities"],
+        full_output_names,
+        options,
+    )
 
 
 if __name__ == "__main__":
@@ -414,10 +497,33 @@ if __name__ == "__main__":
         2.0,
     ]
 
-    planner = walking_planner.Planner(settings=planner_settings)
-
-    pf_settings = get_pose_finder_settings(input_settings=planner_settings)
-    pf = pose_finder.Planner(settings=pf_settings)
+    desired_joints = np.deg2rad(
+        [
+            7,
+            0.12,
+            -0.01,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            12.0,
+            7.0,
+            -12.0,
+            40.769,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+            5.76,
+            1.61,
+            -0.31,
+            -31.64,
+            -20.52,
+            -1.52,
+        ]
+    )
 
     horizon = planner_settings.horizon_length * planner_settings.time_step
 
@@ -470,83 +576,31 @@ if __name__ == "__main__":
         ),
     ]
 
-    initial_state = compute_initial_state(
+    planner = walking_planner.Planner(settings=planner_settings)
+
+    full_function = get_full_output_function(
         input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
+        input_desired_joints=desired_joints,
+        input_contact_phases=contact_phases_guess,
+        input_planner=planner,
     )
 
-    final_state = compute_final_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
-    )
-    final_state.centroidal_momentum = np.zeros((6, 1))
-
-    middle_state = compute_middle_state(
-        input_settings=planner_settings,
-        pf_input=pf,
-        contact_guess=contact_phases_guess,
-        pf_parametric_link_densities=parametric_link_densities,
-        pf_parametric_link_length_multipliers=parametric_link_length_multipliers,
+    computed_output = full_function(
+        link_length_multipliers=parametric_link_length_multipliers,
+        link_densities=parametric_link_densities,
     )
 
-    first_half_guess_length = planner_settings.horizon_length // 2
-    first_half_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=initial_state,
-        final_state=middle_state,
-        contact_phases=contact_phases_guess,
-        contact_descriptor=planner_settings.contact_points,
-        number_of_points=first_half_guess_length,
-        dt=planner_settings.time_step,
+    output = planner.get_variables_structure()
+    output.from_dict(
+        computed_output, input_conversion=hippopt.OptimizationObject.DMConversion
     )
 
-    second_half_guess_length = planner_settings.horizon_length - first_half_guess_length
-    second_half_guess = hp_rp.humanoid_state_interpolator(
-        initial_state=middle_state,
-        final_state=final_state,
-        contact_phases=contact_phases_guess,
-        contact_descriptor=planner_settings.contact_points,
-        number_of_points=second_half_guess_length,
-        dt=planner_settings.time_step,
-        t0=first_half_guess_length * planner_settings.time_step,
-    )
-
-    guess = first_half_guess + second_half_guess
-
-    print("Starting the planner...")
-
-    references = get_references(
-        input_settings=planner_settings,
-        desired_states=guess,
-    )
-
-    planner.set_references(references)
-    planner_guess = planner.get_initial_guess()
-    planner_guess.system = [
-        walking_variables.ExtendedHumanoid.from_humanoid_state(s) for s in guess
-    ]
-    planner_guess.initial_state = initial_state
-    planner_guess.final_state = final_state
-    if parametric_link_densities is not None:
-        planner_guess.parametric_link_densities = parametric_link_densities
-    if parametric_link_length_multipliers is not None:
-        planner_guess.parametric_link_length_multipliers = (
-            parametric_link_length_multipliers
-        )
-    planner.set_initial_guess(planner_guess)
-
-    output = planner.solve()
-
-    humanoid_states = [s.to_humanoid_state() for s in output.values.system]
+    humanoid_states = [s.to_humanoid_state() for s in output.system]
     left_contact_points = [s.contact_points.left for s in humanoid_states]
     right_contact_points = [s.contact_points.right for s in humanoid_states]
 
     visualizer_settings = get_visualizer_settings(input_settings=planner_settings)
+    planner.set_initial_guess(output)  # Update the values of multipliers and densities
     visualizer_settings.robot_model = planner.get_adam_model()
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     print("Press [Enter] to visualize the solution.")
@@ -554,7 +608,7 @@ if __name__ == "__main__":
 
     visualizer.visualize(
         states=humanoid_states,
-        timestep_s=output.values.dt,
+        timestep_s=output.dt,
         time_multiplier=1.0,
         save=True,
         file_name_stem="humanoid_walking_periodic_parametric",
