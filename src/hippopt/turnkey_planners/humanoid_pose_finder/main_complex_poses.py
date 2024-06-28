@@ -73,6 +73,12 @@ def get_planner_settings(
     output_settings.relaxed_complementarity_epsilon = 1.0
     output_settings.static_friction = 0.3
     output_settings.maximum_joint_positions = math.pi * np.ones(number_of_joints)
+    output_settings.maximum_joint_positions[
+        output_settings.joints_name_list.index("l_knee")
+    ] = -0.01
+    output_settings.maximum_joint_positions[
+        output_settings.joints_name_list.index("r_knee")
+    ] = -0.01
     output_settings.minimum_joint_positions = -math.pi * np.ones(number_of_joints)
     for i in range(number_of_joints):
         joint = idyntree_model.getJoint(i)
@@ -223,8 +229,7 @@ if __name__ == "__main__":
     visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
     visualizer.visualize(output.values.state)  # noqa
 
-    complex_poses = {}
-    complex_poses["high_step_20cm"] = output.values.state.to_dict(flatten=False)
+    complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
 
     print("Press [Enter] to move to next pose.")
     input()
@@ -269,6 +274,97 @@ if __name__ == "__main__":
     visualizer.visualize(output.values.state)  # noqa
 
     complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-down 10cm with limits
+
+    step_length = 0.45
+    step_height = 0.1
+
+    terrain = hp_rp.SmoothTerrain.step(
+        length=0.5,
+        width=0.8,
+        height=step_height,
+        position=np.array([0.0, 0.0, 0.0]),
+    )
+    terrain.set_name(f"high_step_{step_height}")
+
+    planner_settings = get_planner_settings(
+        input_terrain=terrain, use_joint_limits=True
+    )
+
+    planner = pose_finder.Planner(settings=planner_settings)
+
+    references = get_references(
+        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([0.0, 0.1, step_height]), liecasadi.SO3.Identity()
+        ),
+        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
+        ),
+    )
+
+    planner.set_references(references)
+
+    output = planner.solve()
+
+    visualizer_settings = get_visualizer_settings(
+        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
+    )
+
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    visualizer.visualize(output.values.state)  # noqa
+
+    complex_poses["high_step_down_10cm"] = output.values.state.to_dict(flatten=False)
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-down 20cm without limits
+
+    step_length = 0.45
+    step_height = 0.2
+
+    terrain = hp_rp.SmoothTerrain.step(
+        length=0.5,
+        width=0.8,
+        height=step_height,
+        position=np.array([0.0, 0.0, 0.0]),
+    )
+    terrain.set_name(f"high_step_{step_height}")
+
+    planner_settings = get_planner_settings(
+        input_terrain=terrain, use_joint_limits=False
+    )
+    planner_settings.casadi_solver_options["alpha_for_y"] = "primal"
+
+    planner = pose_finder.Planner(settings=planner_settings)
+
+    references = get_references(
+        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([0.0, 0.1, step_height]), liecasadi.SO3.Identity()
+        ),
+        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
+        ),
+    )
+
+    planner.set_references(references)
+
+    output = planner.solve()
+
+    visualizer_settings = get_visualizer_settings(
+        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
+    )
+
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    visualizer.visualize(output.values.state)  # noqa
+
+    complex_poses["high_step_down_20cm_no_limit"] = output.values.state.to_dict(
+        flatten=False
+    )
 
     hdf5storage.savemat(
         file_name="complex_poses.mat",
