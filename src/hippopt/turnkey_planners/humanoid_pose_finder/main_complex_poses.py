@@ -1,7 +1,7 @@
 import logging
+import math
 
 import adam.model
-import casadi as cs
 import hdf5storage
 import idyntree.bindings as idyntree
 import liecasadi
@@ -72,8 +72,8 @@ def get_planner_settings(
     )
     output_settings.relaxed_complementarity_epsilon = 1.0
     output_settings.static_friction = 0.3
-    output_settings.maximum_joint_positions = cs.inf * np.ones(number_of_joints)
-    output_settings.minimum_joint_positions = -cs.inf * np.ones(number_of_joints)
+    output_settings.maximum_joint_positions = math.pi * np.ones(number_of_joints)
+    output_settings.minimum_joint_positions = -math.pi * np.ones(number_of_joints)
     for i in range(number_of_joints):
         joint = idyntree_model.getJoint(i)
         if joint.hasPosLimits() and use_joint_limits:
@@ -92,7 +92,16 @@ def get_planner_settings(
     output_settings.point_position_regularization_cost_multiplier = 100.0
     output_settings.casadi_function_options = {}
     output_settings.casadi_opti_options = {}
-    output_settings.casadi_solver_options = {}
+    output_settings.casadi_solver_options = {
+        "alpha_for_y": "dual-and-full",
+        "tol": 1e-3,
+        "dual_inf_tol": 1000.0,
+        "compl_inf_tol": 1e-2,
+        "constr_viol_tol": 1e-4,
+        "acceptable_tol": 10,
+        "acceptable_iter": 2,
+        "acceptable_compl_inf_tol": 1000,
+    }
 
     return output_settings
 
@@ -175,10 +184,10 @@ def get_visualizer_settings(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    # Large step-up with limits
+    # Large step-up 20cm
 
     step_length = 0.45
-    step_height = 0.15
+    step_height = 0.2
 
     terrain = hp_rp.SmoothTerrain.step(
         length=0.5,
@@ -188,7 +197,9 @@ if __name__ == "__main__":
     )
     terrain.set_name(f"high_step_{step_height}")
 
-    planner_settings = get_planner_settings(input_terrain=terrain)
+    planner_settings = get_planner_settings(
+        input_terrain=terrain, use_joint_limits=True
+    )
 
     planner = pose_finder.Planner(settings=planner_settings)
 
@@ -213,7 +224,51 @@ if __name__ == "__main__":
     visualizer.visualize(output.values.state)  # noqa
 
     complex_poses = {}
-    complex_poses["high_step"] = output.values.state.to_dict(flatten=False)
+    complex_poses["high_step_20cm"] = output.values.state.to_dict(flatten=False)
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-up 20cm
+
+    step_length = 0.45
+    step_height = 0.4
+
+    terrain = hp_rp.SmoothTerrain.step(
+        length=0.5,
+        width=0.8,
+        height=step_height,
+        position=np.array([0.45, 0.0, 0.0]),
+    )
+    terrain.set_name(f"high_step_{step_height}")
+
+    planner_settings = get_planner_settings(
+        input_terrain=terrain, use_joint_limits=True
+    )
+
+    planner = pose_finder.Planner(settings=planner_settings)
+
+    references = get_references(
+        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
+        ),
+        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            np.array([step_length, -0.1, step_height]), liecasadi.SO3.Identity()
+        ),
+    )
+
+    planner.set_references(references)
+
+    output = planner.solve()
+
+    visualizer_settings = get_visualizer_settings(
+        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
+    )
+
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    visualizer.visualize(output.values.state)  # noqa
+
+    complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
 
     hdf5storage.savemat(
         file_name="complex_poses.mat",
@@ -221,5 +276,5 @@ if __name__ == "__main__":
         truncate_existing=True,
     )
 
-    print("Press [Enter] to close.")
+    print("Press [Enter] to exit.")
     input()
