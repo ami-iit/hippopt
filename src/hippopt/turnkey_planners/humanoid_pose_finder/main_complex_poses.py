@@ -12,6 +12,32 @@ import hippopt
 import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
+joint_names = [
+    "torso_pitch",
+    "torso_roll",
+    "torso_yaw",
+    "l_shoulder_pitch",
+    "l_shoulder_roll",
+    "l_shoulder_yaw",
+    "l_elbow",
+    "r_shoulder_pitch",
+    "r_shoulder_roll",
+    "r_shoulder_yaw",
+    "r_elbow",
+    "l_hip_pitch",
+    "l_hip_roll",
+    "l_hip_yaw",
+    "l_knee",
+    "l_ankle_pitch",
+    "l_ankle_roll",
+    "r_hip_pitch",
+    "r_hip_roll",
+    "r_hip_yaw",
+    "r_knee",
+    "r_ankle_pitch",
+    "r_ankle_roll",
+]
+
 
 def get_planner_settings(
     input_terrain: hp_rp.TerrainDescriptor,
@@ -23,31 +49,7 @@ def get_planner_settings(
     output_settings = pose_finder.Settings()
     output_settings.terrain = input_terrain
     output_settings.robot_urdf = str(urdf_path)
-    output_settings.joints_name_list = [
-        "torso_pitch",
-        "torso_roll",
-        "torso_yaw",
-        "l_shoulder_pitch",
-        "l_shoulder_roll",
-        "l_shoulder_yaw",
-        "l_elbow",
-        "r_shoulder_pitch",
-        "r_shoulder_roll",
-        "r_shoulder_yaw",
-        "r_elbow",
-        "l_hip_pitch",
-        "l_hip_roll",
-        "l_hip_yaw",
-        "l_knee",
-        "l_ankle_pitch",
-        "l_ankle_roll",
-        "r_hip_pitch",
-        "r_hip_roll",
-        "r_hip_yaw",
-        "r_knee",
-        "r_ankle_pitch",
-        "r_ankle_roll",
-    ]
+    output_settings.joints_name_list = joint_names
     number_of_joints = len(output_settings.joints_name_list)
     idyntree_model_loader = idyntree.ModelLoader()
     idyntree_model_loader.loadReducedModelFromFile(
@@ -117,6 +119,7 @@ def get_references(
     desired_left_foot_pose: liecasadi.SE3,
     desired_right_foot_pose: liecasadi.SE3,
     desired_com_position: np.ndarray,
+    planner_settings: pose_finder.Settings,
 ) -> pose_finder.References:
     output_references = pose_finder.References(
         contact_point_descriptors=planner_settings.contact_points,
@@ -186,32 +189,76 @@ def get_visualizer_settings(
 
 
 def print_ankle_bounds_multipliers(
-    input_solution: hippopt.Output[pose_finder.Variables], tag: str
+    input_solution: hippopt.Output[pose_finder.Variables],
+    tag: str,
+    joint_name_list: list,
 ):
     print(
         f"Left ankle roll constraint multiplier {tag}: ",
         input_solution.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_roll")
+            joint_name_list.index("l_ankle_roll")
         ],
     )
     print(
         f"Right ankle roll constraint multiplier {tag}: ",
         input_solution.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_roll")
+            joint_name_list.index("r_ankle_roll")
         ],
     )
     print(
         f"Left ankle pitch constraint multiplier {tag}: ",
         input_solution.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_pitch")
+            joint_name_list.index("l_ankle_pitch")
         ],
     )
     print(
         f"Right ankle pitch constraint multiplier {tag}: ",
         input_solution.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_pitch")
+            joint_name_list.index("r_ankle_pitch")
         ],
     )
+
+
+def complex_pose(
+    terrain_height,
+    terrain_origin,
+    use_joint_limits,
+    desired_left_foot_position,
+    desired_right_foot_position,
+    desired_com_position,
+    casadi_solver_options=None,
+) -> hippopt.Output[pose_finder.Variables]:
+    terrain = hp_rp.SmoothTerrain.step(
+        length=0.5,
+        width=0.8,
+        height=terrain_height,
+        position=terrain_origin,
+    )
+    terrain.set_name(f"high_step_{terrain_height}")
+    planner_settings = get_planner_settings(
+        input_terrain=terrain, use_joint_limits=use_joint_limits
+    )
+    if casadi_solver_options is not None:
+        planner_settings.casadi_solver_options.update(casadi_solver_options)
+    planner = pose_finder.Planner(settings=planner_settings)
+    references = get_references(
+        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            desired_left_foot_position, liecasadi.SO3.Identity()
+        ),
+        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
+            desired_right_foot_position, liecasadi.SO3.Identity()
+        ),
+        desired_com_position=desired_com_position,
+        planner_settings=planner_settings,
+    )
+    planner.set_references(references)
+    solution = planner.solve()
+    visualizer_settings = get_visualizer_settings(
+        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
+    )
+    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
+    visualizer.visualize(solution.values.state)  # noqa
+    return solution
 
 
 if __name__ == "__main__":
@@ -221,139 +268,56 @@ if __name__ == "__main__":
 
     step_length = 0.45
     step_height = 0.2
-
-    terrain = hp_rp.SmoothTerrain.step(
-        length=0.5,
-        width=0.8,
-        height=step_height,
-        position=np.array([0.45, 0.0, 0.0]),
-    )
-    terrain.set_name(f"high_step_{step_height}")
-
-    planner_settings = get_planner_settings(
-        input_terrain=terrain, use_joint_limits=True
-    )
-
-    planner = pose_finder.Planner(settings=planner_settings)
-
-    references = get_references(
-        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
-        ),
-        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([step_length, -0.1, step_height]), liecasadi.SO3.Identity()
-        ),
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.45, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([step_length, -0.1, step_height]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
-
-    planner.set_references(references)
-
-    output = planner.solve()
-
-    visualizer_settings = get_visualizer_settings(
-        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
-    )
-
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    visualizer.visualize(output.values.state)  # noqa
-
     complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
-
-    print_ankle_bounds_multipliers(input_solution=output, tag="up20")
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="up20", joint_name_list=joint_names
+    )
 
     print("Press [Enter] to move to next pose.")
     input()
 
     # Large step-up 40cm
-
     step_length = 0.45
     step_height = 0.4
-
-    terrain = hp_rp.SmoothTerrain.step(
-        length=0.5,
-        width=0.8,
-        height=step_height,
-        position=np.array([0.45, 0.0, 0.0]),
-    )
-    terrain.set_name(f"high_step_{step_height}")
-
-    planner_settings = get_planner_settings(
-        input_terrain=terrain, use_joint_limits=True
-    )
-
-    planner = pose_finder.Planner(settings=planner_settings)
-
-    references = get_references(
-        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([0.0, 0.1, 0.0]), liecasadi.SO3.Identity()
-        ),
-        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([step_length, -0.1, step_height]), liecasadi.SO3.Identity()
-        ),
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.45, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([step_length, -0.1, step_height]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
-
-    planner.set_references(references)
-
-    output = planner.solve()
-
-    visualizer_settings = get_visualizer_settings(
-        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
-    )
-
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    visualizer.visualize(output.values.state)  # noqa
-
     complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
-
-    print_ankle_bounds_multipliers(input_solution=output, tag="up40")
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="up40", joint_name_list=joint_names
+    )
 
     print("Press [Enter] to move to next pose.")
     input()
 
     # Large step-down 10cm with limits
-
     step_length = 0.45
     step_height = 0.1
-
-    terrain = hp_rp.SmoothTerrain.step(
-        length=0.5,
-        width=0.8,
-        height=step_height,
-        position=np.array([0.0, 0.0, 0.0]),
-    )
-    terrain.set_name(f"high_step_{step_height}")
-
-    planner_settings = get_planner_settings(
-        input_terrain=terrain, use_joint_limits=True
-    )
-
-    planner = pose_finder.Planner(settings=planner_settings)
-
-    references = get_references(
-        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([0.0, 0.1, step_height]), liecasadi.SO3.Identity()
-        ),
-        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
-        ),
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
-
-    planner.set_references(references)
-
-    output = planner.solve()
-
-    visualizer_settings = get_visualizer_settings(
-        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
-    )
-
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    visualizer.visualize(output.values.state)  # noqa
-
     complex_poses["high_step_down_10cm"] = output.values.state.to_dict(flatten=False)
-
-    print_ankle_bounds_multipliers(input_solution=output, tag="down10")
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="down10", joint_name_list=joint_names
+    )
 
     print("Press [Enter] to move to next pose.")
     input()
@@ -362,43 +326,15 @@ if __name__ == "__main__":
 
     step_length = 0.45
     step_height = 0.2
-
-    terrain = hp_rp.SmoothTerrain.step(
-        length=0.5,
-        width=0.8,
-        height=step_height,
-        position=np.array([0.0, 0.0, 0.0]),
-    )
-    terrain.set_name(f"high_step_{step_height}")
-
-    planner_settings = get_planner_settings(
-        input_terrain=terrain, use_joint_limits=False
-    )
-    planner_settings.casadi_solver_options["alpha_for_y"] = "primal"
-
-    planner = pose_finder.Planner(settings=planner_settings)
-
-    references = get_references(
-        desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([0.0, 0.1, step_height]), liecasadi.SO3.Identity()
-        ),
-        desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
-            np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
-        ),
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=False,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
+        casadi_solver_options={"alpha_for_y": "primal"},
     )
-
-    planner.set_references(references)
-
-    output = planner.solve()
-
-    visualizer_settings = get_visualizer_settings(
-        input_planner_settings=planner_settings, robot_model=planner.get_adam_model()
-    )
-
-    visualizer = hp_rp.HumanoidStateVisualizer(settings=visualizer_settings)
-    visualizer.visualize(output.values.state)  # noqa
-
     complex_poses["high_step_down_20cm_no_limit"] = output.values.state.to_dict(
         flatten=False
     )
