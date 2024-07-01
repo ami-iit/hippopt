@@ -231,6 +231,31 @@ if __name__ == "__main__":
 
     complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
 
+    print(
+        "Left ankle roll constraint multiplier (up20): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_roll")
+        ],
+    )
+    print(
+        "Right ankle roll constraint multiplier (up20): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_roll")
+        ],
+    )
+    print(
+        "Left ankle pitch constraint multiplier (up20): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_pitch")
+        ],
+    )
+    print(
+        "Right ankle pitch constraint multiplier (up20): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_pitch")
+        ],
+    )
+
     print("Press [Enter] to move to next pose.")
     input()
 
@@ -275,6 +300,30 @@ if __name__ == "__main__":
 
     complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
 
+    print(
+        "Left ankle roll constraint multiplier (up40): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_roll")
+        ],
+    )
+    print(
+        "Right ankle roll constraint multiplier (up40): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_roll")
+        ],
+    )
+    print(
+        "Left ankle pitch constraint multiplier (up40): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_pitch")
+        ],
+    )
+    print(
+        "Right ankle pitch constraint multiplier (up40): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_pitch")
+        ],
+    )
     print("Press [Enter] to move to next pose.")
     input()
 
@@ -318,7 +367,30 @@ if __name__ == "__main__":
     visualizer.visualize(output.values.state)  # noqa
 
     complex_poses["high_step_down_10cm"] = output.values.state.to_dict(flatten=False)
-
+    print(
+        "Left ankle roll constraint multiplier (down10): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_roll")
+        ],
+    )
+    print(
+        "Right ankle roll constraint multiplier (down10): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_roll")
+        ],
+    )
+    print(
+        "Left ankle pitch constraint multiplier (down10): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_pitch")
+        ],
+    )
+    print(
+        "Right ankle pitch constraint multiplier (down10): ",
+        output.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_pitch")
+        ],
+    )
     print("Press [Enter] to move to next pose.")
     input()
 
