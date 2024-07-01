@@ -115,15 +115,12 @@ def get_planner_settings(
 def get_references(
     desired_left_foot_pose: liecasadi.SE3,
     desired_right_foot_pose: liecasadi.SE3,
+    desired_com_position: np.ndarray,
 ) -> pose_finder.References:
     output_references = pose_finder.References(
         contact_point_descriptors=planner_settings.contact_points,
         number_of_joints=len(planner_settings.joints_name_list),
     )
-    desired_com_position = (
-        desired_left_foot_pose.translation() + desired_right_foot_pose.translation()
-    ) / 2.0
-    desired_com_position[2] = 0.7
     output_references.state.contact_points.left = (
         hp_rp.FootContactState.from_parent_frame_transform(
             descriptor=planner_settings.contact_points.left,
@@ -216,6 +213,7 @@ if __name__ == "__main__":
         desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
             np.array([step_length, -0.1, step_height]), liecasadi.SO3.Identity()
         ),
+        desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
 
     planner.set_references(references)
@@ -259,7 +257,7 @@ if __name__ == "__main__":
     print("Press [Enter] to move to next pose.")
     input()
 
-    # Large step-up 20cm
+    # Large step-up 40cm
 
     step_length = 0.45
     step_height = 0.4
@@ -285,6 +283,7 @@ if __name__ == "__main__":
         desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
             np.array([step_length, -0.1, step_height]), liecasadi.SO3.Identity()
         ),
+        desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
 
     planner.set_references(references)
@@ -353,6 +352,7 @@ if __name__ == "__main__":
         desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
             np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
         ),
+        desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
 
     planner.set_references(references)
@@ -421,6 +421,7 @@ if __name__ == "__main__":
         desired_right_foot_pose=liecasadi.SE3.from_translation_and_rotation(
             np.array([step_length, -0.1, 0.0]), liecasadi.SO3.Identity()
         ),
+        desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
 
     planner.set_references(references)
