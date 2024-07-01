@@ -8,6 +8,7 @@ import liecasadi
 import numpy as np
 import resolve_robotics_uri_py
 
+import hippopt
 import hippopt.robot_planning as hp_rp
 import hippopt.turnkey_planners.humanoid_pose_finder.planner as pose_finder
 
@@ -184,6 +185,35 @@ def get_visualizer_settings(
     return output_settings
 
 
+def print_ankle_bounds_multipliers(
+    input_solution: hippopt.Output[pose_finder.Variables], tag: str
+):
+    print(
+        f"Left ankle roll constraint multiplier {tag}: ",
+        input_solution.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_roll")
+        ],
+    )
+    print(
+        f"Right ankle roll constraint multiplier {tag}: ",
+        input_solution.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_roll")
+        ],
+    )
+    print(
+        f"Left ankle pitch constraint multiplier {tag}: ",
+        input_solution.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("l_ankle_pitch")
+        ],
+    )
+    print(
+        f"Right ankle pitch constraint multiplier {tag}: ",
+        input_solution.constraint_multipliers["joint_position_bounds"][
+            planner_settings.joints_name_list.index("r_ankle_pitch")
+        ],
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -229,30 +259,7 @@ if __name__ == "__main__":
 
     complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
 
-    print(
-        "Left ankle roll constraint multiplier (up20): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_roll")
-        ],
-    )
-    print(
-        "Right ankle roll constraint multiplier (up20): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_roll")
-        ],
-    )
-    print(
-        "Left ankle pitch constraint multiplier (up20): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_pitch")
-        ],
-    )
-    print(
-        "Right ankle pitch constraint multiplier (up20): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_pitch")
-        ],
-    )
+    print_ankle_bounds_multipliers(input_solution=output, tag="up20")
 
     print("Press [Enter] to move to next pose.")
     input()
@@ -299,30 +306,8 @@ if __name__ == "__main__":
 
     complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
 
-    print(
-        "Left ankle roll constraint multiplier (up40): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_roll")
-        ],
-    )
-    print(
-        "Right ankle roll constraint multiplier (up40): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_roll")
-        ],
-    )
-    print(
-        "Left ankle pitch constraint multiplier (up40): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_pitch")
-        ],
-    )
-    print(
-        "Right ankle pitch constraint multiplier (up40): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_pitch")
-        ],
-    )
+    print_ankle_bounds_multipliers(input_solution=output, tag="up40")
+
     print("Press [Enter] to move to next pose.")
     input()
 
@@ -367,30 +352,9 @@ if __name__ == "__main__":
     visualizer.visualize(output.values.state)  # noqa
 
     complex_poses["high_step_down_10cm"] = output.values.state.to_dict(flatten=False)
-    print(
-        "Left ankle roll constraint multiplier (down10): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_roll")
-        ],
-    )
-    print(
-        "Right ankle roll constraint multiplier (down10): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_roll")
-        ],
-    )
-    print(
-        "Left ankle pitch constraint multiplier (down10): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("l_ankle_pitch")
-        ],
-    )
-    print(
-        "Right ankle pitch constraint multiplier (down10): ",
-        output.constraint_multipliers["joint_position_bounds"][
-            planner_settings.joints_name_list.index("r_ankle_pitch")
-        ],
-    )
+
+    print_ankle_bounds_multipliers(input_solution=output, tag="down10")
+
     print("Press [Enter] to move to next pose.")
     input()
 
