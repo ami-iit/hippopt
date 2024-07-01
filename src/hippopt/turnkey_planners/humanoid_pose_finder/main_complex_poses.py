@@ -227,6 +227,8 @@ def complex_pose(
     desired_right_foot_position,
     desired_com_position,
     casadi_solver_options=None,
+    com_regularization_cost_multiplier=None,
+    force_regularization_cost_multiplier=None,
 ) -> hippopt.Output[pose_finder.Variables]:
     terrain = hp_rp.SmoothTerrain.step(
         length=0.5,
@@ -240,6 +242,14 @@ def complex_pose(
     )
     if casadi_solver_options is not None:
         planner_settings.casadi_solver_options.update(casadi_solver_options)
+    if com_regularization_cost_multiplier is not None:
+        planner_settings.com_regularization_cost_multiplier = (
+            com_regularization_cost_multiplier
+        )
+    if force_regularization_cost_multiplier is not None:
+        planner_settings.force_regularization_cost_multiplier = (
+            force_regularization_cost_multiplier
+        )
     planner = pose_finder.Planner(settings=planner_settings)
     references = get_references(
         desired_left_foot_pose=liecasadi.SE3.from_translation_and_rotation(
@@ -264,7 +274,7 @@ def complex_pose(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    # Large step-up 20cm
+    # Large step-up 20cm centered
 
     step_length = 0.45
     step_height = 0.2
@@ -279,6 +289,51 @@ if __name__ == "__main__":
     complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
     print_ankle_bounds_multipliers(
         input_solution=output, tag="up20", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-up 20cm left foot centered
+
+    step_length = 0.45
+    step_height = 0.2
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.45, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([step_length, -0.1, step_height]),
+        desired_com_position=np.array([0.0, 0.1, 0.7]),
+        casadi_solver_options={"alpha_for_y": "primal"},
+        com_regularization_cost_multiplier=200.0,
+        force_regularization_cost_multiplier=0.0,
+    )
+    complex_poses["high_step_20cm_left"]: output.values.state.to_dict(flatten=False)
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="up20left", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-up 20cm right foot centered
+
+    step_length = 0.45
+    step_height = 0.2
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.45, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([step_length, -0.1, step_height]),
+        desired_com_position=np.array([step_length, -0.1, 0.7]),
+        com_regularization_cost_multiplier=200.0,
+        force_regularization_cost_multiplier=0.0,
+    )
+    complex_poses["high_step_20cm_right"]: output.values.state.to_dict(flatten=False)
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="up20right", joint_name_list=joint_names
     )
 
     print("Press [Enter] to move to next pose.")
