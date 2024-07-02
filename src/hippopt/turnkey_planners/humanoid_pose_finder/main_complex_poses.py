@@ -483,6 +483,9 @@ if __name__ == "__main__":
         flatten=False
     )
 
+    print("Press [Enter] to move to next pose.")
+    input()
+
     # Large step-down 20cm without limits left foot centered
 
     step_length = 0.4
@@ -502,6 +505,9 @@ if __name__ == "__main__":
     complex_poses["high_step_down_20cm_no_limit_left"] = output.values.state.to_dict(
         flatten=False
     )
+
+    print("Press [Enter] to move to next pose.")
+    input()
 
     # Large step-down 20cm without limits right foot centered
 
