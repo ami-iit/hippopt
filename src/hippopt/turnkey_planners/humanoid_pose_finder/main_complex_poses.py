@@ -1,4 +1,3 @@
-import logging
 import math
 
 import adam.model
@@ -272,7 +271,6 @@ def complex_pose(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
 
     # Large step-up 20cm centered
 
@@ -353,6 +351,28 @@ if __name__ == "__main__":
     complex_poses["high_step_40cm"] = output.values.state.to_dict(flatten=False)
     print_ankle_bounds_multipliers(
         input_solution=output, tag="up40", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-up 40cm left foot centered
+    step_length = 0.45
+    step_height = 0.4
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.45, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([step_length, -0.1, step_height]),
+        desired_com_position=np.array([0.0, 0.1, 0.7]),
+        casadi_solver_options={"alpha_for_y": "primal"},
+        com_regularization_cost_multiplier=200.0,
+        force_regularization_cost_multiplier=0.0001,
+    )
+    complex_poses["high_step_40cm_left"] = output.values.state.to_dict(flatten=False)
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="up40left", joint_name_list=joint_names
     )
 
     print("Press [Enter] to move to next pose.")
