@@ -41,6 +41,8 @@ joint_names = [
 def get_planner_settings(
     input_terrain: hp_rp.TerrainDescriptor,
     use_joint_limits: bool = True,
+    constrain_left_foot_position: bool = False,
+    constrain_right_foot_position: bool = False,
 ) -> pose_finder.Settings:
     urdf_path = resolve_robotics_uri_py.resolve_robotics_uri(
         "package://ergoCub/robots/ergoCubGazeboV1_minContacts/model.urdf"
@@ -98,6 +100,16 @@ def get_planner_settings(
     output_settings.com_regularization_cost_multiplier = 10.0
     output_settings.average_force_regularization_cost_multiplier = 10.0
     output_settings.point_position_regularization_cost_multiplier = 100.0
+    output_settings.left_point_position_expression_type = (
+        hippopt.ExpressionType.subject_to
+        if constrain_left_foot_position
+        else hippopt.ExpressionType.minimize
+    )
+    output_settings.right_point_position_expression_type = (
+        hippopt.ExpressionType.subject_to
+        if constrain_right_foot_position
+        else hippopt.ExpressionType.minimize
+    )
     output_settings.casadi_function_options = {}
     output_settings.casadi_opti_options = {}
     output_settings.casadi_solver_options = {
@@ -228,6 +240,8 @@ def complex_pose(
     casadi_solver_options=None,
     com_regularization_cost_multiplier=None,
     force_regularization_cost_multiplier=None,
+    constrain_left_foot_position=False,
+    constrain_right_foot_position=False,
 ) -> hippopt.Output[pose_finder.Variables]:
     terrain = hp_rp.SmoothTerrain.step(
         length=0.5,
@@ -237,7 +251,10 @@ def complex_pose(
     )
     terrain.set_name(f"high_step_{terrain_height}")
     planner_settings = get_planner_settings(
-        input_terrain=terrain, use_joint_limits=use_joint_limits
+        input_terrain=terrain,
+        use_joint_limits=use_joint_limits,
+        constrain_left_foot_position=constrain_left_foot_position,
+        constrain_right_foot_position=constrain_right_foot_position,
     )
     if casadi_solver_options is not None:
         planner_settings.casadi_solver_options.update(casadi_solver_options)
@@ -328,6 +345,8 @@ if __name__ == "__main__":
         desired_com_position=np.array([step_length, -0.1, 0.7]),
         com_regularization_cost_multiplier=200.0,
         force_regularization_cost_multiplier=0.0,
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
     )
     complex_poses["high_step_20cm_right"]: output.values.state.to_dict(flatten=False)
     print_ankle_bounds_multipliers(
@@ -408,7 +427,8 @@ if __name__ == "__main__":
         desired_left_foot_position=np.array([0.0, 0.1, step_height]),
         desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
-        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
     )
     complex_poses["high_step_down_20cm_no_limit"] = output.values.state.to_dict(
         flatten=False
