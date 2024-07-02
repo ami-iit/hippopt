@@ -416,6 +416,55 @@ if __name__ == "__main__":
     print("Press [Enter] to move to next pose.")
     input()
 
+    # Large step-down 10cm with limits left foot centered
+    step_length = 0.45
+    step_height = 0.1
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
+        desired_com_position=np.array([0.0, 0.1, 0.7]),
+        com_regularization_cost_multiplier=200.0,
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_right_foot_position=True,
+        constrain_left_foot_position=True,
+    )
+    complex_poses["high_step_down_10cm_left"] = output.values.state.to_dict(
+        flatten=False
+    )
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="down10left", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Large step-down 10cm with limits right foot centered
+    step_length = 0.45
+    step_height = 0.1
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
+        desired_com_position=np.array([step_length, -0.1, 0.7]),
+        com_regularization_cost_multiplier=200.0,
+        constrain_right_foot_position=True,
+        constrain_left_foot_position=True,
+    )
+    complex_poses["high_step_down_10cm_right"] = output.values.state.to_dict(
+        flatten=False
+    )
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="down10right", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
     # Large step-down 20cm without limits
 
     step_length = 0.45
@@ -431,6 +480,46 @@ if __name__ == "__main__":
         constrain_right_foot_position=True,
     )
     complex_poses["high_step_down_20cm_no_limit"] = output.values.state.to_dict(
+        flatten=False
+    )
+
+    # Large step-down 20cm without limits left foot centered
+
+    step_length = 0.4
+    step_height = 0.2
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([-0.05, 0.0, 0.0]),
+        use_joint_limits=False,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
+        desired_com_position=np.array([0.0, 0.1, 0.7]),
+        com_regularization_cost_multiplier=200.0,
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+    )
+    complex_poses["high_step_down_20cm_no_limit_left"] = output.values.state.to_dict(
+        flatten=False
+    )
+
+    # Large step-down 20cm without limits right foot centered
+
+    step_length = 0.4
+    step_height = 0.2
+    output = complex_pose(
+        terrain_height=step_height,
+        terrain_origin=np.array([-0.05, 0.0, 0.0]),
+        use_joint_limits=False,
+        desired_left_foot_position=np.array([0.0, 0.1, step_height]),
+        desired_right_foot_position=np.array([step_length, -0.1, 0.0]),
+        desired_com_position=np.array([step_length, -0.1, 0.8]),
+        com_regularization_cost_multiplier=200.0,
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+    )
+    complex_poses["high_step_down_20cm_no_limit_right"] = output.values.state.to_dict(
         flatten=False
     )
 
