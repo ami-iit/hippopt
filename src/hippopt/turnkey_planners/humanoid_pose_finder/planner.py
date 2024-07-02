@@ -269,6 +269,7 @@ class Planner:
                 gravity=self.settings.gravity,
                 f_opts=self.settings.casadi_function_options,
             )
+            self.numeric_mass = self.kin_dyn_object.get_total_mass()
 
         self.variables = Variables(
             settings=self.settings, kin_dyn_object=self.kin_dyn_object
@@ -434,11 +435,11 @@ class Planner:
         ]
         centroidal_dynamics_fun = hp_rp.centroidal_dynamics_with_point_forces(
             number_of_points=len(function_inputs["point_position_names"]),
+            assume_unitary_mass=True,
             **function_inputs,
         )
 
         centroidal_inputs = {
-            variables.mass.name(): variables.mass,  # noqa
             variables.gravity.name(): variables.gravity,  # noqa
             variables.state.com.name(): variables.state.com,
         }
@@ -593,7 +594,7 @@ class Planner:
         # Normal complementarity
         dcc_margin = complementarity_margin_fun(
             p=point.p,
-            f=point.f,
+            f=point.f * variables.mass,
             eps=variables.relaxed_complementarity_epsilon,
         )["relaxed_complementarity_margin"]
         problem.add_constraint(
@@ -665,19 +666,89 @@ class Planner:
                 scaling=self.settings.force_regularization_cost_multiplier,
             )
 
+    def _apply_mass_regularization(self, input_var: Variables) -> Variables:
+        if self.parametric_model:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(
+                input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
+        output = input_var
+        if output.state is not None:
+            for point in (
+                output.state.contact_points.left + output.state.contact_points.right
+            ):
+                point.f /= numeric_mass
+
+        if output.references.state is not None:
+            for point in (
+                output.references.state.contact_points.left
+                + output.references.state.contact_points.right
+            ):
+                point.f /= numeric_mass
+
+        return output
+
+    def _undo_mass_regularization(self, input_var: Variables) -> Variables:
+        if self.parametric_model:
+            assert isinstance(
+                self.kin_dyn_object, adam.parametric.casadi.KinDynComputationsParametric
+            )
+            numeric_mass_fun = self.kin_dyn_object.get_total_mass()
+            numeric_mass = numeric_mass_fun(
+                input_var.parametric_link_length_multipliers,
+                input_var.parametric_link_densities,
+            )
+        else:
+            numeric_mass = self.numeric_mass
+
+        if isinstance(numeric_mass, float) and numeric_mass == 0:
+            raise ValueError("The mass of the robot is zero. This is not supported.")
+
+        output = input_var
+        if output.state is not None:
+            for point in (
+                output.state.contact_points.left + output.state.contact_points.right
+            ):
+                point.f *= numeric_mass
+
+        if output.references.state is not None:
+            for point in (
+                output.references.state.contact_points.left
+                + output.references.state.contact_points.right
+            ):
+                point.f *= numeric_mass
+
+        return output
+
     def set_initial_guess(self, initial_guess: Variables) -> None:
-        self.op.problem.set_initial_guess(initial_guess)
+        self.op.problem.set_initial_guess(
+            self._apply_mass_regularization(initial_guess)
+        )
 
     def get_initial_guess(self) -> Variables:
-        return self.op.problem.get_initial_guess()
+        return self._undo_mass_regularization(self.op.problem.get_initial_guess())
 
     def set_references(self, references: References) -> None:
-        guess = self.get_initial_guess()
+        guess = (
+            self.op.problem.get_initial_guess()
+        )  # Avoid the undo of the mass regularization
         guess.references = references
         self.set_initial_guess(guess)
 
     def solve(self) -> hp.Output[Variables]:
-        return self.op.problem.solve()
+        output = self.op.problem.solve()
+        output.values = self._undo_mass_regularization(output.values)
+        return output
 
     def to_function(
         self,
@@ -685,10 +756,49 @@ class Planner:
         function_name: str = "opti_function",
         options: dict = None,
     ) -> cs.Function:
-        return self.optimization_solver.to_function(
+        options = {} if options is None else options
+        inner_function = self.optimization_solver.to_function(
             input_name_prefix=input_name_prefix,
-            function_name=function_name,
+            function_name=function_name + "_internal",
             options=options,
+        )
+        variable_names = inner_function.name_in()
+        variables_list = []
+        variables_sym = {}
+        for n in variable_names:
+            variables_sym[n] = cs.MX.sym(n, inner_function.size_in(n))
+            variables_list.append(variables_sym[n])
+
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(
+            input_dict=variables_sym, prefix=input_name_prefix
+        )
+        mass_regularized_vars = self._apply_mass_regularization(optimization_structure)
+        output_dict = inner_function(
+            **mass_regularized_vars.to_dict(prefix=input_name_prefix)
+        )
+        optimization_structure = copy.deepcopy(
+            self.optimization_solver.get_optimization_objects()
+        )
+        optimization_structure.from_dict(input_dict=output_dict)
+        mass_regularized_output = self._undo_mass_regularization(optimization_structure)
+        mass_regularized_output_dict = mass_regularized_output.to_dict()
+
+        output_values = []
+        output_names = []
+        for n in output_dict:
+            output_values.append(mass_regularized_output_dict[n])
+            output_names.append(n)
+
+        return cs.Function(
+            function_name,
+            variables_list,
+            output_values,
+            variable_names,
+            output_names,
+            options,
         )
 
     def change_opti_options(
