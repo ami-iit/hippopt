@@ -38,6 +38,7 @@ class Settings:
 
     desired_frame_quaternion_cost_multiplier: float = dataclasses.field(default=None)
 
+    com_position_expression_type: hp.ExpressionType = dataclasses.field(default=None)
     com_regularization_cost_multiplier: float = dataclasses.field(default=None)
 
     joint_regularization_cost_weights: np.ndarray = dataclasses.field(default=None)
@@ -48,6 +49,12 @@ class Settings:
         default=None
     )
 
+    left_point_position_expression_type: hp.ExpressionType = dataclasses.field(
+        default=None
+    )
+    right_point_position_expression_type: hp.ExpressionType = dataclasses.field(
+        default=None
+    )
     point_position_regularization_cost_multiplier: float = dataclasses.field(
         default=None
     )
@@ -64,6 +71,9 @@ class Settings:
         self.terrain = hp_rp.PlanarTerrain()
         self.relaxed_complementarity_epsilon = 0.0001
         self.static_friction = 0.3
+        self.com_position_expression_type = hp.ExpressionType.minimize
+        self.left_point_position_expression_type = hp.ExpressionType.minimize
+        self.right_point_position_expression_type = hp.ExpressionType.minimize
 
     def is_valid(self) -> bool:
         ok = True
@@ -125,6 +135,16 @@ class Settings:
         if self.point_position_regularization_cost_multiplier is None:
             logger.error("point_position_regularization_cost_multiplier is None")
             ok = False
+        if self.com_position_expression_type is None:
+            logger.error("com_position_expression_type is None")
+            ok = False
+        if self.left_point_position_expression_type is None:
+            logger.error("left_point_position_expression_type is None")
+            ok = False
+        if self.right_point_position_expression_type is None:
+            logger.error("right_point_position_expression_type is None")
+            ok = False
+
         return ok
 
 
@@ -322,13 +342,17 @@ class Planner:
             function_inputs=function_inputs, normalized_quaternion=normalized_quaternion
         )
 
+        expression_type = self.settings.left_point_position_expression_type
         self._add_foot_regularization(
             points=sym_variables.state.contact_points.left,
             references=sym_variables.references.state.contact_points.left,
+            point_position_expression_type=expression_type,
         )
+        expression_type = self.settings.right_point_position_expression_type
         self._add_foot_regularization(
             points=sym_variables.state.contact_points.right,
             references=sym_variables.references.state.contact_points.right,
+            point_position_expression_type=expression_type,
         )
 
     def _get_function_inputs_dict(self):
@@ -487,10 +511,11 @@ class Planner:
 
         # Desired center of mass position
         com_position_error = variables.state.com - variables.references.state.com
-        problem.add_cost(
+        problem.add_expression(
             expression=cs.sumsqr(com_position_error),
             name="com_position_error",
             scaling=self.settings.com_regularization_cost_multiplier,
+            mode=self.settings.com_position_expression_type,
         )
 
         # Desired joint positions
@@ -605,6 +630,7 @@ class Planner:
         self,
         points: list[hp_rp.ContactPointState],
         references: list[hp_rp.ContactPointState],
+        point_position_expression_type: hp.ExpressionType,
     ) -> None:
         problem = self.op.problem
 
@@ -627,10 +653,11 @@ class Planner:
 
         # Force and position regularization
         for i, point in enumerate(points):
-            problem.add_cost(
+            problem.add_expression(
                 expression=cs.sumsqr(point.p - references[i].p),
                 name=point.p.name() + "_regularization",
                 scaling=self.settings.point_position_regularization_cost_multiplier,
+                mode=point_position_expression_type,
             )
             problem.add_cost(
                 expression=cs.sumsqr(point.f - references[i].f),
