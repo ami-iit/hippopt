@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 from typing import TypeVar
 
@@ -81,7 +82,7 @@ class ContactPointState(OptimizationObject):
         self.p = np.zeros(3) if self.p is None else self.p
         self.f = np.zeros(3) if self.f is None else self.f
         if input_descriptor is not None:
-            self.descriptor = input_descriptor
+            self.descriptor = copy.deepcopy(input_descriptor)
 
 
 @dataclasses.dataclass

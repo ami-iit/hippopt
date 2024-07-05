@@ -497,6 +497,11 @@ class MultipleShootingSolver(OptimalControlSolver):
     ) -> TOptimizationObject | list[TOptimizationObject]:
         return self._optimization_solver.get_optimization_objects()
 
+    def get_optimization_structure(
+        self,
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        return self._optimization_solver.get_optimization_structure()
+
     def register_problem(self, problem: Problem) -> None:
         self._optimization_solver.register_problem(problem)
 

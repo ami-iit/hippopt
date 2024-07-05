@@ -36,6 +36,12 @@ class OptimizationSolver(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def get_optimization_structure(
+        self,
+    ) -> TOptimizationObject | list[TOptimizationObject]:
+        pass
+
+    @abc.abstractmethod
     def register_problem(self, problem: Problem) -> None:
         pass
 
