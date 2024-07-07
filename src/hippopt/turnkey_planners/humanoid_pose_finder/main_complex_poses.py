@@ -43,6 +43,11 @@ def get_planner_settings(
     use_joint_limits: bool = True,
     constrain_left_foot_position: bool = False,
     constrain_right_foot_position: bool = False,
+    torso_orientation_scaling: float = 100.0,
+    left_hand_expression_type: hippopt.ExpressionType = hippopt.ExpressionType.skip,
+    left_hand_scaling: float = 1.0,
+    right_hand_expression_type: hippopt.ExpressionType = hippopt.ExpressionType.skip,
+    right_hand_scaling: float = 1.0,
 ) -> pose_finder.Settings:
     urdf_path = resolve_robotics_uri_py.resolve_robotics_uri(
         "package://ergoCub/robots/ergoCubGazeboV1_minContacts/model.urdf"
@@ -94,7 +99,7 @@ def get_planner_settings(
     output_settings.joint_regularization_cost_weights[3:11] = 10.0  # arms
     output_settings.joint_regularization_cost_weights[11:] = 1.0  # legs
     output_settings.base_quaternion_cost_multiplier = 50.0
-    output_settings.desired_frame_quaternion_cost_multiplier = 100.0
+    output_settings.desired_frame_quaternion_cost_multiplier = torso_orientation_scaling
     output_settings.joint_regularization_cost_multiplier = 0.1
     output_settings.force_regularization_cost_multiplier = 0.2
     output_settings.com_regularization_cost_multiplier = 10.0
@@ -110,6 +115,12 @@ def get_planner_settings(
         if constrain_right_foot_position
         else hippopt.ExpressionType.minimize
     )
+    output_settings.left_hand_frame_name = "l_hand_palm"
+    output_settings.left_hand_expression_type = left_hand_expression_type
+    output_settings.left_hand_regularization_cost_multiplier = left_hand_scaling
+    output_settings.right_hand_frame_name = "r_hand_palm"
+    output_settings.right_hand_expression_type = right_hand_expression_type
+    output_settings.right_hand_regularization_cost_multiplier = right_hand_scaling
     output_settings.casadi_function_options = {}
     output_settings.casadi_opti_options = {}
     output_settings.casadi_solver_options = {
@@ -130,6 +141,8 @@ def get_references(
     desired_left_foot_pose: liecasadi.SE3,
     desired_right_foot_pose: liecasadi.SE3,
     desired_com_position: np.ndarray,
+    desired_left_hand_position: np.ndarray,
+    desired_right_hand_position: np.ndarray,
     planner_settings: pose_finder.Settings,
 ) -> pose_finder.References:
     output_references = pose_finder.References(
@@ -182,6 +195,8 @@ def get_references(
             -1.52,
         ]
     )
+    output_references.left_hand_position = desired_left_hand_position
+    output_references.right_hand_position = desired_right_hand_position
 
     return output_references
 
@@ -242,6 +257,13 @@ def complex_pose(
     force_regularization_cost_multiplier=None,
     constrain_left_foot_position=False,
     constrain_right_foot_position=False,
+    torso_orientation_scaling: float = 100.0,
+    left_hand_expression_type: hippopt.ExpressionType = hippopt.ExpressionType.skip,
+    left_hand_scaling: float = 1.0,
+    desired_left_hand_position: np.ndarray = np.zeros(3),
+    right_hand_expression_type: hippopt.ExpressionType = hippopt.ExpressionType.skip,
+    right_hand_scaling: float = 1.0,
+    desired_right_hand_position: np.ndarray = np.zeros(3),
 ) -> hippopt.Output[pose_finder.Variables]:
     terrain = hp_rp.SmoothTerrain.step(
         length=0.5,
@@ -255,6 +277,11 @@ def complex_pose(
         use_joint_limits=use_joint_limits,
         constrain_left_foot_position=constrain_left_foot_position,
         constrain_right_foot_position=constrain_right_foot_position,
+        torso_orientation_scaling=torso_orientation_scaling,
+        left_hand_expression_type=left_hand_expression_type,
+        left_hand_scaling=left_hand_scaling,
+        right_hand_expression_type=right_hand_expression_type,
+        right_hand_scaling=right_hand_scaling,
     )
     if casadi_solver_options is not None:
         planner_settings.casadi_solver_options.update(casadi_solver_options)
@@ -275,6 +302,8 @@ def complex_pose(
             desired_right_foot_position, liecasadi.SO3.Identity()
         ),
         desired_com_position=desired_com_position,
+        desired_left_hand_position=desired_left_hand_position,
+        desired_right_hand_position=desired_right_hand_position,
         planner_settings=planner_settings,
     )
     planner.set_references(references)
@@ -289,6 +318,8 @@ def complex_pose(
 
 if __name__ == "__main__":
 
+    complex_poses = {"joint_name_list": joint_names}
+
     # Large step-up 20cm centered
 
     step_length = 0.45
@@ -301,7 +332,7 @@ if __name__ == "__main__":
         desired_right_foot_position=np.array([step_length, -0.1, step_height]),
         desired_com_position=np.array([step_length / 2, 0.0, 0.7]),
     )
-    complex_poses = {"high_step_20cm": output.values.state.to_dict(flatten=False)}
+    complex_poses["high_step_20cm"] = output.values.state.to_dict(flatten=False)
     print_ankle_bounds_multipliers(
         input_solution=output, tag="up20", joint_name_list=joint_names
     )
@@ -527,6 +558,31 @@ if __name__ == "__main__":
     )
     complex_poses["high_step_down_20cm_no_limit_right"] = output.values.state.to_dict(
         flatten=False
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Get something from ground
+
+    output = complex_pose(
+        terrain_height=0.0,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([0.0, -0.1, 0.0]),
+        desired_com_position=np.array([0.00, 0.0, 0.4]),
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+        left_hand_expression_type=hippopt.ExpressionType.subject_to,
+        right_hand_expression_type=hippopt.ExpressionType.subject_to,
+        desired_left_hand_position=np.array([0.2, 0.1, 0.2]),
+        desired_right_hand_position=np.array([0.2, -0.1, 0.2]),
+    )
+    complex_poses["both_hands_down"] = output.values.state.to_dict(flatten=False)
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="bothHandsDown", joint_name_list=joint_names
     )
 
     hdf5storage.savemat(
