@@ -585,6 +585,30 @@ if __name__ == "__main__":
         input_solution=output, tag="bothHandsDown", joint_name_list=joint_names
     )
 
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Get something from ground (no limits)
+
+    output = complex_pose(
+        terrain_height=0.0,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=False,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([0.0, -0.1, 0.0]),
+        desired_com_position=np.array([0.00, 0.0, 0.4]),
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+        left_hand_expression_type=hippopt.ExpressionType.subject_to,
+        right_hand_expression_type=hippopt.ExpressionType.subject_to,
+        desired_left_hand_position=np.array([0.2, 0.1, 0.2]),
+        desired_right_hand_position=np.array([0.2, -0.1, 0.2]),
+    )
+    complex_poses["both_hands_down_no_limit"] = output.values.state.to_dict(
+        flatten=False
+    )
+
     hdf5storage.savemat(
         file_name="complex_poses.mat",
         mdict=complex_poses,
