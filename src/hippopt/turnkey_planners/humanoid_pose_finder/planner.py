@@ -59,6 +59,15 @@ class Settings:
         default=None
     )
 
+    left_hand_frame_name: str = dataclasses.field(default=None)
+    lef_hand_position_in_frame: np.array = dataclasses.field(default=None)
+    left_hand_regularization_cost_multiplier: float = dataclasses.field(default=None)
+    left_hand_expression_type: hp.ExpressionType = dataclasses.field(default=None)
+    right_hand_frame_name: str = dataclasses.field(default=None)
+    right_hand_position_in_frame: np.array = dataclasses.field(default=None)
+    right_hand_regularization_cost_multiplier: float = dataclasses.field(default=None)
+    right_hand_expression_type: hp.ExpressionType = dataclasses.field(default=None)
+
     opti_solver: str = dataclasses.field(default="ipopt")
     problem_type: str = dataclasses.field(default="nlp")
     casadi_function_options: dict = dataclasses.field(default_factory=dict)
@@ -74,6 +83,12 @@ class Settings:
         self.com_position_expression_type = hp.ExpressionType.minimize
         self.left_point_position_expression_type = hp.ExpressionType.minimize
         self.right_point_position_expression_type = hp.ExpressionType.minimize
+        self.lef_hand_position_in_frame = np.array([0.0, 0.0, 0.0])
+        self.left_hand_regularization_cost_multiplier = 1.0
+        self.left_hand_expression_type = hp.ExpressionType.skip
+        self.right_hand_position_in_frame = np.array([0.0, 0.0, 0.0])
+        self.right_hand_regularization_cost_multiplier = 1.0
+        self.right_hand_expression_type = hp.ExpressionType.skip
 
     def is_valid(self) -> bool:
         ok = True
@@ -144,6 +159,36 @@ class Settings:
         if self.right_point_position_expression_type is None:
             logger.error("right_point_position_expression_type is None")
             ok = False
+        if self.left_hand_expression_type is None:
+            logger.error("left_hand_expression_type is None")
+            ok = False
+        if (
+            self.left_hand_expression_type != hp.ExpressionType.skip
+            and self.left_hand_frame_name is None
+        ):
+            logger.error("left_hand_frame_name is None")
+            ok = False
+        if self.lef_hand_position_in_frame is None:
+            logger.error("lef_hand_position_in_frame is None")
+            ok = False
+        if self.left_hand_regularization_cost_multiplier is None:
+            logger.error("left_hand_regularization_cost_multiplier is None")
+            ok = False
+        if self.right_hand_expression_type is None:
+            logger.error("right_hand_expression_type is None")
+            ok = False
+        if (
+            self.right_hand_expression_type != hp.ExpressionType.skip
+            and self.right_hand_frame_name is None
+        ):
+            logger.error("right_hand_frame_name is None")
+            ok = False
+        if self.right_hand_position_in_frame is None:
+            logger.error("right_hand_position_in_frame is None")
+            ok = False
+        if self.right_hand_regularization_cost_multiplier is None:
+            logger.error("right_hand_regularization_cost_multiplier is None")
+            ok = False
 
         return ok
 
@@ -154,6 +199,8 @@ class References(hp.OptimizationObject):
         cls=hp.Parameter, factory=hp_rp.HumanoidState
     )
     frame_quaternion_xyzw: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    left_hand_position: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    right_hand_position: hp.StorageType = hp.default_storage_field(hp.Parameter)
 
     contact_point_descriptors: dataclasses.InitVar[
         hp_rp.FeetContactPointDescriptors
@@ -171,6 +218,8 @@ class References(hp.OptimizationObject):
         )
         self.frame_quaternion_xyzw = np.zeros(4)
         self.frame_quaternion_xyzw[3] = 1.0
+        self.left_hand_position = np.zeros(3)
+        self.right_hand_position = np.zeros(3)
 
 
 @dataclasses.dataclass
@@ -194,6 +243,11 @@ class Variables(hp.OptimizationObject):
     static_friction: hp.StorageType = hp.default_storage_field(hp.Parameter)
     maximum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
     minimum_joint_positions: hp.StorageType = hp.default_storage_field(hp.Parameter)
+
+    left_hand_position_in_frame: hp.StorageType = hp.default_storage_field(hp.Parameter)
+    right_hand_position_in_frame: hp.StorageType = hp.default_storage_field(
+        hp.Parameter
+    )
 
     settings: dataclasses.InitVar[Settings] = dataclasses.field(default=None)
     kin_dyn_object: dataclasses.InitVar[adam.casadi.KinDynComputations] = (
@@ -241,6 +295,8 @@ class Variables(hp.OptimizationObject):
         self.relaxed_complementarity_epsilon = settings.relaxed_complementarity_epsilon
         self.maximum_joint_positions = settings.maximum_joint_positions
         self.minimum_joint_positions = settings.minimum_joint_positions
+        self.left_hand_position_in_frame = settings.lef_hand_position_in_frame
+        self.right_hand_position_in_frame = settings.right_hand_position_in_frame
 
 
 class Planner:
@@ -536,6 +592,71 @@ class Planner:
             name="joint_positions_error",
             scaling=self.settings.joint_regularization_cost_multiplier,
         )
+
+        if self.settings.left_hand_expression_type != hp.ExpressionType.skip:
+            left_hand_position_fun = hp_rp.point_position_from_kinematics(
+                kindyn_object=self.kin_dyn_object,
+                frame_name=self.settings.left_hand_frame_name,
+                **function_inputs,
+            )
+            if self.parametric_model:
+                left_hand_position = left_hand_position_fun(
+                    pb=variables.state.kinematics.base.position,
+                    qb=normalized_quaternion,
+                    s=variables.state.kinematics.joints.positions,
+                    pi_l=variables.parametric_link_length_multipliers,
+                    pi_d=variables.parametric_link_densities,
+                    p_parent=variables.left_hand_position_in_frame,
+                )["point_position"]
+            else:
+                left_hand_position = left_hand_position_fun(
+                    pb=variables.state.kinematics.base.position,
+                    qb=normalized_quaternion,
+                    s=variables.state.kinematics.joints.positions,
+                    p_parent=variables.left_hand_position_in_frame,
+                )["point_position"]
+
+            problem.add_expression(
+                expression=cs.MX(
+                    left_hand_position == variables.references.left_hand_position
+                ),
+                name="left_hand_position_error",
+                scaling=self.settings.left_hand_regularization_cost_multiplier,
+                mode=self.settings.left_hand_expression_type,
+            )
+
+        if self.settings.right_hand_expression_type != hp.ExpressionType.skip:
+            right_hand_position_fun = hp_rp.point_position_from_kinematics(
+                kindyn_object=self.kin_dyn_object,
+                frame_name=self.settings.right_hand_frame_name,
+                **function_inputs,
+            )
+
+            if self.parametric_model:
+                right_hand_position = right_hand_position_fun(
+                    pb=variables.state.kinematics.base.position,
+                    qb=normalized_quaternion,
+                    s=variables.state.kinematics.joints.positions,
+                    pi_l=variables.parametric_link_length_multipliers,
+                    pi_d=variables.parametric_link_densities,
+                    p_parent=variables.right_hand_position_in_frame,
+                )["point_position"]
+            else:
+                right_hand_position = right_hand_position_fun(
+                    pb=variables.state.kinematics.base.position,
+                    qb=normalized_quaternion,
+                    s=variables.state.kinematics.joints.positions,
+                    p_parent=variables.right_hand_position_in_frame,
+                )["point_position"]
+
+            problem.add_expression(
+                expression=cs.MX(
+                    right_hand_position == variables.references.right_hand_position
+                ),
+                name="right_hand_position_error",
+                scaling=self.settings.right_hand_regularization_cost_multiplier,
+                mode=self.settings.right_hand_expression_type,
+            )
 
     def _add_contact_kinematic_consistency(
         self,
