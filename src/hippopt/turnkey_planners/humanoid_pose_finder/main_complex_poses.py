@@ -609,6 +609,53 @@ if __name__ == "__main__":
         flatten=False
     )
 
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Get something from ground on the side
+
+    output = complex_pose(
+        terrain_height=0.0,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=True,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([0.0, -0.1, 0.0]),
+        desired_com_position=np.array([0.00, 0.0, 0.4]),
+        casadi_solver_options={"alpha_for_y": "primal"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+        left_hand_expression_type=hippopt.ExpressionType.subject_to,
+        right_hand_expression_type=hippopt.ExpressionType.skip,
+        desired_left_hand_position=np.array([0.0, 0.3, 0.1]),
+        torso_orientation_scaling=1e8,
+    )
+    complex_poses["hand_side"] = output.values.state.to_dict(flatten=False)
+    print_ankle_bounds_multipliers(
+        input_solution=output, tag="hand_side", joint_name_list=joint_names
+    )
+
+    print("Press [Enter] to move to next pose.")
+    input()
+
+    # Get something from ground on the side (no limits)
+
+    output = complex_pose(
+        terrain_height=0.0,
+        terrain_origin=np.array([0.0, 0.0, 0.0]),
+        use_joint_limits=False,
+        desired_left_foot_position=np.array([0.0, 0.1, 0.0]),
+        desired_right_foot_position=np.array([0.0, -0.1, 0.0]),
+        desired_com_position=np.array([0.00, 0.0, 0.4]),
+        casadi_solver_options={"alpha_for_y": "full"},
+        constrain_left_foot_position=True,
+        constrain_right_foot_position=True,
+        left_hand_expression_type=hippopt.ExpressionType.subject_to,
+        right_hand_expression_type=hippopt.ExpressionType.skip,
+        desired_left_hand_position=np.array([0.0, 0.3, 0.1]),
+        torso_orientation_scaling=1e8,
+    )
+    complex_poses["hand_side_no_limits"] = output.values.state.to_dict(flatten=False)
+
     hdf5storage.savemat(
         file_name="complex_poses.mat",
         mdict=complex_poses,
