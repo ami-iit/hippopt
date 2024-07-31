@@ -55,6 +55,29 @@ class Output(Generic[TGenericOptimizationObject]):
         self.cost_values = _cost_values
         self.constraint_multipliers = _constraint_multipliers
 
+    def to_dict(self) -> dict:
+        def set_nested_value(d, input_key, value):
+            keys = input_key.split(".")
+            assert all(isinstance(k, str) and len(k) > 0 for k in keys)
+            for key in keys[:-1]:
+                d = d.setdefault(key, {})
+            d[keys[-1]] = value
+
+        def flatten_to_nested_dict(flat_dict):
+            nested_dict = {}
+            for key, value in flat_dict.items():
+                set_nested_value(nested_dict, key, value)
+            return nested_dict
+
+        return {
+            "values": self.values.to_dict(flatten=False),
+            "cost_value": self.cost_value,
+            "cost_values": flatten_to_nested_dict(self.cost_values),
+            "constraint_multipliers": flatten_to_nested_dict(
+                self.constraint_multipliers
+            ),
+        }
+
 
 @dataclasses.dataclass
 class Problem(abc.ABC, Generic[TGenericSolver, TInputObjects]):
