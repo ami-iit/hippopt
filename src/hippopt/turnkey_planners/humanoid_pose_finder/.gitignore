@@ -1,3 +1,5 @@
 *.stl
 *.urdf
 *.png
+*.mat
+*.zip
